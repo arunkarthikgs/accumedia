@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAuthenticatedUser } from "@/lib/tenant-auth";
+import { recordAudit } from "@/lib/audit";
 
 export async function GET(req: Request) {
   try {
@@ -129,6 +130,7 @@ export async function PATCH(req: Request) {
         organization: true,
       },
     });
+    await recordAudit({ organizationId: updated.organizationId, caseId: updated.id, targetType: "CASE", targetId: updated.id, action: status === "REJECTED" ? "CASE_REJECTED" : "CASE_STATUS_CHANGED", detail: rejectionReason || undefined, metadata: { status } });
 
     return NextResponse.json({ success: true, case: updated });
   } catch (error: any) {

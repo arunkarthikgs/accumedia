@@ -6,7 +6,7 @@ export async function GET() {
     const [roles, permissions] = await Promise.all([
       db.role.findMany({
         include: {
-          permissions: true,
+          rolePermissions: { include: { permission: true } },
         },
         orderBy: { slug: "asc" },
       }),

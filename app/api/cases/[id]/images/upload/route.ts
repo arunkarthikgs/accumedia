@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { uploadImageToR2 } from "@/lib/r2";
+import { requireOrganizationAccess } from "@/lib/tenant-auth";
+import { screenImage } from "@/lib/image-safety";
+import { recordAudit } from "@/lib/audit";
 
 /**
  * RFP §15 — "The system should include a clear 'Use this image publicly:
@@ -41,10 +44,12 @@ export async function POST(
 
     const kase = await db.case.findUnique({ where: { id } });
     if (!kase) return NextResponse.json({ error: "Case not found" }, { status: 404 });
+    await requireOrganizationAccess(kase.organizationId);
 
     const arrayBuffer = await imageFile.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
     const mimeType = imageFile.type || "image/jpeg";
+    const screening = await screenImage(buffer);
 
     const { r2Key, storageUrl } = await uploadImageToR2(
       buffer,
@@ -53,9 +58,6 @@ export async function POST(
       kase.organizationId
     );
 
-    // Doctor-uploaded images always start PENDING on the PHI review status —
-    // a face/identifier check is a separate, deterministic pass this route
-    // does not perform itself (see the safety-flags TODO in the changelog).
     const image = await db.imageAsset.create({
       data: {
         caseId: id,
@@ -65,8 +67,32 @@ export async function POST(
         storageUrl,
         consentConfirmed,
         publicUseApproved: consentConfirmed ? publicUseApproved : false,
-        phiReviewStatus: "PENDING",
+        phiReviewStatus: screening.phiReviewStatus,
+        ocrText: screening.ocrText || null,
+        safetyFindings: screening.findings,
+        faceDetected: screening.faceDetected,
+        screenedAt: new Date(),
       },
+    });
+
+    if (screening.findings.length || screening.faceDetected) {
+      await db.safetyFlag.create({
+        data: {
+          targetType: "IMAGE_ASSET",
+          flagType: screening.faceDetected ? "face" : "phi",
+          confidence: "high",
+          detail: `Image screening found ${screening.findings.length} OCR finding(s)${screening.faceDetected ? " and a face" : ""}.`,
+          caseId: id,
+        },
+      });
+    }
+    await recordAudit({
+      organizationId: kase.organizationId,
+      caseId: id,
+      targetType: "IMAGE_ASSET",
+      targetId: image.id,
+      action: "IMAGE_UPLOADED_AND_SCREENED",
+      detail: screening.findings.length || screening.faceDetected ? "Image quarantined for safety review." : "Image screened with no detected OCR findings.",
     });
 
     return NextResponse.json({ success: true, image });

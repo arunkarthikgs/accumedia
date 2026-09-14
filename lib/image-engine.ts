@@ -1,6 +1,8 @@
 import OpenAI from "openai";
 import { db } from "@/lib/db";
 import { uploadImageToR2 } from "@/lib/r2";
+import { screenImage } from "@/lib/image-safety";
+import { recordAudit } from "@/lib/audit";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -68,11 +70,12 @@ No embedded text in the image itself.`;
     throw new Error("Image generation returned no image data.");
   }
   const buffer = Buffer.from(b64, "base64");
+  const screening = await screenImage(buffer);
   const fileName = `${channel}-${Date.now()}.png`;
 
   const { r2Key, storageUrl } = await uploadImageToR2(buffer, fileName, "image/png", kase.organizationId);
 
-  return db.imageAsset.create({
+  const image = await db.imageAsset.create({
     data: {
       caseId,
       channel,
@@ -81,9 +84,20 @@ No embedded text in the image itself.`;
       storageUrl,
       publicUseApproved: false, // RFP §15 — never auto-published, always requires explicit approval
       consentConfirmed: true, // AI-generated, no patient depicted — no consent question applies
-      phiReviewStatus: "CLEAR",
+      phiReviewStatus: screening.phiReviewStatus === "FLAGGED" ? "FLAGGED" : "CLEAR",
+      ocrText: screening.ocrText || null,
+      safetyFindings: screening.findings,
+      faceDetected: screening.faceDetected,
+      screenedAt: new Date(),
     },
   });
+  if (screening.findings.length || screening.faceDetected) {
+    await db.safetyFlag.create({
+      data: { targetType: "IMAGE_ASSET", flagType: screening.faceDetected ? "face" : "phi", confidence: "high", detail: "Generated image safety screening returned findings.", caseId },
+    });
+  }
+  await recordAudit({ organizationId: kase.organizationId, caseId, targetType: "IMAGE_ASSET", targetId: image.id, action: "IMAGE_GENERATED_AND_SCREENED" });
+  return image;
 }
 
 export const IMAGE_CHANNELS = Object.keys(CHANNEL_SPECS);

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { runAdaptationEngine } from "@/lib/content-engine";
+import { recordAudit } from "@/lib/audit";
 
 /**
  * RFP §6 + §16 — this is the MCCR approval gate. Two things it must do
@@ -58,6 +59,7 @@ export async function POST(
     if (existingCase.assets.length === 0) {
       generatedAssets = await runAdaptationEngine(id);
     }
+    await recordAudit({ organizationId: existingCase.organizationId, caseId: id, targetType: "CASE", targetId: id, action: "CASE_APPROVED", detail: `Approved by ${approvedBy || "Attending physician"}.`, metadata: { assetsGenerated: generatedAssets.length } });
 
     return NextResponse.json({
       success: true,

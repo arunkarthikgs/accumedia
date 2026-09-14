@@ -25,9 +25,9 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
       where: { tokenHash, expiresAt: { gt: new Date() } },
       include: { user: {
       include: {
-        role: {
+        assignedRole: {
           include: {
-            permissions: {
+            rolePermissions: {
               include: {
                 permission: true,
               },
@@ -41,8 +41,8 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     if (!session?.user) return null;
     const user = session.user;
 
-    const permissions = user.role
-      ? user.role.permissions.map((p) => p.permission.slug)
+    const permissions = user.assignedRole
+      ? user.assignedRole.rolePermissions.map((p) => p.permission.slug)
       : [];
 
     return {
@@ -52,11 +52,11 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
       isSuperAdmin: Boolean(user.isSuperAdmin),
       organizationId: user.organizationId ?? null,
       permissions,
-      role: user.role
+      role: user.assignedRole
         ? {
-            id: user.role.id,
-            name: user.role.name,
-            slug: user.role.slug,
+        id: user.assignedRole.id,
+        name: user.assignedRole.name,
+        slug: user.assignedRole.slug,
           }
         : null,
     };

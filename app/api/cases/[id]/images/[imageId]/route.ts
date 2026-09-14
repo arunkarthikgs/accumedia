@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { generateCaseImage } from "@/lib/image-engine";
+import { requireOrganizationAccess } from "@/lib/tenant-auth";
+import { recordAudit } from "@/lib/audit";
 
 export async function PATCH(
   req: Request,
@@ -17,6 +19,9 @@ export async function PATCH(
 
     const existing = await db.imageAsset.findUnique({ where: { id: imageId } });
     if (!existing) return NextResponse.json({ error: "Image not found" }, { status: 404 });
+    const kase = await db.case.findUnique({ where: { id: existing.caseId }, select: { organizationId: true } });
+    if (!kase) return NextResponse.json({ error: "Case not found" }, { status: 404 });
+    await requireOrganizationAccess(kase.organizationId);
 
     // RFP §15 — never let a public-use approval slip through without
     // consent on record, regardless of which flags this particular request
@@ -45,6 +50,7 @@ export async function PATCH(
         phiReviewStatus: nextPhiStatus,
       },
     });
+    await recordAudit({ organizationId: kase.organizationId, caseId: existing.caseId, targetType: "IMAGE_ASSET", targetId: imageId, action: phiReviewStatus ? "IMAGE_PHI_REVIEW_UPDATED" : "IMAGE_PUBLIC_USE_UPDATED", metadata: { phiReviewStatus: nextPhiStatus, publicUseApproved: nextPublicUse } });
 
     return NextResponse.json({ success: true, image: updated });
   } catch (error: any) {
@@ -63,6 +69,9 @@ export async function POST(
 
     const existing = await db.imageAsset.findUnique({ where: { id: imageId } });
     if (!existing) return NextResponse.json({ error: "Image not found" }, { status: 404 });
+    const kase = await db.case.findUnique({ where: { id: existing.caseId }, select: { organizationId: true } });
+    if (!kase) return NextResponse.json({ error: "Case not found" }, { status: 404 });
+    await requireOrganizationAccess(kase.organizationId);
     if (existing.sourceType !== "ai_generated") {
       return NextResponse.json(
         { error: "Only ai_generated images can be regenerated. Delete and re-upload for doctor_uploaded images." },
@@ -85,6 +94,9 @@ export async function DELETE(
 ) {
   try {
     const { imageId } = await props.params;
+    const existing = await db.imageAsset.findUnique({ where: { id: imageId }, include: { case: { select: { organizationId: true } } } });
+    if (!existing) return NextResponse.json({ error: "Image not found" }, { status: 404 });
+    await requireOrganizationAccess(existing.case.organizationId);
     await db.imageAsset.delete({ where: { id: imageId } });
     return NextResponse.json({ success: true });
   } catch (error: any) {

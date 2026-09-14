@@ -1,14 +1,18 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { requireAuthenticatedUser, requireOrganizationAccess } from "@/lib/tenant-auth";
 
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const organizationId = searchParams.get("orgId");
+    const user = await requireAuthenticatedUser();
+    const scopedOrgId = organizationId || user?.organizationId;
+    if (scopedOrgId) await requireOrganizationAccess(scopedOrgId);
     const status = searchParams.get("status");
     const jobs = await db.publicationJob.findMany({
       where: {
-        ...(organizationId ? { organizationId } : {}),
+        ...(scopedOrgId ? { organizationId: scopedOrgId } : {}),
         ...(status && status !== "ALL" ? { status: status as any } : {}),
       },
       include: {

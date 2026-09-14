@@ -32,6 +32,7 @@ export default function CaseReviewPage() {
   const [isEditingRecord, setIsEditingRecord] = useState(false);
   const [recordDraft, setRecordDraft] = useState("");
   const [versions, setVersions] = useState<{ id: string; version: number; changeType: string; createdAt: string; masterRecord: Record<string, unknown> }[]>([]);
+  const [auditEvents, setAuditEvents] = useState<{ id: string; action: string; detail: string | null; createdAt: string; actor: { name: string } | null }[]>([]);
 
   useEffect(() => {
     async function loadCase() {
@@ -46,6 +47,9 @@ export default function CaseReviewPage() {
         const versionsResponse = await fetch(`/api/cases/${params.id}/versions`);
         const versionsData = await versionsResponse.json();
         if (versionsResponse.ok) setVersions(versionsData.versions || []);
+        const auditResponse = await fetch(`/api/cases/${params.id}/audit`);
+        const auditData = await auditResponse.json();
+        if (auditResponse.ok) setAuditEvents(auditData.events || []);
       } catch (requestError: any) {
         setError(requestError.message || "Unable to load case.");
       } finally {
@@ -70,6 +74,9 @@ export default function CaseReviewPage() {
       const historyResponse = await fetch(`/api/cases/${params.id}/versions`);
       const historyData = await historyResponse.json();
       if (historyResponse.ok) setVersions(historyData.versions || []);
+      const auditResponse = await fetch(`/api/cases/${params.id}/audit`);
+      const auditData = await auditResponse.json();
+      if (auditResponse.ok) setAuditEvents(auditData.events || []);
     } catch (actionError: any) {
       setError(actionError.message || "Unable to save the clinical record.");
     }
@@ -90,6 +97,9 @@ export default function CaseReviewPage() {
     const historyResponse = await fetch(`/api/cases/${params.id}/versions`);
     const historyData = await historyResponse.json();
     if (historyResponse.ok) setVersions(historyData.versions || []);
+    const auditResponse = await fetch(`/api/cases/${params.id}/audit`);
+    const auditData = await auditResponse.json();
+    if (auditResponse.ok) setAuditEvents(auditData.events || []);
   };
 
   const approveCase = async () => {
@@ -164,6 +174,7 @@ export default function CaseReviewPage() {
       <section className="rounded-lg border border-line bg-surface p-5"><h2 className="flex items-center gap-2 text-sm font-bold text-ink"><FileText className="h-4 w-4 text-pine" /> Clinician-reviewed narrative</h2><p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-ink">{narrative || "No narrative available."}</p>{recording?.transcriptionAgent && <p className="mt-4 text-[11px] font-mono text-muted">Transcribed by {recording.transcriptionAgent}</p>}</section>
       <section className="grid grid-cols-1 gap-4 md:grid-cols-2"><div className="rounded-lg border border-line bg-surface p-5"><div className="flex items-center justify-between"><h2 className="text-sm font-bold text-ink">Master Clinical Record</h2>{!isEditingRecord && <button onClick={() => setIsEditingRecord(true)} className="flex items-center gap-1 rounded border border-line px-2 py-1 text-[11px] font-semibold text-ink hover:border-pine"><Pencil className="h-3 w-3" /> Edit</button>}</div>{isEditingRecord ? <><textarea value={recordDraft} onChange={(event) => setRecordDraft(event.target.value)} className="mt-3 h-72 w-full rounded border border-line bg-paper p-3 font-mono text-xs leading-6 text-ink focus:border-pine focus:outline-none" /><div className="mt-2 flex gap-2"><button onClick={saveRecord} className="rounded bg-pine px-3 py-1.5 text-xs font-semibold text-white">Save record</button><button onClick={() => { setIsEditingRecord(false); setRecordDraft(JSON.stringify(reviewCase.masterRecord, null, 2)); }} className="rounded border border-line px-3 py-1.5 text-xs font-semibold text-ink">Cancel</button></div></> : <pre className="mt-3 max-h-96 overflow-auto whitespace-pre-wrap text-xs leading-6 text-muted">{JSON.stringify(reviewCase.masterRecord, null, 2)}</pre>}</div><div className="rounded-lg border border-line bg-surface p-5"><h2 className="text-sm font-bold text-ink">Compliance audit</h2><pre className="mt-3 max-h-96 overflow-auto whitespace-pre-wrap text-xs leading-6 text-muted">{JSON.stringify(reviewCase.safetyAudit, null, 2)}</pre></div></section>
       <section className="rounded-lg border border-line bg-surface p-5"><h2 className="flex items-center gap-2 text-sm font-bold text-ink"><History className="h-4 w-4 text-pine" /> Version history</h2>{versions.length === 0 ? <p className="mt-2 text-xs text-muted">No saved versions yet.</p> : <div className="mt-3 space-y-2">{versions.map((version) => <div key={version.id} className="flex items-center justify-between border-b border-line py-2 text-xs"><span><strong className="text-ink">v{version.version}</strong> · {version.changeType} · {new Date(version.createdAt).toLocaleString()}</span><button onClick={() => restoreVersion(version.id)} className="rounded border border-line px-2 py-1 font-semibold text-ink hover:border-pine">Restore</button></div>)}</div>}</section>
+      <section className="rounded-lg border border-line bg-surface p-5"><h2 className="text-sm font-bold text-ink">Immutable audit trail</h2>{auditEvents.length === 0 ? <p className="mt-2 text-xs text-muted">No review events recorded yet.</p> : <div className="mt-3 space-y-2">{auditEvents.map((event) => <div key={event.id} className="border-b border-line py-2 text-xs"><div className="flex justify-between gap-3"><strong className="text-ink">{event.action}</strong><span className="text-muted">{new Date(event.createdAt).toLocaleString()}</span></div><p className="mt-1 text-muted">{event.detail || "Recorded governance event"}{event.actor ? ` · ${event.actor.name}` : " · System"}</p></div>)}</div>}</section>
       <section className="rounded-lg border border-line bg-surface p-5"><h2 className="text-sm font-bold text-ink">Source and publication review</h2><div className="mt-3 space-y-2 text-xs">{(reviewCase.sources || []).map((source) => <div key={source.id} className="flex items-center justify-between border-b border-line py-2"><span className="text-ink">{source.fileName} <span className="text-muted">({source.sourceType})</span></span><span className={source.status === "READY" ? "text-sage" : source.status === "FAILED" ? "text-brick" : "text-ochre"}>{source.status}{source.processingError ? ` · ${source.processingError}` : ""}</span></div>)}<Link href={`/cases/${reviewCase.id}/assets`} className="mt-3 inline-flex rounded bg-pine px-3 py-1.5 font-semibold text-white">Review assets and images</Link></div></section>
       <ImagesPanel caseId={reviewCase.id} mccrApproved={Boolean(reviewCase.mccrApprovedAt)} />
       <section className="rounded-lg border border-line bg-surface p-5"><h2 className="text-sm font-bold text-ink">Generated assets</h2><p className="mt-1 text-xs text-muted">{reviewCase.assets.length} assets currently attached to this case.</p><div className="mt-3 space-y-2">{reviewCase.assets.map((asset) => <div key={asset.id} className="flex items-center justify-between rounded border border-line bg-paper px-3 py-2 text-xs"><span className="font-medium text-ink">{asset.channelName}</span><span className={asset.status === "REVIEW" ? "text-ochre" : "text-muted"}>{asset.status}{asset.validationWarnings?.length ? ` · ${asset.validationWarnings.length} validation warning(s)` : ""}</span></div>)}</div></section>

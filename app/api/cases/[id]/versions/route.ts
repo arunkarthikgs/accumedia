@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireOrganizationAccess } from "@/lib/tenant-auth";
+import { recordAudit } from "@/lib/audit";
 
 export async function GET(
   _req: Request,
@@ -68,6 +69,7 @@ export async function PATCH(
           reviewedBy: null,
         },
       });
+      await recordAudit({ organizationId: kase.organizationId, caseId: id, targetType: "CASE", targetId: id, action: "CASE_VERSION_RESTORED", metadata: { versionId: body.versionId } });
       return NextResponse.json({ success: true, case: updated });
     }
 
@@ -83,6 +85,7 @@ export async function PATCH(
         reviewedBy: null,
       },
     });
+    await recordAudit({ organizationId: kase.organizationId, caseId: id, targetType: "CASE", targetId: id, action: "MCCR_EDITED", metadata: { version: versionCount + 1 } });
     return NextResponse.json({ success: true, case: updated });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || "Failed to update case review." }, { status: 500 });

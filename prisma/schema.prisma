@@ -45,6 +45,7 @@ enum AssetStatus {
 
 enum PublicationStatus {
   QUEUED
+  PROCESSING
   PUBLISHED
   FAILED
   CANCELLED
@@ -116,6 +117,8 @@ model Organization {
   sources            CaseSource[]
   usageLogs          AIUsageLog[]
   publicationJobs    PublicationJob[]
+  publicationConnections PublicationConnection[]
+  auditLogs          AuditLog[]
   subscription       Subscription?
 
   @@schema("macula")
@@ -199,6 +202,7 @@ model User {
   recordings     AudioRecording[]
   sources        CaseSource[]
   sessions       Session[]
+  auditLogs      AuditLog[]
 
   @@schema("macula")
   @@map("macula_users")
@@ -255,6 +259,7 @@ model Case {
   seoKeywords     SeoKeywordSet?
   images          ImageAsset[]
   safetyFlags     SafetyFlag[]
+  auditLogs       AuditLog[]
 
   @@index([physicianId])
   @@index([organizationId])
@@ -345,6 +350,9 @@ model PublicationJob {
   publishedAt    DateTime?
   externalId     String?
   failureReason  String?          @db.Text
+  attemptCount   Int              @default(0)
+  nextAttemptAt  DateTime?
+  lastAttemptAt  DateTime?
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @default(now()) @updatedAt
 
@@ -359,6 +367,28 @@ model PublicationJob {
   @@index([scheduledAt])
   @@schema("macula")
   @@map("macula_publication_jobs")
+}
+
+model PublicationConnection {
+  id                    String   @id @default(uuid())
+  platform              String
+  accountLabel          String?
+  externalAccountId     String?
+  accessTokenEncrypted  String?  @db.Text
+  refreshTokenEncrypted String?  @db.Text
+  webhookUrlEncrypted   String?  @db.Text
+  expiresAt             DateTime?
+  isActive              Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @default(now()) @updatedAt
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, platform, externalAccountId])
+  @@index([organizationId, platform, isActive])
+  @@schema("macula")
+  @@map("macula_publication_connections")
 }
 
 model Plan {
@@ -531,6 +561,10 @@ model ImageAsset {
   publicUseApproved  Boolean  @default(false)
   consentConfirmed   Boolean  @default(false) // doctor confirmed patient-identifying info removed / consent exists
   phiReviewStatus    String   @default("PENDING") // "PENDING" | "CLEAR" | "FLAGGED"
+  ocrText            String?  @db.Text
+  safetyFindings     Json?
+  faceDetected       Boolean  @default(false)
+  screenedAt         DateTime?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @default(now()) @updatedAt
 
@@ -540,6 +574,29 @@ model ImageAsset {
   @@index([caseId])
   @@schema("macula")
   @@map("macula_image_assets")
+}
+
+model AuditLog {
+  id             String   @id @default(uuid())
+  action         String
+  targetType     String
+  targetId       String
+  detail         String?  @db.Text
+  metadata       Json?
+  createdAt      DateTime @default(now())
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actorId        String?
+  actor          User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  caseId         String?
+  case           Case?    @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@index([targetType, targetId])
+  @@index([caseId, createdAt])
+  @@schema("macula")
+  @@map("macula_audit_logs")
 }
 
 model AudioRecording {

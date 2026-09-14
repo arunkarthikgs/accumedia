@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { generateCaseImage, IMAGE_CHANNELS } from "@/lib/image-engine";
+import { requireOrganizationAccess } from "@/lib/tenant-auth";
 
 export async function GET(
   req: Request,
@@ -8,6 +9,9 @@ export async function GET(
 ) {
   try {
     const { id } = await props.params;
+    const kase = await db.case.findUnique({ where: { id }, select: { organizationId: true } });
+    if (!kase) return NextResponse.json({ error: "Case not found." }, { status: 404 });
+    await requireOrganizationAccess(kase.organizationId);
     const images = await db.imageAsset.findMany({
       where: { caseId: id },
       orderBy: { createdAt: "desc" },
@@ -40,6 +44,7 @@ export async function POST(
 
     const kase = await db.case.findUnique({ where: { id } });
     if (!kase) return NextResponse.json({ error: "Case not found" }, { status: 404 });
+    await requireOrganizationAccess(kase.organizationId);
     if (!kase.mccrApprovedAt) {
       return NextResponse.json(
         { error: "This case's clinical record has not been approved yet — image generation is locked until it is." },

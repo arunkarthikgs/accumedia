@@ -1,0 +1,15 @@
+name = "macula-healthcare"
+main = ".open-next/worker.js"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = ".open-next/assets"
+binding = "ASSETS"
+
+[[hyperdrive]]
+binding = "HYPERDRIVE"
+id = "76deaf70d0a6448c82cac8598146eb26"
+
+[vars]
+NEXT_PUBLIC_APP_URL = "https://macula.yourhospital.in"

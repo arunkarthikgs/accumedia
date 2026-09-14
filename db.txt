@@ -1,0 +1,6 @@
+# In .env
+DB_USER="nabh_staging_user"
+DB_PASS="X3ttj8B4H!"
+DB_HOST="ccnm-core-db-prod.c3mwiqwe21da.ap-south-1.rds.amazonaws.com"
+DB_PORT="5432"
+DB_NAME="macula"

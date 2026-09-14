@@ -1,0 +1,394 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["macula"]
+}
+
+enum UserRole {
+  PHYSICIAN
+  ADMIN
+  COMPLIANCE_OFFICER
+
+  @@schema("macula")
+}
+
+enum CaseStatus {
+  DRAFT
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+  SCHEDULED
+  EXPORTED
+  PUBLISHED
+
+  @@schema("macula")
+}
+
+// RFP §17 — content status flow applied per generated asset, independently
+// of the case-level MCCR status above. Regenerating/approving one platform
+// output must never require touching the others.
+enum AssetStatus {
+  DRAFT
+  REVIEW
+  APPROVED
+  SCHEDULED
+  EXPORTED
+  PUBLISHED
+
+  @@schema("macula")
+}
+
+// RFP §16 — safety flags are detected, never silently resolved. A flag is
+// either open (blocks approval) or has an explicit human decision recorded.
+enum SafetyFlagStatus {
+  OPEN
+  REVIEWED_OK
+  REVIEWED_REDACTED
+  REJECTED
+
+  @@schema("macula")
+}
+
+enum SafetyFlagTargetType {
+  CASE
+  GENERATED_ASSET
+  IMAGE_ASSET
+
+  @@schema("macula")
+}
+
+// RFP §7-12 — the fixed set of required output types. ChannelDefinition rows
+// reference one of these so the Adaptation Engine knows which prompt/schema
+// to use, instead of the LLM inventing arbitrary channel drafts.
+enum OutputType {
+  VIDEO_SCRIPT
+  LINKEDIN_ARTICLE
+  LINKEDIN_SHORT_POST
+  FACEBOOK_POST
+  X_POST
+  YOUTUBE_REELS_METADATA
+  SEO_BLOG
+
+  @@schema("macula")
+}
+
+model Organization {
+  id                 String              @id @default(uuid())
+  name               String
+  slug               String              @unique
+  brandingHex        String?             @default("#0f766e")
+  preferredAsrModel  String              @default("whisper-1")
+  customSystemPrompt String?             @db.Text
+  defaultDisclaimer  String              @default("This clinical summary is generated under NMC registered medical practitioner supervision.")
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @default(now()) @updatedAt
+
+  users              User[]
+  cases              Case[]
+  departments        Department[]
+  roles              Role[]
+  complianceRules    ComplianceRule[]
+  channelDefinitions ChannelDefinition[]
+  recordings         AudioRecording[]
+
+  @@schema("macula")
+  @@map("macula_organizations")
+}
+
+model Department {
+  id             String        @id @default(uuid())
+  name           String
+  code           String?
+  organizationId String
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @default(now()) @updatedAt
+
+  @@schema("macula")
+  @@map("macula_departments")
+}
+
+model Role {
+  id              String           @id @default(uuid())
+  name            String
+  slug            String
+  description     String?
+  isSystem        Boolean          @default(false)
+  organizationId  String?
+  organization    Organization?    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  users           User[]
+  rolePermissions RolePermission[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @default(now()) @updatedAt
+
+  @@schema("macula")
+  @@map("macula_roles")
+}
+
+model Permission {
+  id              String           @id @default(uuid())
+  name            String
+  slug            String           @unique
+  module          String?
+  description     String?
+  rolePermissions RolePermission[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @default(now()) @updatedAt
+
+  @@schema("macula")
+  @@map("macula_permissions")
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@id([roleId, permissionId])
+  @@schema("macula")
+  @@map("macula_role_permissions")
+}
+
+model User {
+  id             String           @id @default(uuid())
+  email          String           @unique
+  name           String
+  role           UserRole?        @default(PHYSICIAN)
+  roleId         String?
+  assignedRole   Role?            @relation(fields: [roleId], references: [id], onDelete: SetNull)
+  specialty      String?
+  registrationNo String?
+  isSuperAdmin   Boolean          @default(false)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @default(now()) @updatedAt
+
+  organizationId String?
+  organization   Organization?    @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  cases          Case[]
+  recordings     AudioRecording[]
+
+  @@schema("macula")
+  @@map("macula_users")
+}
+
+model Case {
+  id              String           @id @default(uuid())
+  title           String
+  speciality      String?          @map("speciality")
+  targetAudience  String?          @map("target_audience")
+  rawInput        String           @default("") @db.Text @map("raw_input")
+  masterRecord    Json
+  safetyAudit     Json
+  status          CaseStatus       @default(DRAFT)
+
+  // RFP §6 — the MCCR approval gate is separate from, and must precede,
+  // per-platform asset generation. mccrApprovedAt being null means the
+  // Adaptation Engine has not been unlocked for this case yet.
+  mccrApprovedAt  DateTime?        @map("mccr_approved_at")
+  mccrApprovedBy  String?          @map("mccr_approved_by")
+
+  rejectionReason String?          @db.Text @map("rejection_reason")
+  reviewedBy      String?          @map("reviewed_by")
+  reviewedAt      DateTime?        @map("reviewed_at")
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @default(now()) @updatedAt
+
+  physicianId     String
+  physician       User             @relation(fields: [physicianId], references: [id])
+
+  organizationId  String
+  organization    Organization     @relation(fields: [organizationId], references: [id])
+
+  assets          GeneratedAsset[]
+  recordings      AudioRecording[]
+  images          ImageAsset[]
+  safetyFlags     SafetyFlag[]
+
+  @@index([physicianId])
+  @@index([organizationId])
+  @@index([speciality])
+  @@schema("macula")
+  @@map("macula_cases")
+}
+
+model GeneratedAsset {
+  id          String        @id @default(uuid())
+  channelKey  String        @default("DEFAULT")
+  channelName String        @default("Default Channel")
+  outputType  OutputType?
+  variant     String?       // e.g. "45s" / "60s" / "3min" for VIDEO_SCRIPT
+  content     Json
+  status      AssetStatus   @default(DRAFT)
+  version     Int           @default(1)
+  promptTemplateId      String?
+  promptTemplateVersion String?
+  modelUsed             String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @default(now()) @updatedAt
+
+  caseId      String
+  case        Case          @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  versions    AssetVersion[]
+  safetyFlags SafetyFlag[]
+
+  @@index([caseId])
+  @@schema("macula")
+  @@map("macula_generated_assets")
+}
+
+// RFP §17 — "Retain version history". A snapshot is written every time an
+// asset is edited or regenerated, so nothing is destructively overwritten.
+model AssetVersion {
+  id        String         @id @default(uuid())
+  version   Int
+  content   Json
+  changeType String        @default("regenerate") // "regenerate" | "manual_edit" | "transform"
+  createdAt DateTime       @default(now())
+
+  assetId   String
+  asset     GeneratedAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@index([assetId])
+  @@schema("macula")
+  @@map("macula_asset_versions")
+}
+
+model ComplianceRule {
+  id             String        @id @default(uuid())
+  ruleType       String        @default("DPDP_REDACTION")
+  severity       String?       @default("MEDIUM")
+  patternOrCheck String        @default("") @db.Text
+  description    String        @default("")
+  isActive       Boolean       @default(true)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @default(now()) @updatedAt
+
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@schema("macula")
+  @@map("macula_compliance_rules")
+}
+
+model ChannelDefinition {
+  id             String        @id @default(uuid())
+  channelKey     String        @default("DEFAULT")
+  displayName    String        @default("Default Channel")
+  outputType     OutputType?   // maps this channel to one of the RFP's required output types
+  targetAudience String        @default("Clinical")
+  systemPrompt   String        @default("") @db.Text
+  wordCountMin   Int?
+  wordCountMax   Int?
+  durationLabel  String?       // for VIDEO_SCRIPT variants: "45s" | "60s" | "90s" | "2min" | "3min"
+  isActive       Boolean       @default(true)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @default(now()) @updatedAt
+
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@schema("macula")
+  @@map("macula_channel_definitions")
+}
+
+model PlatformTemplate {
+  id          String   @id @default(uuid())
+  slug        String   @unique
+  title       String?
+  content     String   @db.Text
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
+
+  @@schema("macula")
+  @@map("macula_platform_templates")
+}
+
+// RFP §16 — Medical Content Safety Layer. Flags are detected and recorded
+// here; they are never used as an excuse to silently edit or drop content,
+// and case/asset approval must check for open flags before proceeding.
+model SafetyFlag {
+  id         String               @id @default(uuid())
+  targetType SafetyFlagTargetType
+  detail     String               @db.Text
+  flagType   String               // "pii" | "phi" | "claim" | "face" | "other"
+  confidence String               @default("medium") // "high" | "medium" | "low"
+  status     SafetyFlagStatus     @default(OPEN)
+  reviewedBy String?
+  reviewedAt DateTime?
+  createdAt  DateTime             @default(now())
+
+  caseId        String?
+  case          Case?             @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  generatedAssetId String?
+  generatedAsset    GeneratedAsset? @relation(fields: [generatedAssetId], references: [id], onDelete: Cascade)
+
+  @@index([caseId])
+  @@index([status])
+  @@schema("macula")
+  @@map("macula_safety_flags")
+}
+
+// RFP §14-15 — supporting/generated images per channel aspect ratio, with
+// the explicit public-use consent toggle. Never auto-published.
+model ImageAsset {
+  id                 String   @id @default(uuid())
+  channel            String   // "linkedin_cover" | "linkedin_carousel" | "facebook_post" | "ig_reels" | "x_image" | "yt_thumbnail" | "blog_featured"
+  sourceType         String   @default("ai_generated") // "ai_generated" | "doctor_uploaded"
+  r2Key              String?
+  storageUrl         String?
+  publicUseApproved  Boolean  @default(false)
+  consentConfirmed   Boolean  @default(false) // doctor confirmed patient-identifying info removed / consent exists
+  phiReviewStatus    String   @default("PENDING") // "PENDING" | "CLEAR" | "FLAGGED"
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @default(now()) @updatedAt
+
+  caseId             String
+  case                Case    @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([caseId])
+  @@schema("macula")
+  @@map("macula_image_assets")
+}
+
+model AudioRecording {
+  id                  String        @id @default(uuid())
+  r2Key               String
+  storageUrl          String
+  fileName            String
+  durationSeconds     Int           @default(0)
+  recordedAt          DateTime      @default(now())
+  transcriptionStatus String        @default("PENDING")
+  rawTranscript       String?       @db.Text
+  transcribedText     String?       @db.Text
+  transcriptionAgent  String?
+  refinerAgent        String?       @default("gpt-4o")
+  mimeType            String        @default("audio/webm")
+
+  userId              String?
+  user                User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  organizationId      String
+  organization        Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  caseId              String?
+  case                Case?         @relation(fields: [caseId], references: [id], onDelete: SetNull)
+
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @default(now()) @updatedAt
+
+  @@index([organizationId])
+  @@index([userId])
+  @@schema("macula")
+  @@map("macula_audio_recordings")
+}

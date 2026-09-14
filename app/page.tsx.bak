@@ -1,0 +1,42 @@
+import Link from "next/link";
+import { Stethoscope, ShieldCheck, ShieldAlert, PlusCircle } from "lucide-react";
+
+/**
+ * This page didn't exist in the uploaded project at all — every other page
+ * links back to "/" as "Dashboard" but there was nothing here to land on.
+ * Minimal by design: it's a landing/launch point, not a page that needed
+ * its own redesign pass.
+ */
+export default function HomePage() {
+  return (
+    <div className="min-h-screen bg-paper text-ink flex items-center justify-center p-8">
+      <div className="max-w-2xl w-full space-y-6">
+        <div className="text-center space-y-1">
+          <div className="mx-auto flex h-11 w-11 items-center justify-center rounded bg-pine-tint text-pine mb-2">
+            <Stethoscope className="h-5 w-5" />
+          </div>
+          <h1 className="font-serif text-2xl font-semibold text-ink">Macula Healthcare</h1>
+          <p className="text-xs text-muted">Clinical content platform</p>
+        </div>
+
+        <div className="grid sm:grid-cols-3 gap-3">
+          <Link href="/cases/new" className="card p-5 hover:border-pine transition text-center">
+            <PlusCircle className="mx-auto h-6 w-6 text-pine mb-2" strokeWidth={1.5} />
+            <div className="text-sm font-medium text-ink">New Case</div>
+            <div className="text-[11px] text-muted mt-1">Submit a clinical narrative</div>
+          </Link>
+          <Link href="/admin/cases" className="card p-5 hover:border-pine transition text-center">
+            <ShieldCheck className="mx-auto h-6 w-6 text-pine mb-2" strokeWidth={1.5} />
+            <div className="text-sm font-medium text-ink">Case Governance</div>
+            <div className="text-[11px] text-muted mt-1">Review, approve, export</div>
+          </Link>
+          <Link href="/admin/safety-queue" className="card p-5 hover:border-pine transition text-center">
+            <ShieldAlert className="mx-auto h-6 w-6 text-ochre mb-2" strokeWidth={1.5} />
+            <div className="text-sm font-medium text-ink">Safety Queue</div>
+            <div className="text-[11px] text-muted mt-1">Resolve open flags</div>
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}

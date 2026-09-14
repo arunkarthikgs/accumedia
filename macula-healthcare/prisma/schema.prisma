@@ -1,0 +1,116 @@
+datasource db {
+  provider   = "postgresql"
+  url        = env("DIRECT_URL")
+  schemas    = ["macula"]
+}
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters", "multiSchema"]
+}
+
+model Organization {
+  id                 String   @id @default(uuid())
+  name               String
+  slug               String   @unique
+  brandingHex        String   @default("#0f766e")
+  defaultDisclaimer  String   @default("Issued for clinical public health awareness. Does not constitute patient solicitation under NMC regulations.")
+  customSystemPrompt String?  @db.Text
+  createdAt          DateTime @default(now())
+
+  users              User[]
+  cases              Case[]
+  roles              Role[]
+
+  @@map("macula_organizations")
+  @@schema("macula")
+}
+
+model Permission {
+  id          String           @id @default(uuid())
+  slug        String           @unique
+  name        String
+  module      String           // INGESTION, SAFETY_GATE, STUDIO, SETTINGS
+  description String
+  roles       RolePermission[]
+
+  @@map("macula_permissions")
+  @@schema("macula")
+}
+
+model Role {
+  id             String           @id @default(uuid())
+  name           String
+  slug           String
+  isSystem       Boolean          @default(false)
+  organizationId String
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  users          User[]
+  permissions    RolePermission[]
+
+  @@unique([slug, organizationId])
+  @@map("macula_roles")
+  @@schema("macula")
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("macula_role_permissions")
+  @@schema("macula")
+}
+
+model User {
+  id             String       @id @default(uuid())
+  name           String
+  email          String       @unique
+  registrationNo String?
+  specialty      String?
+  organizationId String
+  roleId         String
+  createdAt      DateTime     @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  role           Role         @relation(fields: [roleId], references: [id])
+  cases          Case[]
+
+  @@map("macula_users")
+  @@schema("macula")
+}
+
+model Case {
+  id             String           @id @default(uuid())
+  title          String
+  rawInput       String
+  masterRecord   Json
+  safetyAudit    Json
+  status         String           @default("PENDING_REVIEW")
+  physicianId    String
+  organizationId String
+  createdAt      DateTime         @default(now())
+
+  physician      User             @relation(fields: [physicianId], references: [id])
+  organization   Organization     @relation(fields: [organizationId], references: [id])
+  assets         GeneratedAsset[]
+
+  @@map("macula_cases")
+  @@schema("macula")
+}
+
+model GeneratedAsset {
+  id        String   @id @default(uuid())
+  caseId    String
+  channel   String
+  content   Json
+  createdAt DateTime @default(now())
+
+  case      Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@map("macula_generated_assets")
+  @@schema("macula")
+}

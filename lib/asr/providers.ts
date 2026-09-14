@@ -1,30 +1,50 @@
-import OpenAI, { toFile } from "openai";
 import { ASRProvider, TranscribeAudioOptions, ASRResult } from "./types";
 
 // 1. OpenAI Whisper Provider
 export class OpenAIWhisperProvider implements ASRProvider {
   name = "OpenAI Whisper";
-  private client: OpenAI;
+  private apiKey: string;
 
   constructor() {
-    this.client = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    });
+    this.apiKey = process.env.OPENAI_API_KEY || "";
   }
 
   async transcribe({ buffer, fileName, mimeType, prompt, language = "en" }: TranscribeAudioOptions): Promise<ASRResult> {
     const startTime = Date.now();
-    const file = await toFile(buffer, fileName, { type: mimeType });
+    if (!this.apiKey) throw new Error("OPENAI_API_KEY is not configured.");
 
-    const response = await this.client.audio.transcriptions.create({
-      file,
-      model: "whisper-1",
-      language,
-      prompt: prompt || "Clinical medical consultation, pharmacology, and anatomy.",
-    });
+    let response: Response | null = null;
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        const form = new FormData();
+        form.append("file", new Blob([buffer], { type: mimeType }), fileName);
+        form.append("model", "whisper-1");
+        form.append("language", language);
+        if (prompt) form.append("prompt", prompt);
+
+        response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${this.apiKey}` },
+          body: form,
+        });
+        break;
+      } catch (error) {
+        lastError = error;
+        if (attempt === 2) throw lastError;
+      }
+    }
+
+    if (!response) throw new Error("OpenAI Whisper request did not return a response.");
+    if (!response.ok) {
+      const detail = await response.text();
+      throw new Error(`OpenAI Whisper transcription failed (${response.status}): ${detail}`);
+    }
+
+    const data = (await response.json()) as { text?: string };
 
     return {
-      rawTranscript: response.text || "",
+      rawTranscript: data.text || "",
       provider: "OpenAI",
       modelIdentifier: "whisper-1",
       executionDurationMs: Date.now() - startTime,

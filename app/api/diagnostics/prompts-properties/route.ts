@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { getASRPromptProfile } from "@/lib/asr/prompts";
+import { MANDATORY_CLINICAL_SYNTHESIS_PROMPT } from "@/lib/prompts/clinical-synthesis";
 
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const orgId = searchParams.get("orgId");
     const recordingId = searchParams.get("recordingId");
+    const requestedModel = searchParams.get("model");
 
     // 1. Fetch organization & channel definitions from DB
     const organization = orgId
@@ -29,11 +32,10 @@ export async function GET(req: Request) {
       : null;
 
     // 3. Static & dynamic AI prompts used across the ingestion pipeline
+    const selectedModel = requestedModel || recording?.transcriptionAgent || process.env.DEFAULT_ASR_MODEL || "whisper-1";
+    const asrPromptProfile = getASRPromptProfile(selectedModel);
     const prompts = {
-      asrTranscriptionPrompt: {
-        agent: "OpenAI Whisper (whisper-1)",
-        prompt: "Clinical medical consultation, ICD-10 conditions, pharmaceutical dosages, and surgical dictation.",
-      },
+      asrTranscriptionPrompt: asrPromptProfile,
       clinicalRefinerPrompt: {
         agent: "OpenAI GPT-4o (gpt-4o)",
         temperature: 0.1,
@@ -48,7 +50,7 @@ Your task:
       },
       organizationSystemPrompt: {
         agent: "Macula Synthesis Engine",
-        systemPrompt: organization?.customSystemPrompt || "Default clinical synthesizer system prompt.",
+        systemPrompt: `${MANDATORY_CLINICAL_SYNTHESIS_PROMPT}\n\nOrganization-specific instructions:\n${organization?.customSystemPrompt || "No additional organization-specific instructions were configured."}`,
         disclaimer: organization?.defaultDisclaimer || "Standard NMC supervision disclaimer applied.",
       },
       channelPrompts: organization?.channelDefinitions.map((c) => ({

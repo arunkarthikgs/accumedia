@@ -47,6 +47,10 @@ export async function GET(req: Request) {
             outputType: true,
             status: true,
             content: true,
+            validationWarnings: true,
+            validationWordCount: true,
+            validationCharacterCount: true,
+            validationDurationSeconds: true,
           },
         },
         // RFP §16 — surfaced so the admin list can show "N open flags" and

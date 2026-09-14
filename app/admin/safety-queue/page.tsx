@@ -57,7 +57,8 @@ export default function SafetyQueuePage() {
   const loadFlags = async () => {
     setIsLoading(true);
     try {
-      const url = `/api/safety-flags?status=OPEN${selectedOrgId !== "ALL" ? `&orgId=${selectedOrgId}` : ""}`;
+      const caseId = new URLSearchParams(window.location.search).get("caseId");
+      const url = `/api/safety-flags?status=OPEN${selectedOrgId !== "ALL" ? `&orgId=${selectedOrgId}` : ""}${caseId ? `&caseId=${caseId}` : ""}`;
       const res = await fetch(url);
       const data = await res.json();
       setFlags(data.flags || []);
@@ -91,23 +92,24 @@ export default function SafetyQueuePage() {
   };
 
   return (
-    <div className="min-h-screen bg-paper text-ink">
+    <div className="readable-route min-h-screen bg-paper text-ink">
       <header className="border-b border-line bg-surface px-8 py-5">
-        <div className="mx-auto max-w-5xl">
-          <Link href="/admin/cases" className="flex items-center gap-1 text-xs font-medium text-muted hover:text-ink mb-3">
-            <ArrowLeft className="h-3 w-3" /> Case Governance
-          </Link>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <ShieldAlert className="h-5 w-5 text-ochre" strokeWidth={1.75} />
-              <div>
-                <h1 className="font-serif text-lg font-semibold leading-tight text-ink">Safety Review Queue</h1>
-                <p className="text-[11px] text-muted">Flagged content is never silently altered or published — every item needs an explicit decision.</p>
+        <div className="ml-0 mr-auto max-w-5xl">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-pine">
+                <Link href="/" className="flex items-center gap-1 hover:underline">
+                  <ArrowLeft className="h-3 w-3" /> Dashboard
+                </Link>
+                <span>/</span>
+                <span>Safety Queue</span>
               </div>
+              <h1 className="text-2xl font-bold tracking-tight text-ink">Safety Review Queue</h1>
+              <p className="mt-0.5 text-xs text-muted">Flagged content is never silently altered or published — every item needs an explicit decision.</p>
             </div>
             <button
               onClick={loadFlags}
-              className="flex items-center gap-1.5 rounded border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink hover:border-pine transition"
+              className="flex items-center gap-1.5 self-start rounded-lg border border-line bg-surface px-3 py-2 text-xs font-semibold text-ink hover:border-pine transition sm:self-auto"
             >
               <RefreshCw className="h-3.5 w-3.5" /> Refresh
             </button>
@@ -115,7 +117,7 @@ export default function SafetyQueuePage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl p-8 space-y-5">
+      <main className="ml-0 mr-auto max-w-5xl p-8 space-y-5">
         <div className="flex items-center gap-2">
           <Building2 className="h-4 w-4 text-muted" />
           <select

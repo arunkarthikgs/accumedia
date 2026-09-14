@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getASRProvider } from "@/lib/asr/factory";
+import { getASRPromptProfile } from "@/lib/asr/prompts";
+import { redactClinicalText } from "@/lib/prompts/clinical-redaction";
+import { logAIUsage } from "@/lib/ai-usage";
 
 export async function POST(req: Request) {
   try {
@@ -35,20 +38,38 @@ export async function POST(req: Request) {
 
     // Resolve provider via Factory
     const provider = getASRProvider(selectedModel);
+    const promptProfile = getASRPromptProfile(selectedModel);
+    const recordingMeta = await db.audioRecording.findUnique({
+      where: { id: recordingId },
+      select: { organizationId: true, durationSeconds: true, caseId: true },
+    });
 
     // Execute Transcription
     const result = await provider.transcribe({
       buffer,
       fileName,
       mimeType,
-      prompt: "Clinical medical consultation, pharmacology, ICD-10 diagnostics.",
+      prompt: promptProfile.prompt || undefined,
     });
+
+    const sanitizedTranscript = redactClinicalText(result.rawTranscript);
+
+    if (recordingMeta) {
+      await logAIUsage({
+        organizationId: recordingMeta.organizationId,
+        caseId: recordingMeta.caseId,
+        operation: "speech_to_text",
+        provider: result.provider,
+        model: result.modelIdentifier,
+        audioSeconds: recordingMeta.durationSeconds,
+      });
+    }
 
     // Update database record with the exact agent used
     const updated = await db.audioRecording.update({
       where: { id: recordingId },
       data: {
-        rawTranscript: result.rawTranscript,
+        rawTranscript: sanitizedTranscript,
         transcriptionStatus: "ASR_COMPLETED",
         transcriptionAgent: result.modelIdentifier,
       },
@@ -57,15 +78,21 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       recordingId: updated.id,
-      rawTranscript: result.rawTranscript,
+      rawTranscript: sanitizedTranscript,
       transcriptionStatus: updated.transcriptionStatus,
       agentUsed: result.modelIdentifier,
       durationMs: result.executionDurationMs,
     });
   } catch (error: any) {
     console.error("Dynamic ASR processing failed:", error);
+    const causeCode = error?.cause?.code || error?.code;
+    const connectionFailure = causeCode === "ECONNRESET" || error?.name === "APIConnectionError";
     return NextResponse.json(
-      { error: error.message || "Failed during speech-to-text conversion." },
+      {
+        error: connectionFailure
+          ? "The ASR provider connection was interrupted while uploading audio. Please retry with a shorter recording or verify network/proxy access to api.openai.com."
+          : error.message || "Failed during speech-to-text conversion.",
+      },
       { status: 500 }
     );
   }

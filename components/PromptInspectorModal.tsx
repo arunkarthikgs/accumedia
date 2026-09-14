@@ -19,6 +19,7 @@ interface PromptInspectorModalProps {
   onClose: () => void;
   orgId: string;
   recordingId?: string;
+  asrModel?: string;
 }
 
 export default function PromptInspectorModal({
@@ -26,6 +27,7 @@ export default function PromptInspectorModal({
   onClose,
   orgId,
   recordingId,
+  asrModel,
 }: PromptInspectorModalProps) {
   const [activeTab, setActiveTab] = useState<"prompts" | "database" | "json">("prompts");
   const [data, setData] = useState<any>(null);
@@ -39,6 +41,8 @@ export default function PromptInspectorModal({
       try {
         const url = `/api/diagnostics/prompts-properties?orgId=${orgId || ""}${
           recordingId ? `&recordingId=${recordingId}` : ""
+        }${
+          asrModel ? `&model=${encodeURIComponent(asrModel)}` : ""
         }`;
         const res = await fetch(url);
         const result = await res.json();
@@ -52,7 +56,7 @@ export default function PromptInspectorModal({
       }
     }
     fetchDiagnostics();
-  }, [isOpen, orgId, recordingId]);
+  }, [isOpen, orgId, recordingId, asrModel]);
 
   if (!isOpen) return null;
 
@@ -160,8 +164,11 @@ export default function PromptInspectorModal({
                       </button>
                     </div>
                     <pre className="rounded-lg bg-slate-900 p-3 font-mono text-[11px] text-slate-100 whitespace-pre-wrap">
-                      {data.prompts?.asrTranscriptionPrompt?.prompt}
+                      {data.prompts?.asrTranscriptionPrompt?.prompt || "No prompt text is used by this engine."}
                     </pre>
+                    <p className="mt-2 text-[11px] text-muted">
+                      {data.prompts?.asrTranscriptionPrompt?.note}
+                    </p>
                   </div>
 
                   {/* LLM Clinical Refiner Prompt */}

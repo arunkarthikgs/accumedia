@@ -9,7 +9,7 @@ export default async function OrgSettingsPage() {
   }
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="readable-route max-w-3xl space-y-6">
       <div>
         <h1 className="text-2xl font-extrabold text-ink tracking-tight">Organization & Brand Identity</h1>
         <p className="text-xs text-muted mt-1">Configure clinical branding and legal medical disclaimers.</p>

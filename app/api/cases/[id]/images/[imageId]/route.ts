@@ -23,10 +23,17 @@ export async function PATCH(
     // is trying to change.
     const nextConsent = consentConfirmed ?? existing.consentConfirmed;
     const nextPublicUse = publicUseApproved ?? existing.publicUseApproved;
+    const nextPhiStatus = phiReviewStatus ?? existing.phiReviewStatus;
     if (nextPublicUse && !nextConsent) {
       return NextResponse.json(
         { error: "Cannot approve for public use without consentConfirmed." },
         { status: 400 }
+      );
+    }
+    if (nextPublicUse && nextPhiStatus !== "CLEAR") {
+      return NextResponse.json(
+        { error: "Image must be marked CLEAR by PHI review before public approval." },
+        { status: 409 }
       );
     }
 
@@ -35,7 +42,7 @@ export async function PATCH(
       data: {
         consentConfirmed: nextConsent,
         publicUseApproved: nextPublicUse,
-        ...(phiReviewStatus ? { phiReviewStatus } : {}),
+        phiReviewStatus: nextPhiStatus,
       },
     });
 

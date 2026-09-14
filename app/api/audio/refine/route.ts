@@ -1,17 +1,12 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { refineClinicalText } from "@/lib/clinical-refiner";
+import { redactClinicalText } from "@/lib/prompts/clinical-redaction";
+import { logAIUsage } from "@/lib/ai-usage";
 
 export async function POST(req: Request) {
   try {
-    const { recordingId, textToRefine } = await req.json();
-
-    if (!recordingId) {
-      return NextResponse.json(
-        { error: "recordingId is required to attach refinement results." },
-        { status: 400 }
-      );
-    }
+    const { recordingId, organizationId, textToRefine } = await req.json();
 
     if (!textToRefine || !textToRefine.trim()) {
       return NextResponse.json(
@@ -20,32 +15,57 @@ export async function POST(req: Request) {
       );
     }
 
-    // Mark DB status as REFINING
-    await db.audioRecording.update({
-      where: { id: recordingId },
-      data: {
-        transcriptionStatus: "REFINING",
-      },
-    });
+    const organization = recordingId
+      ? (await db.audioRecording.findUnique({
+          where: { id: recordingId },
+          select: { organization: { select: { customSystemPrompt: true, defaultDisclaimer: true } } },
+        }))?.organization
+      : organizationId
+        ? await db.organization.findUnique({
+            where: { id: organizationId },
+            select: { customSystemPrompt: true, defaultDisclaimer: true },
+          })
+        : null;
+
+    if (recordingId) {
+      await db.audioRecording.update({
+        where: { id: recordingId },
+        data: { transcriptionStatus: "REFINING" },
+      });
+    }
 
     // Run Stage 2: LLM Clinical Refinement (GPT-4o)
-    const refinedText = await refineClinicalText(textToRefine.trim());
+    const sanitizedInput = redactClinicalText(textToRefine.trim());
+    const refinedText = redactClinicalText(
+      await refineClinicalText(
+        sanitizedInput,
+        organization?.customSystemPrompt || "",
+        organization?.defaultDisclaimer || ""
+      )
+    );
+
+    if (organizationId) {
+      await logAIUsage({
+        organizationId,
+        operation: "clinical_refinement",
+        provider: "OpenAI",
+        model: "gpt-4o",
+      });
+    }
 
     // Update DB with final refined text and status
-    const updated = await db.audioRecording.update({
-      where: { id: recordingId },
-      data: {
-        transcribedText: refinedText,
-        transcriptionStatus: "REFINED",
-        refinerAgent: "gpt-4o",
-      },
-    });
+    const updated = recordingId
+      ? await db.audioRecording.update({
+          where: { id: recordingId },
+          data: { transcribedText: refinedText, transcriptionStatus: "REFINED", refinerAgent: "gpt-4o" },
+        })
+      : null;
 
     return NextResponse.json({
       success: true,
-      recordingId: updated.id,
+      recordingId: updated?.id || null,
       transcribedText: refinedText,
-      transcriptionStatus: updated.transcriptionStatus,
+      transcriptionStatus: updated?.transcriptionStatus || "REFINED",
     });
   } catch (error: any) {
     console.error("Refinement step failure:", error);

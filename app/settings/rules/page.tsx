@@ -64,7 +64,7 @@ export default function RulesSettingsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-paper p-8 text-ink">
+    <div className="readable-route min-h-screen bg-paper p-8 text-ink">
       <div className="mx-auto max-w-6xl space-y-8">
         <div>
           <div className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-pine">

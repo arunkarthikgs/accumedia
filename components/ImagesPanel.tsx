@@ -196,12 +196,23 @@ export default function ImagesPanel({ caseId, mccrApproved }: { caseId: string; 
               <div className="p-2 space-y-1.5">
                 <div className="text-[10px] font-medium text-ink">{img.channel}</div>
                 <div className="flex items-center gap-1 text-[10px]">
+                  <span className={img.phiReviewStatus === "CLEAR" ? "text-sage" : img.phiReviewStatus === "FLAGGED" ? "text-brick" : "text-ochre"}>
+                    PHI review: {img.phiReviewStatus}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1 text-[10px]">
                   {img.publicUseApproved ? (
                     <span className="flex items-center gap-1 text-sage"><ShieldCheck className="h-3 w-3" /> Public use approved</span>
                   ) : (
                     <span className="flex items-center gap-1 text-muted"><ShieldAlert className="h-3 w-3" /> Not approved</span>
                   )}
                 </div>
+                {img.sourceType === "doctor_uploaded" && img.phiReviewStatus === "PENDING" && (
+                  <div className="flex gap-1 pt-1">
+                    <button onClick={async () => { const res = await fetch(`/api/cases/${caseId}/images/${img.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phiReviewStatus: "CLEAR" }) }); const data = await res.json(); if (res.ok) setImages((prev) => prev.map((item) => item.id === img.id ? data.image : item)); else setError(data.error); }} className="flex-1 rounded border border-sage/30 bg-sage-tint px-1.5 py-1 text-[10px] font-medium text-sage">Mark clear</button>
+                    <button onClick={async () => { const res = await fetch(`/api/cases/${caseId}/images/${img.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phiReviewStatus: "FLAGGED" }) }); const data = await res.json(); if (res.ok) setImages((prev) => prev.map((item) => item.id === img.id ? data.image : item)); else setError(data.error); }} className="flex-1 rounded border border-brick/30 bg-brick-tint px-1.5 py-1 text-[10px] font-medium text-brick">Flag</button>
+                  </div>
+                )}
                 <div className="flex items-center gap-1.5 pt-1">
                   <button
                     onClick={() => togglePublicUse(img)}

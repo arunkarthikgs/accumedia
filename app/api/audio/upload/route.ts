@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { uploadAudioToR2 } from "@/lib/r2";
+import { assertCaseQuota } from "@/lib/quotas";
 
 export async function POST(req: Request) {
   try {
@@ -26,6 +27,8 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
+
+    await assertCaseQuota(orgId);
 
     // Resolve attending physician
     let physicianId = userId;

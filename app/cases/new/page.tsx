@@ -53,20 +53,39 @@ const ASR_MODELS = [
     name: "OpenAI Whisper-1",
     category: "General Cloud ASR",
     description: "Multilingual, robust phonetic handling",
+    workflow: "Fast cloud baseline",
+    privacy: "Audio is sent to OpenAI for transcription.",
+    stages: ["Archive audio", "Transcribe with Whisper", "Review and refine", "Synthesize record"],
   },
   {
     id: "deepgram-nova-3-medical",
     name: "Deepgram Nova-3 Medical",
     category: "Medical-Tuned Cloud",
     description: "Tuned for clinical pharmacology & low latency",
+    workflow: "Medical cloud transcription",
+    privacy: "Audio is sent to Deepgram for medical transcription.",
+    stages: ["Archive audio", "Transcribe with Nova Medical", "Review and refine", "Synthesize record"],
   },
   {
     id: "faster-whisper-self-hosted",
     name: "Faster-Whisper (Self-Hosted)",
     category: "On-Prem / Private VPC",
     description: "Zero data leakage, DPDP sovereign execution",
+    workflow: "Private inference pipeline",
+    privacy: "Audio stays within the configured self-hosted endpoint.",
+    stages: ["Archive audio", "Transcribe in private VPC", "Review and refine", "Synthesize record"],
   },
 ];
+
+const GUIDED_SECTIONS = [
+  ["whatHappened", "A. What happened?", "Basic presentation of the case or topic"],
+  ["clinicallyImportant", "B. What was clinically important?", "Medical, diagnostic, or management challenge"],
+  ["decision", "C. What decision had to be taken?", "Clinical reasoning, procedure, or treatment planning"],
+  ["whyImportant", "D. Why was the decision important?", "Context, alternatives, risks, and considerations"],
+  ["whatWasDone", "E. What was done?", "Procedure, treatment, or management undertaken"],
+  ["afterwards", "F. What happened afterwards?", "Outcome, follow-up, or current status"],
+  ["takeaway", "G. What should the reader learn?", "Educational takeaway for patients or professionals"],
+] as const;
 
 export default function NewCasePage() {
   const router = useRouter();
@@ -79,12 +98,14 @@ export default function NewCasePage() {
 
   // Pluggable ASR Model Selection
   const [selectedAsrModel, setSelectedAsrModel] = useState<string>("whisper-1");
+  const selectedWorkflow = ASR_MODELS.find((model) => model.id === selectedAsrModel) || ASR_MODELS[0];
 
   // Audio Recording States
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [fixedDuration, setFixedDuration] = useState(0);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [audioFileName, setAudioFileName] = useState("dictation.webm");
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
 
   // Lifecycle & Persistence Identifiers
@@ -98,9 +119,11 @@ export default function NewCasePage() {
   // Editable Stage Content
   const [rawTranscript, setRawTranscript] = useState("");
   const [refinedText, setRefinedText] = useState("");
+  const [guidedNotes, setGuidedNotes] = useState<Record<string, string>>({});
 
   // Async Processing Indicators
   const [isUploadingAudio, setIsUploadingAudio] = useState(false);
+  const [isUploadingSource, setIsUploadingSource] = useState(false);
   const [isStep1Processing, setIsStep1Processing] = useState(false);
   const [isStep2Processing, setIsStep2Processing] = useState(false);
   const [isSynthesizing, setIsSynthesizing] = useState(false);
@@ -117,6 +140,9 @@ export default function NewCasePage() {
   const audioChunksRef = useRef<Blob[]>([]);
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
+  const audioFileInputRef = useRef<HTMLInputElement | null>(null);
+  const textFileInputRef = useRef<HTMLInputElement | null>(null);
+  const sourceFileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     async function loadMetadata() {
@@ -225,6 +251,106 @@ export default function NewCasePage() {
     }
   };
 
+  const handleAudioFile = (file: File | undefined) => {
+    if (!file) return;
+    if (!file.type.startsWith("audio/")) {
+      setErrorMessage("Please choose an audio file such as MP3, WAV, M4A, or WebM.");
+      return;
+    }
+    setErrorMessage(null);
+    setAudioBlob(file);
+    setAudioFileName(file.name);
+    setCurrentDbStatus("AUDIO_SELECTED");
+    setRawTranscript("");
+    setRefinedText("");
+  };
+
+  const useTextDescription = () => {
+    if (!rawTranscript.trim()) {
+      setErrorMessage("Enter a clinical description before continuing.");
+      return;
+    }
+    setErrorMessage(null);
+    setAudioBlob(null);
+    setAudioFileName("dictation.webm");
+    setAudioUrl(null);
+    setRecordingId(null);
+    setActiveCaseId(null);
+    setActiveTranscriberAgent("Manual text description");
+    setCurrentDbStatus("TEXT_READY");
+  };
+
+  const useGuidedFramework = () => {
+    const sections = GUIDED_SECTIONS
+      .map(([key, title]) => `${title}\n${guidedNotes[key]?.trim() || "Not provided."}`)
+      .join("\n\n");
+    if (!GUIDED_SECTIONS.some(([key]) => guidedNotes[key]?.trim())) {
+      setErrorMessage("Complete at least one guided clinical section before continuing.");
+      return;
+    }
+    setErrorMessage(null);
+    setRawTranscript(sections);
+    setRefinedText("");
+    setAudioBlob(null);
+    setAudioUrl(null);
+    setRecordingId(null);
+    setActiveCaseId(null);
+    setActiveTranscriberAgent("Guided clinical framework");
+    setCurrentDbStatus("TEXT_READY");
+  };
+
+  const handleTextFile = async (file: File | undefined) => {
+    if (!file) return;
+    const supportedTextFile = /\.(txt|md|csv)$/i.test(file.name) || file.type.startsWith("text/");
+    if (!supportedTextFile) {
+      setErrorMessage("Please choose a TXT, MD, or CSV text file.");
+      return;
+    }
+
+    const text = await file.text();
+    if (!text.trim()) {
+      setErrorMessage("The selected text file is empty.");
+      return;
+    }
+
+    setErrorMessage(null);
+    setRawTranscript(text);
+    setRefinedText("");
+    setAudioBlob(null);
+    setAudioUrl(null);
+    setRecordingId(null);
+    setActiveCaseId(null);
+    setActiveTranscriberAgent(`Uploaded text: ${file.name}`);
+    setCurrentDbStatus("TEXT_READY");
+  };
+
+  const handleDocumentOrVideo = async (file: File | undefined) => {
+    if (!file || !selectedOrgId || !selectedPhysicianId) {
+      setErrorMessage("Select an organization and physician before uploading a document or video.");
+      return;
+    }
+    setIsUploadingSource(true);
+    setErrorMessage(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("organizationId", selectedOrgId);
+      formData.append("physicianId", selectedPhysicianId);
+      const response = await fetch("/api/cases/sources/upload", { method: "POST", body: formData });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Source upload failed.");
+      if (data.source?.sourceType === "VIDEO") {
+        setErrorMessage("Video uploaded. Video-to-audio processing is not configured yet; the source is saved for processing.");
+        return;
+      }
+      router.push(`/cases/${data.caseId}/review`);
+    } catch (error: any) {
+      setErrorMessage(error.message || "Source upload failed.");
+    } finally {
+      setIsUploadingSource(false);
+    }
+  };
+
   const discardRecording = () => {
     if (audioElementRef.current) audioElementRef.current.pause();
     setIsPlaying(false);
@@ -257,7 +383,7 @@ export default function NewCasePage() {
     try {
       const finalDuration = fixedDuration > 0 ? fixedDuration : recordingDuration;
       const uploadFormData = new FormData();
-      uploadFormData.append("audio", audioBlob, `clinical-dictation-${Date.now()}.webm`);
+      uploadFormData.append("audio", audioBlob, audioFileName || `clinical-dictation-${Date.now()}.webm`);
       uploadFormData.append("orgId", selectedOrgId);
       if (selectedPhysicianId) uploadFormData.append("userId", selectedPhysicianId);
       uploadFormData.append("durationSeconds", finalDuration.toString());
@@ -318,8 +444,8 @@ export default function NewCasePage() {
 
   // STEP 2: Clinician Dispatches Reviewed Transcript to GPT-4o
   const handleRunStep2Refinement = async () => {
-    if (!recordingId) {
-      setErrorMessage("Please complete Stage 1 transcription first.");
+    if (!recordingId && !rawTranscript.trim()) {
+      setErrorMessage("Enter or transcribe a clinical description first.");
       return;
     }
     if (!rawTranscript.trim()) {
@@ -336,7 +462,8 @@ export default function NewCasePage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          recordingId,
+          recordingId: recordingId || undefined,
+          organizationId: selectedOrgId || undefined,
           textToRefine: rawTranscript.trim(),
         }),
       });
@@ -385,7 +512,11 @@ export default function NewCasePage() {
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Synthesis failed.");
 
-      router.push(result.case?.id ? `/cases/${result.case.id}/review` : "/");
+      if (result.case?.id && result.safetyFlagsCount > 0) {
+        router.push(`/admin/safety-queue?caseId=${encodeURIComponent(result.case.id)}`);
+      } else {
+        router.push(result.case?.id ? `/cases/${result.case.id}/review` : "/");
+      }
     } catch (err: any) {
       setErrorMessage(err.message || "Synthesis error.");
       setIsSynthesizing(false);
@@ -417,6 +548,25 @@ export default function NewCasePage() {
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
+  const workflowStatuses = [
+    {
+      state: isUploadingAudio || isRecording ? "in-progress" : activeCaseId ? "complete" : "ready",
+      label: isRecording ? "Recording" : isUploadingAudio ? "Archiving" : activeCaseId ? "Complete" : "Ready to start",
+    },
+    {
+      state: isStep1Processing ? "in-progress" : rawTranscript ? "complete" : activeCaseId ? "ready" : "waiting",
+      label: isStep1Processing ? "Transcribing" : rawTranscript ? "Complete" : activeCaseId ? "Ready to run" : "Waiting for audio",
+    },
+    {
+      state: isStep2Processing ? "in-progress" : refinedText ? "complete" : rawTranscript ? "needs-review" : "waiting",
+      label: isStep2Processing ? "Refining" : refinedText ? "Complete" : rawTranscript ? "Review transcript" : "Waiting for transcript",
+    },
+    {
+      state: isSynthesizing ? "in-progress" : refinedText || rawTranscript ? "ready" : "waiting",
+      label: isSynthesizing ? "Synthesizing" : refinedText || rawTranscript ? "Ready to synthesize" : "Waiting for narrative",
+    },
+  ] as const;
+
   const totalDuration =
     fixedDuration > 0
       ? fixedDuration
@@ -425,8 +575,8 @@ export default function NewCasePage() {
       : 0;
 
   return (
-    <div className="min-h-screen bg-slate-50 p-8 text-slate-900">
-      <div className="mx-auto max-w-5xl space-y-6">
+    <div className="readable-route min-h-screen bg-slate-50 p-8 text-slate-900">
+      <div className="ml-0 mr-auto max-w-5xl space-y-6">
         {/* Top Navigation & Inspector Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
@@ -441,7 +591,7 @@ export default function NewCasePage() {
               Pluggable Clinical Ingestion & Transcription
             </h1>
             <p className="text-xs text-slate-500 mt-0.5">
-              Persistent Case Initiation → Dynamic ASR Engine Selection → LLM Clinical Refinement
+              {selectedWorkflow.workflow} → clinician review → LLM clinical refinement
             </p>
           </div>
 
@@ -521,6 +671,56 @@ export default function NewCasePage() {
             <p className="mt-1 text-[10px] text-slate-400 truncate">
               {ASR_MODELS.find((m) => m.id === selectedAsrModel)?.description}
             </p>
+            <p className="mt-2 rounded-lg bg-pine-tint px-2.5 py-2 text-[10px] leading-relaxed text-pine">
+              {selectedWorkflow.privacy}
+            </p>
+          </div>
+        </div>
+
+        {/* Selected-engine workflow */}
+        <div className="rounded-2xl border border-pine/20 bg-pine-tint/40 p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-pine">Active workflow</p>
+              <p className="mt-1 text-xs font-semibold text-ink">{selectedWorkflow.workflow}</p>
+            </div>
+            <span className="rounded-md bg-surface px-2 py-1 text-[10px] font-mono text-muted">
+              {selectedAsrModel}
+            </span>
+          </div>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-4">
+            {selectedWorkflow.stages.map((stage, index) => {
+              const stepStatus = workflowStatuses[index];
+              const statusStyles = {
+                complete: "border-sage/30 bg-sage-tint",
+                "in-progress": "border-pine/40 bg-pine-tint",
+                "needs-review": "border-ochre/40 bg-ochre-tint",
+                ready: "border-line bg-surface",
+                waiting: "border-line/70 bg-paper opacity-70",
+              }[stepStatus.state];
+              const statusIcon = stepStatus.state === "complete" ? (
+                <CheckCircle2 className="h-3.5 w-3.5 text-sage" />
+              ) : stepStatus.state === "in-progress" ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-pine" />
+              ) : stepStatus.state === "needs-review" ? (
+                <AlertCircle className="h-3.5 w-3.5 text-ochre" />
+              ) : (
+                <span className="h-3 w-3 rounded-full border border-muted/50" />
+              );
+
+              return (
+                <div key={stage} className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${statusStyles}`}>
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-pine text-[10px] font-bold text-white">
+                    {index + 1}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[10px] font-semibold leading-tight text-ink">{stage}</span>
+                    <span className="mt-0.5 block text-[9px] font-medium text-muted">{stepStatus.label}</span>
+                  </span>
+                  {statusIcon}
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -528,7 +728,7 @@ export default function NewCasePage() {
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
             <div>
-              <h2 className="text-sm font-semibold text-slate-900">Audio Dictation Capture</h2>
+              <h2 className="text-sm font-semibold text-slate-900">1. Archive &amp; Capture Audio</h2>
               <p className="text-[11px] text-slate-400">
                 Dictate clinical encounters. Audio is archived and linked to a persistent Case ID immediately upon submission.
               </p>
@@ -552,6 +752,36 @@ export default function NewCasePage() {
                   <Mic className="h-3.5 w-3.5 text-teal-600" /> Start Dictation
                 </button>
               )}
+              <input
+                ref={audioFileInputRef}
+                type="file"
+                accept="audio/*"
+                className="hidden"
+                onChange={(event) => handleAudioFile(event.target.files?.[0])}
+              />
+              <button
+                type="button"
+                onClick={() => audioFileInputRef.current?.click()}
+                className="flex items-center gap-2 rounded-xl border border-teal-200 bg-teal-50 px-3.5 py-1.5 text-xs font-semibold text-teal-800 hover:bg-teal-100 transition"
+              >
+                <UploadCloud className="h-3.5 w-3.5 text-teal-600" /> Upload audio
+              </button>
+              <input
+                ref={sourceFileInputRef}
+                type="file"
+                accept=".pdf,.doc,.docx,.txt,.md,.csv,video/*"
+                className="hidden"
+                onChange={(event) => handleDocumentOrVideo(event.target.files?.[0])}
+              />
+              <button
+                type="button"
+                disabled={isUploadingSource}
+                onClick={() => sourceFileInputRef.current?.click()}
+                className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50 transition"
+              >
+                {isUploadingSource ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5 text-teal-600" />}
+                Upload document/video
+              </button>
             </div>
           </div>
 
@@ -674,13 +904,13 @@ export default function NewCasePage() {
                     {isStep1Processing ? (
                       <>
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        <span>Transcribing via {selectedAsrModel}...</span>
+                        <span>Running {selectedWorkflow.workflow}...</span>
                       </>
                     ) : (
                       <>
                         <Cpu className="h-3.5 w-3.5" />
                         <span>
-                          {rawTranscript ? "Re-transcribe with Selected Engine" : `Transcribe (${selectedAsrModel})`}
+                          {rawTranscript ? "Re-run selected engine" : `Run ${selectedWorkflow.workflow}`}
                         </span>
                       </>
                     )}
@@ -699,6 +929,68 @@ export default function NewCasePage() {
               </div>
             </div>
           )}
+
+          <div className="border-t border-slate-100 pt-4">
+            <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-500">
+              Or enter a text description
+            </label>
+            <textarea
+              rows={4}
+              value={rawTranscript}
+              onChange={(event) => setRawTranscript(event.target.value)}
+              placeholder="Describe the clinical encounter, symptoms, findings, treatment, and outcome..."
+              className="w-full rounded-xl border border-slate-200 bg-slate-50/50 p-4 text-sm leading-relaxed text-slate-800 placeholder-slate-400 focus:border-teal-500 focus:bg-white focus:outline-hidden"
+            />
+            <div className="mt-2 flex items-center justify-between gap-3">
+              <span className="text-[11px] text-slate-400">Text descriptions skip audio archival and start at clinician review.</span>
+              <div className="flex items-center gap-2">
+                <input
+                  ref={textFileInputRef}
+                  type="file"
+                  accept=".txt,.md,.csv,text/plain,text/markdown,text/csv"
+                  className="hidden"
+                  onChange={(event) => handleTextFile(event.target.files?.[0])}
+                />
+                <button
+                  type="button"
+                  onClick={() => textFileInputRef.current?.click()}
+                  className="flex items-center gap-1.5 rounded-lg border border-teal-200 bg-white px-3 py-2 text-xs font-semibold text-teal-800 hover:bg-teal-50 transition"
+                >
+                  <UploadCloud className="h-3.5 w-3.5 text-teal-600" /> Upload text
+                </button>
+                <button
+                  type="button"
+                  onClick={useTextDescription}
+                  className="flex items-center gap-1.5 rounded-lg bg-teal-700 px-3.5 py-2 text-xs font-semibold text-white hover:bg-teal-800 transition"
+                >
+                  <FileText className="h-3.5 w-3.5" /> Use description
+                </button>
+              </div>
+            </div>
+            <div className="mt-5 border-t border-slate-100 pt-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Guided clinical framework</p>
+                  <p className="mt-1 text-[11px] text-slate-400">Capture the case in seven prompts before refinement.</p>
+                </div>
+                <button type="button" onClick={useGuidedFramework} className="rounded-lg bg-teal-700 px-3 py-2 text-xs font-semibold text-white hover:bg-teal-800">Use guided notes</button>
+              </div>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                {GUIDED_SECTIONS.map(([key, title, hint]) => (
+                  <label key={key} className="block">
+                    <span className="mb-1 block text-xs font-semibold text-slate-700">{title}</span>
+                    <textarea
+                      rows={3}
+                      value={guidedNotes[key] || ""}
+                      onChange={(event) => setGuidedNotes((current) => ({ ...current, [key]: event.target.value }))}
+                      placeholder={hint}
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-3 text-xs leading-relaxed text-slate-800 placeholder-slate-400 focus:border-teal-500 focus:bg-white focus:outline-hidden"
+                    />
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* STAGE 1: Literal Transcription & Review */}
@@ -707,7 +999,7 @@ export default function NewCasePage() {
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-700 uppercase tracking-wider">
-                  Stage 1 Output
+                  2. {selectedWorkflow.stages[1]}
                 </span>
                 {activeTranscriberAgent && (
                   <span className="rounded-md bg-teal-50 px-2 py-0.5 text-[10px] font-mono font-semibold text-teal-800 border border-teal-200">
@@ -719,7 +1011,7 @@ export default function NewCasePage() {
                 <FileText className="h-4 w-4 text-teal-600" /> Literal Speech-to-Text
               </h3>
               <p className="text-[11px] text-slate-500">
-                Verbatim output. Review and adjust phonetic misinterpretations before executing Stage 2 refinement.
+                Review the engine output for terminology, names, measurements, and clinical context before refinement.
               </p>
             </div>
 
@@ -738,7 +1030,7 @@ export default function NewCasePage() {
                 ) : (
                   <>
                     <Sparkles className="h-3.5 w-3.5" />
-                    <span>Proceed to Stage 2 (LLM Refinement)</span>
+                    <span>3. Proceed to LLM Refinement</span>
                     <ArrowRight className="h-3 w-3" />
                   </>
                 )}
@@ -761,10 +1053,10 @@ export default function NewCasePage() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-teal-50 pb-2">
               <div>
                 <span className="inline-block rounded-md bg-teal-100 px-2 py-0.5 text-[10px] font-bold text-teal-800 uppercase tracking-wider mb-1">
-                  Stage 2 Result
+                  3. Clinician-Reviewed Narrative
                 </span>
                 <h3 className="text-sm font-semibold text-teal-950 flex items-center gap-1.5">
-                  <Sparkles className="h-4 w-4 text-teal-600" /> Massaged & Refined Clinical Narrative (GPT-4o)
+                  <Sparkles className="h-4 w-4 text-teal-600" /> Refined Clinical Narrative (GPT-4o)
                 </h3>
                 <p className="text-[11px] text-slate-500">
                   Standardized pharmacology, clinical abbreviations, and paragraph layout ready for final synthesis.
@@ -801,7 +1093,8 @@ export default function NewCasePage() {
           <button
             type="button"
             onClick={handleSynthesize}
-            disabled={isSynthesizing || (!rawTranscript.trim() && !refinedText.trim()) || isStep1Processing || isStep2Processing}
+            disabled={isSynthesizing || isStep1Processing || isStep2Processing}
+            aria-disabled={isSynthesizing || isStep1Processing || isStep2Processing}
             className="flex items-center gap-2 rounded-xl bg-teal-600 px-5 py-2.5 text-xs font-semibold text-white shadow-xs hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
           >
             {isSynthesizing ? (
@@ -825,6 +1118,7 @@ export default function NewCasePage() {
         onClose={() => setIsInspectorOpen(false)}
         orgId={selectedOrgId}
         recordingId={recordingId || undefined}
+        asrModel={selectedAsrModel}
       />
     </div>
   );

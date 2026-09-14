@@ -97,7 +97,7 @@ export default function UsersSettingsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-paper p-8 text-ink">
+    <div className="readable-route min-h-screen bg-paper p-8 text-ink">
       <div className="mx-auto max-w-6xl">
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>

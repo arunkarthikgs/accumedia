@@ -11,12 +11,14 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const orgId = searchParams.get("orgId");
+    const caseId = searchParams.get("caseId");
     const status = searchParams.get("status") || "OPEN";
 
     const flags = await db.safetyFlag.findMany({
       where: {
         status: status === "ALL" ? undefined : (status as any),
         ...(orgId ? { case: { organizationId: orgId } } : {}),
+        ...(caseId ? { caseId } : {}),
       },
       include: {
         case: { select: { id: true, title: true, organizationId: true, physician: { select: { name: true } } } },

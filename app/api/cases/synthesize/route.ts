@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import OpenAI from "openai";
+import { MANDATORY_CLINICAL_SYNTHESIS_PROMPT } from "@/lib/prompts/clinical-synthesis";
+import { redactClinicalText, redactClinicalValue } from "@/lib/prompts/clinical-redaction";
+import { logAIUsage } from "@/lib/ai-usage";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -50,11 +53,10 @@ export async function POST(req: Request) {
       },
     });
 
-    const customSystemPrompt =
-      organization?.customSystemPrompt ||
-      "You are a clinical intelligence documentation assistant strictly following NMC guidelines.";
+    const organizationPrompt = organization?.customSystemPrompt?.trim() || "";
 
     // 2. Synthesize Master Clinical Record & Redacted PHI Audit via GPT-4o
+    const sanitizedInput = redactClinicalText(rawText.trim());
     const synthesisResponse = await openai.chat.completions.create({
       model: "gpt-4o",
       temperature: 0.1,
@@ -62,7 +64,10 @@ export async function POST(req: Request) {
       messages: [
         {
           role: "system",
-          content: `${customSystemPrompt}
+          content: `${MANDATORY_CLINICAL_SYNTHESIS_PROMPT}
+
+Organization-specific instructions:
+${organizationPrompt || "No additional organization-specific instructions were configured."}
 
 You are generating a structured 5-part Master Clinical Record and performing automated DPDP/NMC compliance auditing.
 
@@ -111,6 +116,15 @@ Return ONLY a valid JSON object matching this exact schema:
     },
     "auditTimestamp": "${new Date().toISOString()}"
   },
+  "seoKeywords": {
+    "primaryKeyword": "...",
+    "secondaryKeywords": [],
+    "longTailKeywords": [],
+    "localKeywords": [],
+    "questionKeywords": [],
+    "semanticKeywords": [],
+    "searchIntent": "patient education or professional clinical content"
+  },
   "channelDrafts": [
     {
       "channelKey": "DISCHARGE_SUMMARY",
@@ -133,21 +147,33 @@ Return ONLY a valid JSON object matching this exact schema:
         },
         {
           role: "user",
-          content: `Synthesize this refined clinical narrative:\n\n${rawText.trim()}`,
+          content: `Synthesize this refined clinical narrative. The supplied text has been deterministically sanitized before model processing:\n\n${sanitizedInput}`,
         },
       ],
+    });
+
+    await logAIUsage({
+      organizationId,
+      caseId,
+      operation: "master_record_synthesis",
+      provider: "OpenAI",
+      model: "gpt-4o",
+      inputTokens: synthesisResponse.usage?.prompt_tokens,
+      outputTokens: synthesisResponse.usage?.completion_tokens,
     });
 
     const parsedOutput = JSON.parse(
       synthesisResponse.choices[0]?.message?.content || "{}"
     );
 
-    const generatedTitle = parsedOutput.caseTitle || "Clinical Case Record";
-    const masterRecord = parsedOutput.masterRecord || {};
-    const safetyAudit = parsedOutput.safetyAudit || {};
-    const channelDrafts = Array.isArray(parsedOutput.channelDrafts)
-      ? parsedOutput.channelDrafts
+    const sanitizedOutput = redactClinicalValue(parsedOutput);
+    const generatedTitle = sanitizedOutput.caseTitle || "Clinical Case Record";
+    const masterRecord = sanitizedOutput.masterRecord || {};
+    const safetyAudit = sanitizedOutput.safetyAudit || {};
+    const channelDrafts = Array.isArray(sanitizedOutput.channelDrafts)
+      ? sanitizedOutput.channelDrafts
       : [];
+      const seoKeywords = sanitizedOutput.seoKeywords || {};
 
     let targetCaseId = caseId;
 
@@ -163,6 +189,24 @@ Return ONLY a valid JSON object matching this exact schema:
     }
 
     let finalizedCase;
+    const previousCase = targetCaseId
+      ? await db.case.findUnique({ where: { id: targetCaseId } })
+      : null;
+
+    if (previousCase) {
+      const versionCount = await db.caseVersion.count({ where: { caseId: previousCase.id } });
+      await db.caseVersion.create({
+        data: {
+          caseId: previousCase.id,
+          version: versionCount + 1,
+          changeType: "pre_synthesis_snapshot",
+          rawInput: previousCase.rawInput,
+          masterRecord: previousCase.masterRecord,
+          safetyAudit: previousCase.safetyAudit,
+          status: previousCase.status,
+        },
+      });
+    }
 
     // 3. Update existing Case (if initiated during audio upload) OR create new Case
     if (targetCaseId) {
@@ -170,7 +214,7 @@ Return ONLY a valid JSON object matching this exact schema:
         where: { id: targetCaseId },
         data: {
           title: generatedTitle,
-          rawInput: rawText.trim(),
+          rawInput: sanitizedInput,
           masterRecord,
           safetyAudit,
           status: "PENDING_REVIEW",
@@ -182,7 +226,7 @@ Return ONLY a valid JSON object matching this exact schema:
       finalizedCase = await db.case.create({
         data: {
           title: generatedTitle,
-          rawInput: rawText.trim(),
+          rawInput: sanitizedInput,
           masterRecord,
           safetyAudit,
           status: "PENDING_REVIEW",
@@ -192,6 +236,43 @@ Return ONLY a valid JSON object matching this exact schema:
       });
     }
 
+    if (!previousCase) {
+      await db.caseVersion.create({
+        data: {
+          caseId: finalizedCase.id,
+          version: 1,
+          changeType: "initial_synthesis",
+          rawInput: finalizedCase.rawInput,
+          masterRecord: finalizedCase.masterRecord,
+          safetyAudit: finalizedCase.safetyAudit,
+          status: finalizedCase.status,
+        },
+      });
+    }
+
+    await db.seoKeywordSet.upsert({
+      where: { caseId: finalizedCase.id },
+      create: {
+        caseId: finalizedCase.id,
+        primaryKeyword: seoKeywords.primaryKeyword || null,
+        secondaryKeywords: seoKeywords.secondaryKeywords || [],
+        longTailKeywords: seoKeywords.longTailKeywords || [],
+        localKeywords: seoKeywords.localKeywords || [],
+        questionKeywords: seoKeywords.questionKeywords || [],
+        semanticKeywords: seoKeywords.semanticKeywords || [],
+        searchIntent: seoKeywords.searchIntent || null,
+      },
+      update: {
+        primaryKeyword: seoKeywords.primaryKeyword || null,
+        secondaryKeywords: seoKeywords.secondaryKeywords || [],
+        longTailKeywords: seoKeywords.longTailKeywords || [],
+        localKeywords: seoKeywords.localKeywords || [],
+        questionKeywords: seoKeywords.questionKeywords || [],
+        semanticKeywords: seoKeywords.semanticKeywords || [],
+        searchIntent: seoKeywords.searchIntent || null,
+      },
+    });
+
     // 4. Ensure Audio Recording is linked if supplied
     if (audioRecordingId) {
       await db.audioRecording.update({
@@ -199,6 +280,51 @@ Return ONLY a valid JSON object matching this exact schema:
         data: {
           caseId: finalizedCase.id,
         },
+      });
+    }
+
+    // Materialize compliance findings into the human-review queue. The case
+    // JSON remains the audit record; SafetyFlag rows drive queue decisions.
+    await db.safetyFlag.deleteMany({
+      where: { caseId: finalizedCase.id, status: "OPEN" },
+    });
+
+    const phiCheck = safetyAudit?.phiRedactionCheck || {};
+    const ethicsCheck = safetyAudit?.nmcComplianceCheck || {};
+    const findings: Array<{ flagType: string; detail: string; confidence: string }> = [];
+
+    if (sanitizedInput !== rawText.trim() || phiCheck.directIdentifiersDetected || Number(phiCheck.redactedTokensCount || 0) > 0) {
+      findings.push({
+        flagType: "pii",
+        detail: phiCheck.summary || "Personal or health identifiers were detected and redacted; confirm the sanitized record.",
+        confidence: "high",
+      });
+    }
+    if (ethicsCheck.unsubstantiatedClaimsFlag) {
+      findings.push({
+        flagType: "claim",
+        detail: "Unsubstantiated or promotional clinical claims require human review.",
+        confidence: "high",
+      });
+    }
+    if (ethicsCheck.rmpSupervisionFlag === false || ethicsCheck.prescriptionsValidated === false) {
+      findings.push({
+        flagType: "compliance",
+        detail: "Regulatory supervision or prescription validation requires human review.",
+        confidence: "medium",
+      });
+    }
+
+    if (findings.length > 0) {
+      await db.safetyFlag.createMany({
+        data: findings.map((finding) => ({
+          targetType: "CASE",
+          caseId: finalizedCase.id,
+          flagType: finding.flagType,
+          detail: finding.detail,
+          confidence: finding.confidence,
+          status: "OPEN",
+        })),
       });
     }
 
@@ -221,6 +347,7 @@ Return ONLY a valid JSON object matching this exact schema:
     return NextResponse.json({
       success: true,
       case: finalizedCase,
+      safetyFlagsCount: findings.length,
       assetsCount: channelDrafts.length,
     });
   } catch (error: any) {

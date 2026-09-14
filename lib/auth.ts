@@ -1,4 +1,6 @@
 import { db } from "@/lib/db";
+import { cookies } from "next/headers";
+import crypto from "node:crypto";
 
 export interface SessionUser {
   id: string;
@@ -16,7 +18,12 @@ export interface SessionUser {
 
 export async function getCurrentUser(): Promise<SessionUser | null> {
   try {
-    const user = await db.user.findFirst({
+    const token = (await cookies()).get("macula_session")?.value;
+    if (!token) return null;
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+    const session = await db.session.findFirst({
+      where: { tokenHash, expiresAt: { gt: new Date() } },
+      include: { user: {
       include: {
         role: {
           include: {
@@ -28,10 +35,11 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
           },
         },
       },
-      orderBy: { createdAt: "asc" },
+      } },
     });
 
-    if (!user) return null;
+    if (!session?.user) return null;
+    const user = session.user;
 
     const permissions = user.role
       ? user.role.permissions.map((p) => p.permission.slug)

@@ -50,7 +50,7 @@ export default async function DashboardPage() {
     ]);
 
   return (
-    <main className="mx-auto max-w-7xl p-6 md:p-8 space-y-8">
+    <main className="ml-0 mr-auto max-w-7xl p-6 md:p-8 space-y-8">
       <div
         className="border-b border-line pb-8"
       >
@@ -93,33 +93,41 @@ export default async function DashboardPage() {
 
       {/* Metrics Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <MetricCard
-          label="Total clinical cases"
-          value={totalCases}
-          description="Across all connected hospitals"
-          icon={<FileText className="h-6 w-6" />}
-        />
-        <MetricCard
-          label="Pending review"
-          value={pendingCases}
-          tone="warning"
-          description="Awaiting RMP sign-off"
-          icon={<Clock className="h-6 w-6" />}
-        />
-        <MetricCard
-          label="Approved records"
-          value={approvedCases}
-          tone="success"
-          description="Ready for publishing"
-          icon={<CheckCircle2 className="h-6 w-6" />}
-        />
-        <MetricCard
-          label="Hospital networks"
-          value={orgCount}
-          tone="pro"
-          description={`${rejectedCases} cases rejected`}
-          icon={<Building2 className="h-6 w-6" />}
-        />
+        <Link href="/admin/cases" className="block rounded-lg transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-pine/30" aria-label="View all clinical cases">
+          <MetricCard
+            label="Total clinical cases"
+            value={totalCases}
+            description="Across all connected hospitals"
+            icon={<FileText className="h-6 w-6" />}
+          />
+        </Link>
+        <Link href="/admin/cases" className="block rounded-lg transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-pine/30" aria-label="Review pending clinical cases">
+          <MetricCard
+            label="Pending review"
+            value={pendingCases}
+            tone="warning"
+            description="Awaiting RMP sign-off"
+            icon={<Clock className="h-6 w-6" />}
+          />
+        </Link>
+        <Link href="/admin/cases" className="block rounded-lg transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-pine/30" aria-label="View approved clinical records">
+          <MetricCard
+            label="Approved records"
+            value={approvedCases}
+            tone="success"
+            description="Ready for publishing"
+            icon={<CheckCircle2 className="h-6 w-6" />}
+          />
+        </Link>
+        <Link href="/admin/organizations" className="block rounded-lg transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-pine/30" aria-label="Manage hospital networks">
+          <MetricCard
+            label="Hospital networks"
+            value={orgCount}
+            tone="pro"
+            description={`${rejectedCases} cases rejected`}
+            icon={<Building2 className="h-6 w-6" />}
+          />
+        </Link>
       </div>
 
       {/* Recent Cases Section */}

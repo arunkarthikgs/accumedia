@@ -90,7 +90,7 @@ export default function RoleMatrixPage() {
   const modules = Array.from(new Set(permissions.map((p) => p.module)));
 
   return (
-    <div className="min-h-screen bg-slate-50 p-8 text-slate-900">
+    <div className="readable-route min-h-screen bg-slate-50 p-8 text-slate-900">
       <div className="mx-auto max-w-6xl">
         {/* Header */}
         <div className="mb-8 flex items-center justify-between">

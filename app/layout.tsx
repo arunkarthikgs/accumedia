@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Poppins, Libre_Baskerville, Manrope } from "next/font/google";
-import { ShieldCheck, FileCheck } from "lucide-react";
+import { FileCheck } from "lucide-react";
 import SidebarNav from "@/components/SidebarNav";
 import "./globals.css";
 
@@ -50,14 +50,6 @@ export default function RootLayout({
         className="min-h-full font-sans text-ink flex flex-col"
         style={{ background: "var(--paper)" }}
       >
-        {/* Top Regulatory Compliance & Supervision Banner — text unchanged */}
-        <div className="bg-pine-dark px-4 py-2 text-center text-[11px] font-medium text-pine-tint border-b border-pine flex items-center justify-center gap-2">
-          <ShieldCheck className="h-3.5 w-3.5 text-pine-tint" />
-          <span>
-            Operating under <strong>NMC Registered Medical Practitioner (RMP) Supervision</strong> &amp; <strong>DPDP Act Data Protection</strong>
-          </span>
-        </div>
-
         {/* Sidebar + Content */}
         <div className="flex flex-1 min-h-0 flex-col md:flex-row">
           <SidebarNav />

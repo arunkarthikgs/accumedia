@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { assertCaseQuota } from "@/lib/quotas";
 
 // GET /api/cases - List cases with optional filtering
 export async function GET(req: Request) {
@@ -89,6 +90,8 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
+
+    await assertCaseQuota(organizationId);
 
     let targetPhysicianId = physicianId;
     if (!targetPhysicianId) {

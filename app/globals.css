@@ -136,3 +136,30 @@ input[type="range"]::-moz-range-thumb {
 .text-rose-700 { color: var(--brick) !important; }
 .bg-red-50,
 .bg-rose-50 { background-color: var(--brick-tint) !important; }
+
+/* Readability pass for dense operational routes. */
+.readable-route [class~="text-xs"] {
+  font-size: 0.8125rem !important;
+  line-height: 1.25rem;
+}
+
+.readable-route [class~="text-[11px]"] {
+  font-size: 0.75rem !important;
+  line-height: 1.1rem;
+}
+
+.readable-route [class~="text-[10px]"] {
+  font-size: 0.6875rem !important;
+  line-height: 1rem;
+}
+
+.readable-route .rounded-2xl,
+.readable-route .rounded-xl {
+  border-radius: 0.5rem !important;
+}
+
+.readable-route .shadow-sm,
+.readable-route .shadow-xs,
+.readable-route .shadow-2xl {
+  box-shadow: 0 1px 2px rgb(28 37 33 / 0.06) !important;
+}

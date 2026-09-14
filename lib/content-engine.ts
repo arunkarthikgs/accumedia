@@ -1,6 +1,8 @@
 import OpenAI from "openai";
 import { db } from "@/lib/db";
 import type { ChannelDefinition, Organization } from "@prisma/client";
+import { validateGeneratedContent } from "./content-validation";
+import { logAIUsage } from "./ai-usage";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -76,6 +78,7 @@ export async function generateChannelAsset({
 }: GenerateOptions) {
   const outputType = channel.outputType || "SEO_BLOG";
   const basePrompt = channel.systemPrompt?.trim() || DEFAULT_PROMPTS[outputType];
+  const platformLimit = await db.platformLimit.findUnique({ where: { platform: "x" } });
 
   const systemPrompt = `${basePrompt}
 
@@ -86,7 +89,7 @@ where applicable: "${organization.defaultDisclaimer}".`;
 
   const resolvedPrompt = systemPrompt
     .replace("{duration}", channel.durationLabel || "60 seconds")
-    .replace("{platform_char_limit}", "280"); // dynamic per RFP §10; refresh from a platform-limits config, not hardcoded long-term
+    .replace("{platform_char_limit}", String(platformLimit?.maxCharacters || 280));
 
   const response = await openai.chat.completions.create({
     model: "gpt-4o",
@@ -98,8 +101,20 @@ where applicable: "${organization.defaultDisclaimer}".`;
     ],
   });
 
+  await logAIUsage({
+    organizationId: organization.id,
+    caseId,
+    operation: "channel_asset_generation",
+    provider: "OpenAI",
+    model: "gpt-4o",
+    inputTokens: response.usage?.prompt_tokens,
+    outputTokens: response.usage?.completion_tokens,
+    metadata: { channelKey: channel.channelKey, outputType },
+  });
+
   const raw = response.choices[0]?.message?.content || "";
   const content = outputType === "VIDEO_SCRIPT" ? { script: raw } : safeJsonParse(raw);
+  const validation = validateGeneratedContent(content, channel);
 
   return db.generatedAsset.create({
     data: {
@@ -109,7 +124,11 @@ where applicable: "${organization.defaultDisclaimer}".`;
       outputType: outputType as any,
       variant: channel.durationLabel || undefined,
       content,
-      status: "DRAFT",
+      status: validation.valid ? "DRAFT" : "REVIEW",
+      validationWarnings: validation.warnings,
+      validationWordCount: validation.wordCount,
+      validationCharacterCount: validation.characterCount,
+      validationDurationSeconds: validation.estimatedDurationSeconds,
       version: 1,
       promptTemplateId: channel.id,
       modelUsed: "gpt-4o",

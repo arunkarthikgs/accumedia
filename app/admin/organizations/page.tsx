@@ -166,31 +166,32 @@ export default function AdminOrganizationsPage() {
   );
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
+    <div className="readable-route min-h-screen bg-slate-50 text-slate-900">
       {/* Header */}
-      <header className="border-b border-slate-200 bg-white px-8 py-4">
-        <div className="mx-auto flex max-w-7xl items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link
-              href="/admin/cases"
-              className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" /> Case Management
-            </Link>
-            <div className="h-4 w-px bg-slate-200" />
+      <header className="bg-transparent px-8 pt-8">
+        <div className="ml-0 mr-auto flex max-w-5xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-pine">
+              <Link href="/" className="flex items-center gap-1 hover:underline">
+                <ArrowLeft className="h-3 w-3" /> Dashboard
+              </Link>
+              <span>/</span>
+              <span>Hospital Networks</span>
+            </div>
             <div className="flex items-center gap-2">
-              <Building2 className="h-5 w-5 text-teal-600" />
-              <h1 className="text-base font-bold text-slate-900">
-                Hospital Network & Model Configuration
+              <Building2 className="h-4 w-4 text-pine" />
+              <h1 className="text-2xl font-bold tracking-tight text-ink">
+                Hospital Network &amp; Model Configuration
               </h1>
             </div>
+            <p className="mt-0.5 text-xs text-muted">Configure organizations, clinicians, and default speech engines.</p>
           </div>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
             <button
               type="button"
               onClick={openCreateModal}
-              className="flex items-center gap-1.5 rounded-xl bg-teal-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-teal-700 transition shadow-xs"
+              className="flex items-center gap-1.5 rounded-lg bg-pine px-3.5 py-2 text-xs font-semibold text-white hover:bg-pine-dark transition"
             >
               <Plus className="h-3.5 w-3.5" />
               <span>Add Hospital</span>
@@ -199,7 +200,7 @@ export default function AdminOrganizationsPage() {
             <button
               type="button"
               onClick={loadOrganizations}
-              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-xs"
+              className="flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-2 text-xs font-semibold text-ink hover:border-pine transition"
             >
               <RefreshCw className="h-3.5 w-3.5 text-teal-600" /> Refresh
             </button>
@@ -208,7 +209,7 @@ export default function AdminOrganizationsPage() {
       </header>
 
       {/* Main Content */}
-      <main className="mx-auto max-w-7xl p-8 space-y-6">
+      <main className="ml-0 mr-auto max-w-5xl p-8 space-y-6">
         {errorMessage && (
           <div className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-xs font-medium text-red-700">
             <AlertCircle className="h-4 w-4 shrink-0 text-red-600" />

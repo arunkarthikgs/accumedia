@@ -24,6 +24,9 @@ import {
   X,
   History,
   ShieldAlert,
+  Play,
+  Pause,
+  Loader2,
 } from "lucide-react";
 import StatusTag from "@/components/ui/StatusTag";
 
@@ -95,6 +98,9 @@ export default function AdminCasesPage() {
   const [rejectionInputReason, setRejectionInputReason] = useState("");
   const [isSubmittingAction, setIsSubmittingAction] = useState(false);
   const [approveError, setApproveError] = useState<string | null>(null);
+  const [playingRecordingId, setPlayingRecordingId] = useState<string | null>(null);
+  const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
+  const [isLoadingPlayback, setIsLoadingPlayback] = useState(false);
 
   useEffect(() => {
     async function loadOrgs() {
@@ -159,6 +165,27 @@ export default function AdminCasesPage() {
       setSelectedCaseIds(new Set());
     } else {
       setSelectedCaseIds(new Set(filteredCases.map((c) => c.id)));
+    }
+  };
+
+  const playRecording = async (recordingId: string) => {
+    if (playingRecordingId === recordingId) {
+      setPlayingRecordingId(null);
+      setPlaybackUrl(null);
+      return;
+    }
+
+    setIsLoadingPlayback(true);
+    try {
+      const res = await fetch(`/api/audio/playback?recordingId=${encodeURIComponent(recordingId)}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Unable to load audio.");
+      setPlaybackUrl(data.url);
+      setPlayingRecordingId(recordingId);
+    } catch (error: any) {
+      setApproveError(error.message || "Unable to load audio playback.");
+    } finally {
+      setIsLoadingPlayback(false);
     }
   };
 
@@ -281,27 +308,25 @@ export default function AdminCasesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-paper text-ink">
-      <header className="border-b border-line bg-surface px-8 py-5">
-        <div className="mx-auto flex max-w-7xl items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link href="/" className="flex items-center gap-1.5 text-xs font-medium text-muted hover:text-ink transition">
-              <ArrowLeft className="h-3.5 w-3.5" /> Dashboard
-            </Link>
-            <div className="h-5 w-px bg-line" />
-            <div className="flex items-center gap-2.5">
-              <ShieldCheck className="h-5 w-5 text-pine" strokeWidth={1.75} />
-              <div>
-                <h1 className="font-serif text-lg font-semibold leading-tight text-ink">Case Governance</h1>
-                <p className="text-[11px] text-muted">Compliance review across every organization</p>
-              </div>
+    <div className="readable-route min-h-screen bg-paper text-ink">
+      <header className="bg-transparent px-4 pt-6 md:px-6 md:pt-8">
+        <div className="flex w-full flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-pine">
+              <Link href="/" className="flex items-center gap-1 hover:underline">
+                <ArrowLeft className="h-3 w-3" /> Dashboard
+              </Link>
+              <span>/</span>
+              <span>Case Management</span>
             </div>
+            <h1 className="text-2xl font-bold tracking-tight text-ink">Case Governance</h1>
+            <p className="mt-0.5 text-xs text-muted">Compliance review across every organization</p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
             <Link
               href="/admin/safety-queue"
-              className="flex items-center gap-1.5 rounded border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink hover:border-ochre hover:text-ochre transition"
+              className="flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-2 text-xs font-semibold text-ink hover:border-ochre hover:text-ochre transition"
             >
               <ShieldAlert className="h-3.5 w-3.5" /> Safety Queue
             </Link>
@@ -309,7 +334,7 @@ export default function AdminCasesPage() {
               type="button"
               onClick={handleBatchExport}
               disabled={isExporting || (selectedCaseIds.size === 0 && !cases.some((c) => c.status === "APPROVED"))}
-              className="flex items-center gap-1.5 rounded bg-pine px-3.5 py-1.5 text-xs font-medium text-white hover:bg-pine-dark disabled:opacity-40 transition"
+              className="flex items-center gap-1.5 rounded-lg bg-pine px-3.5 py-2 text-xs font-semibold text-white hover:bg-pine-dark disabled:opacity-40 transition"
             >
               <Download className="h-3.5 w-3.5" />
               {isExporting
@@ -321,7 +346,7 @@ export default function AdminCasesPage() {
             <button
               type="button"
               onClick={loadCases}
-              className="flex items-center gap-1.5 rounded border border-line bg-surface px-2.5 py-1.5 text-xs font-medium text-ink hover:border-pine transition"
+              className="flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-2 text-xs font-semibold text-ink hover:border-pine transition"
             >
               <RefreshCw className="h-3.5 w-3.5" />
             </button>
@@ -329,7 +354,7 @@ export default function AdminCasesPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl p-8 space-y-5">
+      <main className="w-full p-6 space-y-5 md:p-8">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 card p-4">
           <div className="flex flex-1 items-center gap-3">
             <div className="relative flex-1 max-w-md">
@@ -384,7 +409,16 @@ export default function AdminCasesPage() {
         )}
 
         <div className="overflow-hidden card">
-          <table className="w-full text-left text-xs text-ink">
+          <table className="w-full table-fixed text-left text-xs text-ink">
+            <colgroup>
+              <col className="w-[4%]" />
+              <col className="w-[21%]" />
+              <col className="w-[15%]" />
+              <col className="w-[12%]" />
+              <col className="w-[11%]" />
+              <col className="w-[8%]" />
+              <col className="w-[29%]" />
+            </colgroup>
             <thead className="bg-paper text-[10px] font-semibold uppercase tracking-wide text-muted border-b border-line">
               <tr>
                 <th className="px-5 py-3">
@@ -401,7 +435,7 @@ export default function AdminCasesPage() {
                 <th className="px-5 py-3">Source & assets</th>
                 <th className="px-5 py-3">Status</th>
                 <th className="px-5 py-3">Created</th>
-                <th className="px-5 py-3 text-right">Actions</th>
+                <th className="sticky right-0 z-10 bg-paper px-5 py-3 text-right shadow-[-8px_0_12px_-12px_rgba(28,37,33,0.35)]">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
@@ -434,9 +468,26 @@ export default function AdminCasesPage() {
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-2">
                           {c.recordings.length > 0 ? (
-                            <span className="inline-flex items-center gap-1 text-[11px] text-pine">
-                              <Mic className="h-3 w-3" /> Audio ({c.recordings[0].durationSeconds}s)
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => playRecording(c.recordings[0].id)}
+                                className="inline-flex items-center gap-1 rounded border border-pine/30 bg-pine-tint px-2 py-1 text-[11px] font-medium text-pine-dark hover:bg-pine/10 transition"
+                                title="Play recorded audio"
+                              >
+                                {isLoadingPlayback && playingRecordingId === c.recordings[0].id ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : playingRecordingId === c.recordings[0].id ? (
+                                  <Pause className="h-3 w-3" />
+                                ) : (
+                                  <Play className="h-3 w-3" />
+                                )}
+                                Audio ({c.recordings[0].durationSeconds}s)
+                              </button>
+                              {playingRecordingId === c.recordings[0].id && playbackUrl && (
+                                <audio src={playbackUrl} controls autoPlay className="h-7 max-w-[190px]" onEnded={() => setPlayingRecordingId(null)} />
+                              )}
+                            </div>
                           ) : (
                             <span className="inline-flex items-center gap-1 text-[11px] text-muted">
                               <FileText className="h-3 w-3" /> Manual text
@@ -464,8 +515,8 @@ export default function AdminCasesPage() {
                           {new Date(c.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
                         </div>
                       </td>
-                      <td className="px-5 py-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
+                      <td className="sticky right-0 z-10 bg-surface px-5 py-4 text-right shadow-[-8px_0_12px_-12px_rgba(28,37,33,0.35)]">
+                        <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
                           {c.status === "PENDING_REVIEW" && c.recordings.length > 0 && (
                             <Link
                               href={`/cases/new?resumeCaseId=${c.id}`}

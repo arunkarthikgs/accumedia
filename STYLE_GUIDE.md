@@ -1,5 +1,21 @@
 # New style — components and usage
 
+## Page headers
+Use `components/PageHeader.tsx` for every new application screen. It provides the shared Dashboard/New Case Ingestion composition: breadcrumb, page title, one-line description, and right-aligned actions.
+
+```tsx
+import PageHeader from "@/components/PageHeader";
+
+<PageHeader
+  section="Safety Queue"
+  title="Safety Review Queue"
+  description="Review flagged content and record an explicit decision."
+  actions={<button className="rounded-lg bg-pine px-3 py-2 text-xs font-semibold text-white">Refresh</button>}
+/>;
+```
+
+Place it inside a `max-w-5xl` page frame using the shared `paper`, `surface`, `ink`, `muted`, `line`, and `pine` tokens. Avoid creating a separate dark toolbar or a page-specific header pattern.
+
 ## Why these are safe to try
 Everything here uses **Tailwind's built-in color palette only**
 (`slate`/`green`/`amber`/`red`) — nothing requires editing

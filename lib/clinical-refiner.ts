@@ -4,7 +4,11 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-export async function refineClinicalText(rawAsrText: string): Promise<string> {
+export async function refineClinicalText(
+  rawAsrText: string,
+  organizationInstructions = "",
+  organizationDisclaimer = ""
+): Promise<string> {
   if (!rawAsrText || !rawAsrText.trim()) {
     return "";
   }
@@ -16,6 +20,12 @@ export async function refineClinicalText(rawAsrText: string): Promise<string> {
       {
         role: "system",
         content: `You are an expert clinical documentation and medical transcription refiner for healthcare practitioners.
+
+      Organization-specific system instructions:
+      ${organizationInstructions || "No additional organization-specific instructions were configured."}
+
+      Organization disclaimer to preserve for applicable generated clinical content:
+      ${organizationDisclaimer || "No organization-specific disclaimer was configured."}
 
 Your task:
 1. Receive raw, phonetically transcribed speech-to-text from an ASR model.

@@ -188,7 +188,7 @@ export default function CompliancePromptsAdminPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
+    <div className="readable-route min-h-screen bg-slate-50 text-slate-900">
       {/* Top Bar */}
       <header className="border-b border-slate-200 bg-white px-8 py-4">
         <div className="mx-auto flex max-w-7xl items-center justify-between">

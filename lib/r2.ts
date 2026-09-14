@@ -1,4 +1,5 @@
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const accountId = (process.env.CLOUDFLARE_ACCOUNT_ID || "").trim();
 const accessKeyId = (process.env.R2_ACCESS_KEY_ID || "").trim();
@@ -32,7 +33,7 @@ async function uploadBufferToR2(
   fileName: string,
   mimeType: string,
   orgId: string,
-  folder: "audio" | "images"
+  folder: "audio" | "images" | "sources"
 ) {
   if (!accountId || !accessKeyId || !secretAccessKey || !bucketName) {
     throw new Error(
@@ -70,6 +71,18 @@ export async function uploadAudioToR2(
   return uploadBufferToR2(fileBuffer, fileName, mimeType, orgId, "audio");
 }
 
+export async function getAudioPlaybackUrl(r2Key: string) {
+  if (!bucketName || !r2Key) {
+    throw new Error("Audio playback configuration is missing.");
+  }
+
+  return getSignedUrl(
+    r2Client,
+    new GetObjectCommand({ Bucket: bucketName, Key: r2Key }),
+    { expiresIn: 900 }
+  );
+}
+
 // RFP §14-15 — same storage path as audio, namespaced under <orgId>/images/.
 // Used for both AI-generated images (lib/image-engine.ts) and doctor-uploaded
 // clinical images (app/api/cases/[id]/images/upload/route.ts).
@@ -80,4 +93,13 @@ export async function uploadImageToR2(
   orgId: string
 ) {
   return uploadBufferToR2(fileBuffer, fileName, mimeType, orgId, "images");
+}
+
+export async function uploadSourceToR2(
+  fileBuffer: Buffer,
+  fileName: string,
+  mimeType: string,
+  orgId: string
+) {
+  return uploadBufferToR2(fileBuffer, fileName, mimeType, orgId, "sources");
 }

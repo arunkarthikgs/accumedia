@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { refineClinicalText } from "@/lib/clinical-refiner";
 import { redactClinicalText } from "@/lib/prompts/clinical-redaction";
 import { logAIUsage } from "@/lib/ai-usage";
+import { assertTokenQuota } from "@/lib/quotas";
 
 export async function POST(req: Request) {
   try {
@@ -36,6 +37,8 @@ export async function POST(req: Request) {
 
     // Run Stage 2: LLM Clinical Refinement (GPT-4o)
     const sanitizedInput = redactClinicalText(textToRefine.trim());
+    const resolvedOrganizationId = organizationId || (recordingId ? (await db.audioRecording.findUnique({ where: { id: recordingId }, select: { organizationId: true } }))?.organizationId : null);
+    if (resolvedOrganizationId) await assertTokenQuota(resolvedOrganizationId, Math.ceil(sanitizedInput.length / 4) + 2048);
     const refinedText = redactClinicalText(
       await refineClinicalText(
         sanitizedInput,
@@ -44,9 +47,9 @@ export async function POST(req: Request) {
       )
     );
 
-    if (organizationId) {
+    if (resolvedOrganizationId) {
       await logAIUsage({
-        organizationId,
+        organizationId: resolvedOrganizationId,
         operation: "clinical_refinement",
         provider: "OpenAI",
         model: "gpt-4o",

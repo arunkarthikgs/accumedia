@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { uploadSourceToR2 } from "@/lib/r2";
+import { assertCaseQuota } from "@/lib/quotas";
+import { requireOrganizationAccess } from "@/lib/tenant-auth";
 
 const DOCUMENT_TYPES = new Set([
   "application/pdf",
@@ -29,6 +31,8 @@ export async function POST(req: Request) {
     if (!file || !organizationId || !physicianId) {
       return NextResponse.json({ error: "file, organizationId, and physicianId are required." }, { status: 400 });
     }
+    await requireOrganizationAccess(organizationId);
+    await assertCaseQuota(organizationId);
 
     const sourceType = sourceTypeFor(file);
     if (!sourceType) {

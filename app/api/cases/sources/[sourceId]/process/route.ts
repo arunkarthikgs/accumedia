@@ -6,6 +6,7 @@ import { getASRProvider } from "@/lib/asr/factory";
 import { getASRPromptProfile } from "@/lib/asr/prompts";
 import { redactClinicalText } from "@/lib/prompts/clinical-redaction";
 import { logAIUsage } from "@/lib/ai-usage";
+import { assertAudioQuota } from "@/lib/quotas";
 
 export async function POST(
   req: Request,
@@ -22,9 +23,9 @@ export async function POST(
     if (!response.ok) throw new Error(`Unable to download source file (${response.status}).`);
     const sourceBuffer = Buffer.from(await response.arrayBuffer());
     let extractedText: string;
-    let audioSeconds = 0;
     if (source.sourceType === "VIDEO") {
       const audio = await extractAudioFromVideo(sourceBuffer, source.fileName);
+      await assertAudioQuota(source.organizationId, audio.durationSeconds);
       const model = new URL(req.url).searchParams.get("model") || process.env.DEFAULT_ASR_MODEL || "whisper-1";
       const provider = getASRProvider(model);
       const result = await provider.transcribe({
@@ -40,7 +41,7 @@ export async function POST(
           storageUrl: source.storageUrl,
           fileName: audio.fileName,
           mimeType: audio.mimeType,
-          durationSeconds: audioSeconds,
+          durationSeconds: audio.durationSeconds,
           transcriptionStatus: "ASR_COMPLETED",
           rawTranscript: extractedText,
           transcribedText: extractedText,
@@ -56,7 +57,7 @@ export async function POST(
         operation: "video_speech_to_text",
         provider: result.provider,
         model: result.modelIdentifier,
-        audioSeconds,
+        audioSeconds: audio.durationSeconds,
       });
     } else {
       extractedText = await extractSourceText(sourceBuffer, source.fileName, source.mimeType);

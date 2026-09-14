@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { uploadImageToR2 } from "@/lib/r2";
 import { screenImage } from "@/lib/image-safety";
 import { recordAudit } from "@/lib/audit";
+import { applyBrandOverlay } from "@/lib/brand-compositor";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -69,7 +70,8 @@ No embedded text in the image itself.`;
   if (!b64) {
     throw new Error("Image generation returned no image data.");
   }
-  const buffer = Buffer.from(b64, "base64");
+  const baseBuffer = Buffer.from(b64, "base64");
+  const buffer = await applyBrandOverlay(baseBuffer, { accent: org.brandingHex || "#0f766e", logoUrl: org.logoUrl, title: kase.title, tagline: org.brandTagline, disclaimer: org.defaultDisclaimer, font: org.brandFont });
   const screening = await screenImage(buffer, "image/png");
   const fileName = `${channel}-${Date.now()}.png`;
 

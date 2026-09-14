@@ -126,3 +126,24 @@ export async function PUT(req: Request) {
     );
   }
 }
+
+export async function PATCH(req: Request) {
+  try {
+    const body = await req.json();
+    if (!body.organizationId) return NextResponse.json({ error: "Organization ID is required." }, { status: 400 });
+    const updated = await db.organization.update({
+      where: { id: body.organizationId },
+      data: {
+        name: body.name?.trim(),
+        brandingHex: body.brandingHex?.trim(),
+        logoUrl: body.logoUrl?.trim() || null,
+        brandFont: body.brandFont?.trim() || "Arial",
+        brandTagline: body.brandTagline?.trim() || null,
+        defaultDisclaimer: body.defaultDisclaimer?.trim(),
+      },
+    });
+    return NextResponse.json({ success: true, organization: updated });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message || "Failed to update brand settings." }, { status: 500 });
+  }
+}

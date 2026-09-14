@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import type { ChannelDefinition, Organization } from "@prisma/client";
 import { validateGeneratedContent } from "./content-validation";
 import { logAIUsage } from "./ai-usage";
-import { assertAssetQuota } from "./quotas";
+import { assertAssetQuota, assertTokenQuota } from "./quotas";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -92,6 +92,8 @@ where applicable: "${organization.defaultDisclaimer}".`;
   const resolvedPrompt = systemPrompt
     .replace("{duration}", channel.durationLabel || "60 seconds")
     .replace("{platform_char_limit}", String(platformLimit?.maxCharacters || 280));
+
+  await assertTokenQuota(organization.id, Math.ceil((resolvedPrompt.length + JSON.stringify(masterRecord).length) / 4) + 4096);
 
   const response = await openai.chat.completions.create({
     model: "gpt-4o",

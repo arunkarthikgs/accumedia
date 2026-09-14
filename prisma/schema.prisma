@@ -101,6 +101,9 @@ model Organization {
   name               String
   slug               String              @unique
   brandingHex        String?             @default("#0f766e")
+  logoUrl            String?
+  brandFont          String?             @default("Arial")
+  brandTagline       String?
   preferredAsrModel  String              @default("whisper-1")
   customSystemPrompt String?             @db.Text
   defaultDisclaimer  String              @default("This clinical summary is generated under NMC registered medical practitioner supervision.")
@@ -514,6 +517,11 @@ model SeoKeywordSet {
   questionKeywords  Json
   semanticKeywords  Json
   searchIntent      String?
+  qualityScore      Int?
+  validationIssues  Json?
+  contentHash       String?
+  reviewedAt        DateTime?
+  reviewedBy        String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @default(now()) @updatedAt
 

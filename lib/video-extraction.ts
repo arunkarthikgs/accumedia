@@ -6,7 +6,7 @@ const MAX_AUDIO_BYTES = 100 * 1024 * 1024;
 export async function extractAudioFromVideo(video: Buffer, fileName: string) {
   if (!ffmpegPath) throw new Error("Video processing is unavailable because ffmpeg is not bundled.");
 
-  return new Promise<{ buffer: Buffer; fileName: string; mimeType: string }>((resolve, reject) => {
+  return new Promise<{ buffer: Buffer; fileName: string; mimeType: string; durationSeconds: number }>((resolve, reject) => {
     const chunks: Buffer[] = [];
     const process = spawn(ffmpegPath, [
       "-hide_banner",
@@ -19,6 +19,8 @@ export async function extractAudioFromVideo(video: Buffer, fileName: string) {
       "1",
       "-ar",
       "16000",
+      "-b:a",
+      "128k",
       "-f",
       "mp3",
       "pipe:1",
@@ -39,10 +41,12 @@ export async function extractAudioFromVideo(video: Buffer, fileName: string) {
         reject(new Error(`Video audio extraction failed${stderr ? `: ${stderr.trim()}` : "."}`));
         return;
       }
+      const audioBuffer = Buffer.concat(chunks);
       resolve({
-        buffer: Buffer.concat(chunks),
+        buffer: audioBuffer,
         fileName: `${fileName.replace(/\.[^.]+$/, "") || "video"}.mp3`,
         mimeType: "audio/mpeg",
+        durationSeconds: Math.ceil((audioBuffer.length * 8) / 128000),
       });
     });
 

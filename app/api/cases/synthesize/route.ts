@@ -5,6 +5,8 @@ import { MANDATORY_CLINICAL_SYNTHESIS_PROMPT } from "@/lib/prompts/clinical-synt
 import { redactClinicalText, redactClinicalValue } from "@/lib/prompts/clinical-redaction";
 import { logAIUsage } from "@/lib/ai-usage";
 import { requireOrganizationAccess } from "@/lib/tenant-auth";
+import { assertTokenQuota } from "@/lib/quotas";
+import { assessSeoQuality } from "@/lib/seo-quality";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -60,6 +62,7 @@ export async function POST(req: Request) {
 
     // 2. Synthesize Master Clinical Record & Redacted PHI Audit via GPT-4o
     const sanitizedInput = redactClinicalText(rawText.trim());
+    await assertTokenQuota(organizationId, Math.ceil(sanitizedInput.length / 4) + 6000);
     const synthesisResponse = await openai.chat.completions.create({
       model: "gpt-4o",
       temperature: 0.1,
@@ -177,6 +180,7 @@ Return ONLY a valid JSON object matching this exact schema:
       ? sanitizedOutput.channelDrafts
       : [];
       const seoKeywords = sanitizedOutput.seoKeywords || {};
+      const seoQuality = assessSeoQuality(seoKeywords);
 
     let targetCaseId = caseId;
 
@@ -264,6 +268,9 @@ Return ONLY a valid JSON object matching this exact schema:
         questionKeywords: seoKeywords.questionKeywords || [],
         semanticKeywords: seoKeywords.semanticKeywords || [],
         searchIntent: seoKeywords.searchIntent || null,
+        qualityScore: seoQuality.score,
+        validationIssues: seoQuality.issues,
+        contentHash: seoQuality.contentHash,
       },
       update: {
         primaryKeyword: seoKeywords.primaryKeyword || null,
@@ -273,6 +280,9 @@ Return ONLY a valid JSON object matching this exact schema:
         questionKeywords: seoKeywords.questionKeywords || [],
         semanticKeywords: seoKeywords.semanticKeywords || [],
         searchIntent: seoKeywords.searchIntent || null,
+        qualityScore: seoQuality.score,
+        validationIssues: seoQuality.issues,
+        contentHash: seoQuality.contentHash,
       },
     });
 

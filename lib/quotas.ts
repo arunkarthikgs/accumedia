@@ -1,11 +1,19 @@
 import { db } from "@/lib/db";
 
 export async function getOrganizationQuota(organizationId: string) {
-  const subscription = await db.subscription.findUnique({
+  let subscription = await db.subscription.findUnique({
     where: { organizationId },
     include: { plan: true },
   });
   if (!subscription || subscription.status === "CANCELLED") return null;
+
+  if (subscription.currentPeriodEnd <= new Date() && ["TRIAL", "ACTIVE"].includes(subscription.status)) {
+    subscription = await db.subscription.update({
+      where: { id: subscription.id },
+      data: { currentPeriodStart: new Date(), currentPeriodEnd: new Date(Date.now() + 30 * 86400000) },
+      include: { plan: true },
+    });
+  }
 
   const periodStart = subscription.currentPeriodStart;
   const periodEnd = subscription.currentPeriodEnd;
@@ -40,6 +48,14 @@ export async function assertAssetQuota(organizationId: string, additionalAssets 
   if (!quota?.assets.limit) return;
   if (quota.assets.used + additionalAssets > quota.assets.limit) {
     throw new Error(`Monthly asset quota exceeded (${quota.assets.limit} assets).`);
+  }
+}
+
+export async function assertTokenQuota(organizationId: string, additionalTokens: number) {
+  const quota = await getOrganizationQuota(organizationId);
+  if (!quota?.aiTokens.limit) return;
+  if (quota.aiTokens.used + Math.max(0, Math.ceil(additionalTokens)) > quota.aiTokens.limit) {
+    throw new Error(`Monthly AI token quota exceeded (${quota.aiTokens.limit} tokens).`);
   }
 }
 

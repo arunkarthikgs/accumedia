@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { RefreshCw, Pencil, CheckCircle2, Save, X, Send } from "lucide-react";
+import { RefreshCw, Pencil, CheckCircle2, Save, X, Send, Eye } from "lucide-react";
 import StatusTag, { StatusTone } from "@/components/ui/StatusTag";
 
 interface AssetActionsPanelProps {
@@ -26,6 +26,23 @@ const STATUS_TONE: Record<string, StatusTone> = {
   PUBLISHED: "pine",
 };
 
+function defaultPlatform(asset: AssetActionsPanelProps["asset"]) {
+  if (asset.outputType === "FACEBOOK_POST" || asset.channelKey === "FACEBOOK_POST") return "facebook";
+  if (asset.outputType === "X_POST" || asset.channelKey === "X_POST") return "x";
+  if (asset.outputType === "YOUTUBE_REELS_METADATA" || asset.channelKey === "YOUTUBE_REELS") return "youtube";
+  if (asset.outputType === "SEO_BLOG" || asset.channelKey === "SEO_BLOG") return "cms";
+  return "linkedin";
+}
+
+function previewText(content: any) {
+  if (typeof content === "string") return content;
+  if (!content || typeof content !== "object") return "";
+  return Object.entries(content)
+    .filter(([key, value]) => !["image_brief", "carousel_cards", "hashtags", "keywords", "faq_section", "suggested_headings"].includes(key) && value)
+    .map(([key, value]) => `${key.replace(/_/g, " ")}: ${Array.isArray(value) ? value.join(" • ") : typeof value === "object" ? JSON.stringify(value) : value}`)
+    .join("\n\n");
+}
+
 /**
  * RFP §17 — "Regenerate only one platform output", independent per-asset
  * approval, edit/expand/shorten. Every action here calls
@@ -40,9 +57,10 @@ export default function AssetActionsPanel({ caseId, asset }: AssetActionsPanelPr
   const [draftText, setDraftText] = useState(JSON.stringify(asset.content, null, 2));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [publishPlatform, setPublishPlatform] = useState("linkedin");
+  const [publishPlatform, setPublishPlatform] = useState(defaultPlatform(asset));
   const [scheduledAt, setScheduledAt] = useState("");
   const [publicationMessage, setPublicationMessage] = useState<string | null>(null);
+  const [previewPlatform, setPreviewPlatform] = useState(defaultPlatform(asset));
 
   const callAction = async (action: "regenerate" | "approve" | "manual_edit", body: any = {}) => {
     setIsSubmitting(true);
@@ -105,6 +123,24 @@ export default function AssetActionsPanel({ caseId, asset }: AssetActionsPanelPr
 
       {error && <div className="text-xs text-brick bg-brick-tint border border-brick/30 rounded p-2">{error}</div>}
       {publicationMessage && <div className="text-xs text-pine bg-pine-tint border border-pine/30 rounded p-2">{publicationMessage}</div>}
+
+      <section className="rounded border border-line bg-surface p-4">
+        <h3 className="flex items-center gap-1.5 text-xs font-semibold text-ink"><Eye className="h-3.5 w-3.5 text-pine" /> Draft preview</h3>
+        <div className="mt-3 flex flex-wrap gap-1.5 border-b border-line pb-2">
+          {["facebook", "youtube", "linkedin", "instagram"].map((platform) => <button key={platform} type="button" onClick={() => setPreviewPlatform(platform)} className={`rounded px-2.5 py-1 text-[10px] font-semibold capitalize ${previewPlatform === platform ? "bg-pine text-white" : "bg-paper text-muted hover:text-ink"}`}>{platform}</button>)}
+        </div>
+        <div className={`mt-3 rounded-lg border border-line p-4 ${previewPlatform === "instagram" ? "mx-auto max-w-xs" : "max-w-xl"} bg-paper`}>
+          <div className="flex items-center gap-2 border-b border-line pb-3 text-[11px] font-semibold text-ink">
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-pine text-white">M</span>
+            <span>Macula Healthcare</span>
+            <span className="ml-auto text-[10px] text-muted">{previewPlatform === "youtube" ? "Video" : "Draft"}</span>
+          </div>
+          <div className="mt-3 whitespace-pre-wrap text-xs leading-5 text-ink">{previewText(content) || "No preview content available yet."}</div>
+          {content?.image_brief && <div className="mt-3 rounded border border-dashed border-line p-2 text-[10px] text-muted">Image concept: {content.image_brief}</div>}
+          {Array.isArray(content?.hashtags) && <div className="mt-3 text-[10px] text-pine">{content.hashtags.map((tag: string) => tag.startsWith("#") ? tag : `#${tag}`).join(" ")}</div>}
+          <div className="mt-4 flex gap-4 border-t border-line pt-3 text-[10px] text-muted"><span>Like</span><span>Comment</span><span>Share</span></div>
+        </div>
+      </section>
 
       {isEditing ? (
         <textarea

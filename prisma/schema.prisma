@@ -266,6 +266,7 @@ model Case {
 
   @@index([physicianId])
   @@index([organizationId])
+  @@index([createdAt])
   @@index([speciality])
   @@schema("macula")
   @@map("macula_cases")

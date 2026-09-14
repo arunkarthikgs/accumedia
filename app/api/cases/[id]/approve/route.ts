@@ -56,7 +56,8 @@ export async function POST(
     // regenerating individual assets is a separate, explicit action
     // (see app/api/cases/[id]/assets/[assetId]/route.ts).
     let generatedAssets: Awaited<ReturnType<typeof runAdaptationEngine>> = [];
-    if (existingCase.assets.length === 0) {
+    const hasAdaptationAssets = existingCase.assets.some((asset) => asset.outputType !== null);
+    if (!hasAdaptationAssets) {
       generatedAssets = await runAdaptationEngine(id);
     }
     await recordAudit({ organizationId: existingCase.organizationId, caseId: id, targetType: "CASE", targetId: id, action: "CASE_APPROVED", detail: `Approved by ${approvedBy || "Attending physician"}.`, metadata: { assetsGenerated: generatedAssets.length } });

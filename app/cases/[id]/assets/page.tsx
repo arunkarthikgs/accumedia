@@ -12,6 +12,7 @@ import {
   Stethoscope,
 } from "lucide-react";
 import StatusTag from "@/components/ui/StatusTag";
+import GenerateAssetsButton from "@/components/GenerateAssetsButton";
 
 export const dynamic = "force-dynamic";
 
@@ -94,7 +95,7 @@ export default async function CaseAssetsPage(props: {
             </div>
 
             {isApproved ? (
-              <StatusTag tone="sage" icon={<ShieldCheck className="h-3.5 w-3.5" />}>Signed off by attending RMP</StatusTag>
+              <div className="flex flex-col items-end gap-2"><StatusTag tone="sage" icon={<ShieldCheck className="h-3.5 w-3.5" />}>Signed off by attending RMP</StatusTag><GenerateAssetsButton caseId={caseData.id} /></div>
             ) : (
               <StatusTag tone="ochre" icon={<Clock className="h-3.5 w-3.5" />}>Pending safety gate sign-off</StatusTag>
             )}

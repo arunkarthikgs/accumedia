@@ -161,15 +161,21 @@ export async function runAdaptationEngine(caseId: string) {
   });
 
   let channels = await db.channelDefinition.findMany({
-    where: { isActive: true, OR: [{ organizationId: kase.organizationId }, { organizationId: null }] },
+    where: { isActive: true, outputType: { not: null }, OR: [{ organizationId: kase.organizationId }, { organizationId: null }] },
   });
 
   if (channels.length === 0) {
-    channels = await db.channelDefinition.findMany({ where: { organizationId: null } });
+    channels = await db.channelDefinition.findMany({ where: { organizationId: null, outputType: { not: null } } });
   }
 
+  const existingAssets = await db.generatedAsset.findMany({
+    where: { caseId },
+    select: { channelKey: true },
+  });
+  const existingChannelKeys = new Set(existingAssets.map((asset) => asset.channelKey));
   const created = [];
   for (const channel of channels) {
+    if (existingChannelKeys.has(channel.channelKey)) continue;
     const asset = await generateChannelAsset({
       caseId,
       masterRecord: kase.masterRecord as Record<string, any>,

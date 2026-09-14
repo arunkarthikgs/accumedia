@@ -245,6 +245,12 @@ export default function AdminCasesPage() {
 
     setIsExporting(true);
     try {
+      const exportResponse = await fetch("/api/admin/cases?status=ALL&includeContent=true");
+      const exportData = await exportResponse.json();
+      if (!exportResponse.ok) throw new Error(exportData.error || "Unable to load export data.");
+      const exportCases: CaseItem[] = exportData.cases || [];
+      const exportById = new Map<string, CaseItem>(exportCases.map((item) => [item.id, item]));
+      const casesForExport = targetCases.map((item) => exportById.get(item.id) || item);
       const zip = new JSZip();
       const folder = zip.folder("macula_clinical_records");
 
@@ -253,7 +259,7 @@ export default function AdminCasesPage() {
         "NMC Registration No", "Audio Recording Attached", "Created At", "Reviewed By",
         "Reviewed At", "Rejection Reason",
       ];
-      const csvRows = targetCases.map((c) => [
+      const csvRows = casesForExport.map((c) => [
         `"${c.id}"`, `"${c.title.replace(/"/g, '""')}"`, `"${c.status}"`,
         `"${c.organization.name.replace(/"/g, '""')}"`, `"${c.physician.name.replace(/"/g, '""')}"`,
         `"${c.physician.registrationNo || "N/A"}"`, `"${c.recordings.length > 0 ? "Yes" : "No"}"`,
@@ -263,7 +269,7 @@ export default function AdminCasesPage() {
       const csvContent = [csvHeader.join(","), ...csvRows.map((r) => r.join(","))].join("\n");
       folder?.file("index_cases.csv", csvContent);
 
-      targetCases.forEach((c) => {
+      casesForExport.forEach((c) => {
         const payload = {
           caseId: c.id, title: c.title, status: c.status, organization: c.organization,
           attendingPhysician: c.physician,

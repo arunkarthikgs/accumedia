@@ -9,6 +9,7 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const orgId = searchParams.get("orgId");
     const status = searchParams.get("status");
+    const includeContent = searchParams.get("includeContent") === "true";
 
     const where: any = {};
     if (orgId && orgId !== "ALL") where.organizationId = orgId;
@@ -17,7 +18,16 @@ export async function GET(req: Request) {
 
     const cases = await db.case.findMany({
       where,
-      include: {
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        rejectionReason: true,
+        reviewedBy: true,
+        reviewedAt: true,
+        createdAt: true,
+        masterRecord: true,
+        safetyAudit: true,
         physician: {
           select: {
             id: true,
@@ -36,11 +46,9 @@ export async function GET(req: Request) {
         recordings: {
           select: {
             id: true,
-            r2Key: true,
             durationSeconds: true,
             transcriptionStatus: true,
-            rawTranscript: true,
-            transcribedText: true,
+            ...(includeContent ? { r2Key: true, rawTranscript: true, transcribedText: true } : {}),
           },
         },
         assets: {
@@ -50,22 +58,12 @@ export async function GET(req: Request) {
             channelName: true,
             outputType: true,
             status: true,
-            content: true,
+            content: includeContent,
             validationWarnings: true,
             validationWordCount: true,
             validationCharacterCount: true,
             validationDurationSeconds: true,
           },
-        },
-        sources: {
-          select: {
-            id: true,
-            fileName: true,
-            sourceType: true,
-            status: true,
-            processingError: true,
-          },
-          orderBy: { createdAt: "desc" },
         },
         // RFP §16 — surfaced so the admin list can show "N open flags" and
         // disable/redirect the approve action instead of letting it silently
@@ -76,6 +74,7 @@ export async function GET(req: Request) {
         },
       },
       orderBy: { createdAt: "desc" },
+      take: 100,
     });
 
     return NextResponse.json({ success: true, cases });

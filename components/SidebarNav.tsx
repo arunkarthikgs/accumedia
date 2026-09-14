@@ -54,6 +54,13 @@ export default function SidebarNav() {
           <PlusCircle className="h-4 w-4" />
           <span>Dictate Case</span>
         </Link>
+        <Link
+          href="/settings/organization"
+          className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-pine/30 bg-pine-tint px-3.5 py-2 text-xs font-semibold text-pine hover:border-pine transition"
+        >
+          <Palette className="h-4 w-4" />
+          <span>Brand &amp; Disclaimers</span>
+        </Link>
       </div>
 
       <nav className="grid flex-1 grid-cols-2 gap-1 px-3 py-2 md:block md:space-y-1">

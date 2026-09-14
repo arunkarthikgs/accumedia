@@ -19,6 +19,7 @@ import {
   ShieldCheck,
   Server,
   Cloud,
+  Palette,
 } from "lucide-react";
 
 interface OrganizationItem {
@@ -321,13 +322,21 @@ export default function AdminOrganizationsPage() {
                       </td>
 
                       <td className="px-6 py-4 text-right">
-                        <button
-                          type="button"
-                          onClick={() => openEditModal(org)}
-                          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 transition shadow-2xs"
-                        >
-                          <Edit2 className="h-3 w-3 text-slate-500" /> Edit
-                        </button>
+                        <div className="flex items-center justify-end gap-2">
+                          <Link
+                            href={`/settings/organization?orgId=${org.id}`}
+                            className="inline-flex items-center gap-1 rounded-lg border border-pine/30 bg-pine-tint px-2.5 py-1 text-[11px] font-semibold text-pine hover:border-pine transition"
+                          >
+                            <Palette className="h-3 w-3" /> Brand &amp; Disclaimers
+                          </Link>
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(org)}
+                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 transition shadow-2xs"
+                          >
+                            <Edit2 className="h-3 w-3 text-slate-500" /> Edit
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );

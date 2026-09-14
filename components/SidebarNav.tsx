@@ -12,6 +12,7 @@ import {
   BarChart3,
   CreditCard,
   Send,
+  Palette,
 } from "lucide-react";
 import BrandLogo from "@/components/BrandLogo";
 
@@ -24,6 +25,7 @@ const NAV_ITEMS = [
   { href: "/admin/usage", label: "AI Usage", icon: BarChart3 },
   { href: "/admin/subscription", label: "Subscription", icon: CreditCard },
   { href: "/admin/publishing", label: "Publishing Jobs", icon: Send },
+  { href: "/settings/organization", label: "Brand & Disclaimers", icon: Palette },
 ];
 
 /**

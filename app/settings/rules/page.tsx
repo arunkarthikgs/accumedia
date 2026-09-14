@@ -64,38 +64,38 @@ export default function RulesSettingsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 p-8 text-slate-900">
+    <div className="min-h-screen bg-paper p-8 text-ink">
       <div className="mx-auto max-w-6xl space-y-8">
         <div>
-          <div className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-teal-700">
+          <div className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-pine">
             <Link href="/" className="flex items-center gap-1 hover:underline">
               <ArrowLeft className="h-3 w-3" /> Dashboard
             </Link>
             <span>/</span>
             <span>Settings</span>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+          <h1 className="text-2xl font-bold tracking-tight text-ink">
             Dynamic Compliance Guardrails &amp; Channels
           </h1>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-muted">
             All synthesis prompts, regex redactors, and distribution targets are managed as live database records.
           </p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Section: Regulatory Rules */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-6">
-            <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-              <ShieldCheck className="h-5 w-5 text-teal-600" />
-              <h2 className="text-base font-bold text-slate-900">Compliance &amp; DPDP Redaction Rules</h2>
+          <div className="rounded-lg border border-line bg-surface p-6 space-y-6">
+            <div className="flex items-center gap-2 border-b border-line pb-3">
+              <ShieldCheck className="h-5 w-5 text-pine" />
+              <h2 className="text-base font-bold text-ink">Compliance &amp; DPDP Redaction Rules</h2>
             </div>
 
-            <form onSubmit={submitRule} className="space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
+            <form onSubmit={submitRule} className="space-y-3 bg-paper p-4 rounded-lg border border-line">
               <div className="grid grid-cols-2 gap-2">
                 <select
                   value={ruleForm.ruleType}
                   onChange={(e) => setRuleForm({ ...ruleForm, ruleType: e.target.value })}
-                  className="rounded-lg border border-slate-200 p-2 text-xs bg-white"
+                  className="rounded-lg border border-line p-2 text-xs bg-surface"
                 >
                   <option value="DPDP_REDACTION">DPDP Regex Redaction</option>
                   <option value="NMC_PROHIBITION">NMC Ethics Prohibition</option>
@@ -103,7 +103,7 @@ export default function RulesSettingsPage() {
                 <select
                   value={ruleForm.severity}
                   onChange={(e) => setRuleForm({ ...ruleForm, severity: e.target.value })}
-                  className="rounded-lg border border-slate-200 p-2 text-xs bg-white"
+                  className="rounded-lg border border-line p-2 text-xs bg-surface"
                 >
                   <option value="BLOCKER">Blocker</option>
                   <option value="WARNING">Warning</option>
@@ -115,7 +115,7 @@ export default function RulesSettingsPage() {
                 placeholder="Pattern / Regex / Flagged terms"
                 value={ruleForm.patternOrCheck}
                 onChange={(e) => setRuleForm({ ...ruleForm, patternOrCheck: e.target.value })}
-                className="w-full rounded-lg border border-slate-200 p-2 text-xs font-mono bg-white"
+                className="w-full rounded-lg border border-line p-2 text-xs font-mono bg-surface"
               />
               <input
                 type="text"
@@ -123,11 +123,11 @@ export default function RulesSettingsPage() {
                 placeholder="Rule description & guidance"
                 value={ruleForm.description}
                 onChange={(e) => setRuleForm({ ...ruleForm, description: e.target.value })}
-                className="w-full rounded-lg border border-slate-200 p-2 text-xs bg-white"
+                className="w-full rounded-lg border border-line p-2 text-xs bg-surface"
               />
               <button
                 type="submit"
-                className="w-full rounded-lg bg-teal-600 py-2 text-xs font-semibold text-white hover:bg-teal-700"
+                className="w-full rounded-lg bg-pine py-2 text-xs font-semibold text-white hover:bg-pine-dark"
               >
                 Add Compliance Rule to DB
               </button>

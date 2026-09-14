@@ -95,3 +95,44 @@ input[type="range"]::-moz-range-thumb {
   border-left-width: 3px;
   border-left-style: solid;
 }
+
+/* Keep older route-level utility classes in the same visual language. */
+.bg-slate-50 { background-color: var(--paper) !important; }
+.bg-white { background-color: var(--surface) !important; }
+.border-slate-100,
+.border-slate-200 { border-color: var(--line) !important; }
+.text-slate-900 { color: var(--ink) !important; }
+.text-slate-700,
+.text-slate-600,
+.text-slate-500,
+.text-slate-400 { color: var(--muted) !important; }
+.bg-teal-600,
+.bg-teal-700,
+.bg-emerald-600,
+.bg-emerald-700 { background-color: var(--pine) !important; }
+.text-teal-600,
+.text-teal-700,
+.text-teal-800,
+.text-teal-900,
+.text-emerald-600,
+.text-emerald-700,
+.text-emerald-800 { color: var(--pine) !important; }
+.border-teal-100,
+.border-teal-200,
+.border-emerald-100,
+.border-emerald-200 { border-color: color-mix(in srgb, var(--pine) 22%, var(--line)) !important; }
+.bg-teal-50,
+.bg-emerald-50,
+.bg-emerald-100 { background-color: var(--pine-tint) !important; }
+.text-amber-700,
+.text-amber-800,
+.text-amber-900 { color: var(--ochre) !important; }
+.bg-amber-50,
+.bg-amber-100 { background-color: var(--ochre-tint) !important; }
+.text-red-600,
+.text-red-700,
+.text-red-800,
+.text-rose-600,
+.text-rose-700 { color: var(--brick) !important; }
+.bg-red-50,
+.bg-rose-50 { background-color: var(--brick-tint) !important; }

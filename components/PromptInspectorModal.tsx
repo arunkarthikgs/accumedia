@@ -63,19 +63,19 @@ export default function PromptInspectorModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
-      <div className="flex h-[88vh] w-full max-w-4xl flex-col rounded-2xl border border-slate-200 bg-white shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 p-4 backdrop-blur-xs">
+      <div className="flex h-[88vh] w-full max-w-4xl flex-col rounded-lg border border-line bg-surface shadow-2xl">
         {/* Modal Header */}
-        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+        <div className="flex items-center justify-between border-b border-line px-6 py-4">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-50 text-teal-700">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-pine-tint text-pine">
               <Cpu className="h-4 w-4" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-slate-900">
+              <h3 className="text-sm font-bold text-ink">
                 AI Prompts & Database Properties Inspector
               </h3>
-              <p className="text-[11px] text-slate-500">
+              <p className="text-[11px] text-muted">
                 Audit trail for regulatory verification, prompt debugging, and metadata tracking
               </p>
             </div>
@@ -83,21 +83,21 @@ export default function PromptInspectorModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
+            className="rounded-lg p-1 text-muted hover:bg-paper hover:text-ink transition"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex items-center gap-2 border-b border-slate-100 bg-slate-50/60 px-6 pt-2">
+        <div className="flex items-center gap-2 border-b border-line bg-paper px-6 pt-2">
           <button
             type="button"
             onClick={() => setActiveTab("prompts")}
             className={`flex items-center gap-1.5 border-b-2 px-3 py-2 text-xs font-semibold transition ${
               activeTab === "prompts"
-                ? "border-teal-600 text-teal-700"
-                : "border-transparent text-slate-500 hover:text-slate-800"
+                ? "border-pine text-pine"
+                : "border-transparent text-muted hover:text-ink"
             }`}
           >
             <Terminal className="h-3.5 w-3.5" /> AI Prompts & Agents
@@ -108,8 +108,8 @@ export default function PromptInspectorModal({
             onClick={() => setActiveTab("database")}
             className={`flex items-center gap-1.5 border-b-2 px-3 py-2 text-xs font-semibold transition ${
               activeTab === "database"
-                ? "border-teal-600 text-teal-700"
-                : "border-transparent text-slate-500 hover:text-slate-800"
+                ? "border-pine text-pine"
+                : "border-transparent text-muted hover:text-ink"
             }`}
           >
             <Database className="h-3.5 w-3.5" /> Database Properties
@@ -120,8 +120,8 @@ export default function PromptInspectorModal({
             onClick={() => setActiveTab("json")}
             className={`flex items-center gap-1.5 border-b-2 px-3 py-2 text-xs font-semibold transition ${
               activeTab === "json"
-                ? "border-teal-600 text-teal-700"
-                : "border-transparent text-slate-500 hover:text-slate-800"
+                ? "border-pine text-pine"
+                : "border-transparent text-muted hover:text-ink"
             }`}
           >
             <Code2 className="h-3.5 w-3.5" /> Raw JSON Snapshot
@@ -131,12 +131,12 @@ export default function PromptInspectorModal({
         {/* Modal Body */}
         <div className="flex-1 overflow-y-auto p-6 text-xs">
           {loading ? (
-            <div className="flex h-64 flex-col items-center justify-center gap-2 text-slate-400">
-              <Loader2 className="h-6 w-6 animate-spin text-teal-600" />
+            <div className="flex h-64 flex-col items-center justify-center gap-2 text-muted">
+              <Loader2 className="h-6 w-6 animate-spin text-pine" />
               <span>Fetching live prompts and database properties...</span>
             </div>
           ) : !data ? (
-            <p className="text-slate-500">No properties available for this entity.</p>
+            <p className="text-muted">No properties available for this entity.</p>
           ) : (
             <>
               {/* TAB 1: AI PROMPTS */}

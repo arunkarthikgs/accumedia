@@ -107,70 +107,70 @@ export default function CaseWorkflowStudio() {
   return (
     <div className="space-y-8 pb-16">
       {/* Visual Workflow Steps Bar */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm">
+      <div className="bg-surface rounded-lg border border-line p-5">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="flex items-center gap-3.5">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white font-bold text-sm shadow-sm shadow-emerald-200">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-pine text-white font-bold text-sm shadow-sm">
               1
             </span>
             <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Step 1</p>
-              <h4 className="text-sm font-semibold text-slate-900">Clinical Ingestion</h4>
+              <p className="text-xs font-bold uppercase tracking-wider text-muted">Step 1</p>
+              <h4 className="text-sm font-semibold text-ink">Clinical Ingestion</h4>
             </div>
           </div>
           <div className="flex items-center gap-3.5">
             <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl font-bold text-sm shadow-sm transition-colors ${
-              masterRecord ? "bg-emerald-600 text-white shadow-emerald-200" : "bg-slate-100 text-slate-400"
+              masterRecord ? "bg-pine text-white shadow-sm" : "bg-paper text-muted"
             }`}>
               2
             </span>
             <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Step 2</p>
-              <h4 className="text-sm font-semibold text-slate-900">Compliance & Safety Gate</h4>
+              <p className="text-xs font-bold uppercase tracking-wider text-muted">Step 2</p>
+              <h4 className="text-sm font-semibold text-ink">Compliance & Safety Gate</h4>
             </div>
           </div>
           <div className="flex items-center gap-3.5">
             <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl font-bold text-sm shadow-sm transition-colors ${
-              generatedAssets ? "bg-emerald-600 text-white shadow-emerald-200" : "bg-slate-100 text-slate-400"
+              generatedAssets ? "bg-pine text-white shadow-sm" : "bg-paper text-muted"
             }`}>
               3
             </span>
             <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Step 3</p>
-              <h4 className="text-sm font-semibold text-slate-900">Omnichannel Deliverables</h4>
+              <p className="text-xs font-bold uppercase tracking-wider text-muted">Step 3</p>
+              <h4 className="text-sm font-semibold text-ink">Omnichannel Deliverables</h4>
             </div>
           </div>
         </div>
       </div>
 
       {/* 1. Ingestion Phase */}
-      <section className="bg-white rounded-2xl border border-slate-200/80 p-7 shadow-sm">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-5 mb-6">
+      <section className="bg-surface rounded-lg border border-line p-7">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-line pb-5 mb-6">
           <div>
-            <h3 className="text-lg font-bold text-slate-900">1. Case Capture & Intake</h3>
-            <p className="text-xs text-slate-500 mt-0.5">Dictate or paste clinical notes from your OPD or surgical log</p>
+            <h3 className="text-lg font-bold text-ink">1. Case Capture & Intake</h3>
+            <p className="text-xs text-muted mt-0.5">Dictate or paste clinical notes from your OPD or surgical log</p>
           </div>
           
           <div className="flex items-center gap-3">
             {!isRecording ? (
               <button
                 onClick={startVoiceRecording}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-semibold text-xs transition border border-emerald-200/60"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-pine-tint text-pine hover:bg-pine-tint font-semibold text-xs transition border border-pine/20"
               >
-                <span className="h-2.5 w-2.5 rounded-full bg-emerald-600 animate-pulse" />
+                <span className="h-2.5 w-2.5 rounded-full bg-pine animate-pulse" />
                 Record Voice Case
               </button>
             ) : (
               <button
                 onClick={stopVoiceRecording}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-600 text-white hover:bg-rose-700 font-semibold text-xs shadow-md shadow-rose-200 animate-pulse"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-brick text-white hover:bg-brick font-semibold text-xs shadow-sm animate-pulse"
               >
                 <span className="h-2 w-2 rounded-sm bg-white" />
                 Stop Recording ({formatTimer(recordingDuration)})
               </button>
             )}
             {audioBlob && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-800 text-xs font-medium border border-emerald-200/50">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sage-tint text-sage text-xs font-medium border border-sage/20">
                 ✓ Audio Buffered
               </span>
             )}
@@ -179,7 +179,7 @@ export default function CaseWorkflowStudio() {
 
         <div className="space-y-4">
           <div className="relative">
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+            <label className="block text-xs font-bold uppercase tracking-wider text-muted mb-2">
               Clinical Narrative / Case Notes
             </label>
             <textarea
@@ -187,7 +187,7 @@ export default function CaseWorkflowStudio() {
               onChange={(e) => setInputText(e.target.value)}
               placeholder="Example: 63yo male presented with sudden painless vision drop in right eye (OD 6/60). Dilated fundus exam revealed Central Retinal Vein Occlusion (CRVO) with diffuse macular edema. Initiated anti-VEGF injection immediately. At 4 weeks, BCVA improved to 6/12. Key takeaway: Early anti-VEGF intervention in acute CRVO saves visual acuity..."
               rows={5}
-              className="w-full text-sm text-slate-800 placeholder-slate-400 p-4 bg-slate-50/50 border border-slate-200 rounded-xl focus:bg-white focus:border-emerald-600 focus:ring-4 focus:ring-emerald-50 outline-none transition duration-150 leading-relaxed"
+              className="w-full text-sm text-ink placeholder-muted p-4 bg-paper border border-line rounded-lg focus:bg-surface focus:border-pine focus:ring-4 focus:ring-pine-tint outline-none transition duration-150 leading-relaxed"
             />
           </div>
 
@@ -195,7 +195,7 @@ export default function CaseWorkflowStudio() {
             <button
               onClick={runSynthesis}
               disabled={isSynthesizing || (!audioBlob && !inputText.trim())}
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:bg-slate-200 disabled:cursor-not-allowed text-white text-xs font-semibold shadow-sm transition"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-pine hover:bg-pine-dark disabled:bg-line disabled:cursor-not-allowed text-white text-xs font-semibold shadow-sm transition"
             >
               {isSynthesizing ? (
                 <>

@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import BrandLogo from "@/components/BrandLogo";
 
 interface NavItem {
   name: string;
@@ -90,13 +91,7 @@ export default function AppNavigation({ children }: { children: React.ReactNode 
         {/* Brand Banner */}
         <div className="p-6 border-b border-line flex items-center justify-between">
           <Link href="/" className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-pine flex items-center justify-center text-white font-extrabold text-lg shadow-sm">
-              M
-            </div>
-            <div>
-              <span className="font-extrabold tracking-tight text-ink text-sm block">MACULA HEALTHCARE</span>
-              <span className="text-[10px] font-semibold text-pine uppercase tracking-wider block">Clinical Engine</span>
-            </div>
+            <BrandLogo compact />
           </Link>
         </div>
 

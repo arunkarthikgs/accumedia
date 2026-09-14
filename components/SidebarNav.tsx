@@ -13,6 +13,7 @@ import {
   CreditCard,
   Send,
 } from "lucide-react";
+import BrandLogo from "@/components/BrandLogo";
 
 const NAV_ITEMS = [
   { href: "/", label: "Home", icon: Activity },
@@ -39,15 +40,7 @@ export default function SidebarNav() {
     <aside className="w-full shrink-0 border-b border-line bg-surface flex flex-col md:w-64 md:border-b-0 md:border-r">
       <div className="p-4 border-b border-line md:p-6">
         <Link href="/" className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-pine text-white shadow-xs">
-            <Activity className="h-5 w-5" />
-          </div>
-          <div>
-            <div className="text-base font-bold tracking-tight text-ink leading-none">
-              Macula
-            </div>
-            <div className="text-xs font-semibold text-pine">Clinical</div>
-          </div>
+          <BrandLogo compact />
         </Link>
       </div>
 

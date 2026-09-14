@@ -3,11 +3,12 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, CheckCircle2, FileText, LockKeyhole, ShieldCheck } from "lucide-react";
+import BrandLogo from "@/components/BrandLogo";
 
 const DEMO_ACCOUNTS = [
-  { label: "Super Admin", value: "superadmin", detail: "Full governance access" },
-  { label: "Aarogyam Hospital", value: "10000000", detail: "Clinical operations" },
-  { label: "Asha Oncology Hospital", value: "10000011", detail: "Clinical operations" },
+  { label: "Super Admin", value: "superadmin@macula.health", detail: "Full governance access" },
+  { label: "Hospital Admin", value: "admin@hospital.in", detail: "Clinical operations" },
+  { label: "Physician", value: "doctor@hospital.in", detail: "Clinical operations" },
 ];
 
 export default function LoginPage() {
@@ -40,15 +41,7 @@ export default function LoginPage() {
       <section className="relative hidden overflow-hidden bg-pine-dark p-12 text-white lg:flex lg:flex-col lg:justify-between">
         <div className="absolute inset-0 opacity-20 [background-image:linear-gradient(rgba(255,255,255,.12)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.12)_1px,transparent_1px)] [background-size:48px_48px]" />
         <div className="relative">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-white text-pine">
-              <FileText className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-sm font-bold tracking-[0.18em]">MACULA</p>
-              <p className="text-xs font-medium text-pine-tint">Clinical intelligence workspace</p>
-            </div>
-          </div>
+          <BrandLogo invert />
 
           {error && <div className="mb-4 rounded-lg border border-brick/30 bg-brick-tint p-3 text-xs text-brick">{error}</div>}
         </div>
@@ -83,15 +76,7 @@ export default function LoginPage() {
       <section className="flex min-h-screen items-center justify-center px-6 py-12 sm:px-10">
         <div className="w-full max-w-md">
           <div className="mb-10 lg:hidden">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-pine text-white">
-                <FileText className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-sm font-bold tracking-[0.16em] text-ink">MACULA</p>
-                <p className="text-xs font-medium text-pine">Clinical intelligence workspace</p>
-              </div>
-            </div>
+            <BrandLogo compact />
           </div>
 
           <div className="mb-8">

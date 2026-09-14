@@ -1,9 +1,11 @@
 import mammoth from "mammoth";
-import pdfParse from "pdf-parse";
+import { PDFParse } from "pdf-parse";
 
 export async function extractSourceText(buffer: Buffer, fileName: string, mimeType: string) {
   if (mimeType === "application/pdf" || fileName.toLowerCase().endsWith(".pdf")) {
-    const result = await pdfParse(buffer);
+    const parser = new PDFParse({ data: new Uint8Array(buffer) });
+    const result = await parser.getText();
+    await parser.destroy();
     return result.text.trim();
   }
 

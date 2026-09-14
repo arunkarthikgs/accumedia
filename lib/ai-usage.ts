@@ -24,7 +24,7 @@ export async function logAIUsage(input: {
         outputTokens: input.outputTokens ?? null,
         audioSeconds: input.audioSeconds ?? null,
         estimatedCostUsd: input.estimatedCostUsd ?? null,
-        metadata: input.metadata,
+        metadata: input.metadata as any,
       },
     });
   } catch (error) {

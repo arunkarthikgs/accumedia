@@ -18,7 +18,7 @@ export class OpenAIWhisperProvider implements ASRProvider {
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
         const form = new FormData();
-        form.append("file", new Blob([buffer], { type: mimeType }), fileName);
+        form.append("file", new Blob([new Uint8Array(buffer)], { type: mimeType }), fileName);
         form.append("model", "whisper-1");
         form.append("language", language);
         if (prompt) form.append("prompt", prompt);
@@ -79,7 +79,7 @@ export class DeepgramMedicalProvider implements ASRProvider {
         Authorization: `Token ${this.apiKey}`,
         "Content-Type": mimeType,
       },
-      body: buffer,
+      body: new Uint8Array(buffer),
     });
 
     if (!response.ok) {
@@ -113,7 +113,7 @@ export class FasterWhisperSelfHostedProvider implements ASRProvider {
     const startTime = Date.now();
 
     const formData = new FormData();
-    const blob = new Blob([buffer], { type: mimeType });
+    const blob = new Blob([new Uint8Array(buffer)], { type: mimeType });
     formData.append("file", blob, fileName);
     formData.append("model", "large-v3");
 

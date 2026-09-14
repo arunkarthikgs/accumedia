@@ -17,25 +17,13 @@ export interface SessionUser {
 export async function getCurrentUser(): Promise<SessionUser | null> {
   try {
     const user = await db.user.findFirst({
-      include: {
-        role: {
-          include: {
-            permissions: {
-              include: {
-                permission: true,
-              },
-            },
-          },
-        },
-      },
+      select: { id: true, name: true, email: true, isSuperAdmin: true, organizationId: true },
       orderBy: { createdAt: "asc" },
     });
 
     if (!user) return null;
 
-    const permissions = user.role
-      ? user.role.permissions.map((p) => p.permission.slug)
-      : [];
+    const permissions: string[] = [];
 
     return {
       id: user.id,
@@ -44,13 +32,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
       isSuperAdmin: Boolean(user.isSuperAdmin),
       organizationId: user.organizationId ?? null,
       permissions,
-      role: user.role
-        ? {
-            id: user.role.id,
-            name: user.role.name,
-            slug: user.role.slug,
-          }
-        : null,
+      role: null,
     };
   } catch (error) {
     console.error("Error resolving current user session:", error);

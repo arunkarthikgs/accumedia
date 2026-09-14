@@ -49,7 +49,7 @@ export async function POST(
     const arrayBuffer = await imageFile.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
     const mimeType = imageFile.type || "image/jpeg";
-    const screening = await screenImage(buffer);
+    const screening = await screenImage(buffer, mimeType);
 
     const { r2Key, storageUrl } = await uploadImageToR2(
       buffer,
@@ -69,7 +69,7 @@ export async function POST(
         publicUseApproved: consentConfirmed ? publicUseApproved : false,
         phiReviewStatus: screening.phiReviewStatus,
         ocrText: screening.ocrText || null,
-        safetyFindings: screening.findings,
+        safetyFindings: { findings: screening.findings, regions: screening.regions },
         faceDetected: screening.faceDetected,
         screenedAt: new Date(),
       },
@@ -83,6 +83,7 @@ export async function POST(
           confidence: "high",
           detail: `Image screening found ${screening.findings.length} OCR finding(s)${screening.faceDetected ? " and a face" : ""}.`,
           caseId: id,
+          imageAssetId: image.id,
         },
       });
     }

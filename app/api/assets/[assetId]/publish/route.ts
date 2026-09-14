@@ -17,6 +17,9 @@ export async function GET(
 ) {
   try {
     const { assetId } = await props.params;
+    const asset = await db.generatedAsset.findUnique({ where: { id: assetId }, include: { case: { select: { organizationId: true } } } });
+    if (!asset) return NextResponse.json({ error: "Asset not found." }, { status: 404 });
+    await requireOrganizationAccess(asset.case.organizationId);
     const jobs = await db.publicationJob.findMany({
       where: { assetId },
       orderBy: { createdAt: "desc" },

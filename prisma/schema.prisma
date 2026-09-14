@@ -543,6 +543,8 @@ model SafetyFlag {
 
   generatedAssetId String?
   generatedAsset    GeneratedAsset? @relation(fields: [generatedAssetId], references: [id], onDelete: Cascade)
+  imageAssetId    String?
+  imageAsset      ImageAsset? @relation(fields: [imageAssetId], references: [id], onDelete: Cascade)
 
   @@index([caseId])
   @@index([status])
@@ -570,6 +572,7 @@ model ImageAsset {
 
   caseId             String
   case                Case    @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  safetyFlags        SafetyFlag[]
 
   @@index([caseId])
   @@schema("macula")

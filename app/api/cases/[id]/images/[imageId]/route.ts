@@ -41,6 +41,10 @@ export async function PATCH(
         { status: 409 }
       );
     }
+    if (nextPublicUse) {
+      const openImageFlags = await db.safetyFlag.count({ where: { imageAssetId: imageId, status: "OPEN" } });
+      if (openImageFlags > 0) return NextResponse.json({ error: "Resolve all open image safety flags before public approval." }, { status: 409 });
+    }
 
     const updated = await db.imageAsset.update({
       where: { id: imageId },

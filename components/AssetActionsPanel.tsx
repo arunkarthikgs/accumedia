@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { RefreshCw, Pencil, CheckCircle2, Save, X } from "lucide-react";
+import { RefreshCw, Pencil, CheckCircle2, Save, X, Send } from "lucide-react";
 import StatusTag, { StatusTone } from "@/components/ui/StatusTag";
 
 interface AssetActionsPanelProps {
@@ -40,6 +40,9 @@ export default function AssetActionsPanel({ caseId, asset }: AssetActionsPanelPr
   const [draftText, setDraftText] = useState(JSON.stringify(asset.content, null, 2));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [publishPlatform, setPublishPlatform] = useState("linkedin");
+  const [scheduledAt, setScheduledAt] = useState("");
+  const [publicationMessage, setPublicationMessage] = useState<string | null>(null);
 
   const callAction = async (action: "regenerate" | "approve" | "manual_edit", body: any = {}) => {
     setIsSubmitting(true);
@@ -76,6 +79,18 @@ export default function AssetActionsPanel({ caseId, asset }: AssetActionsPanelPr
     }
   };
 
+  const queuePublication = async () => {
+    setPublicationMessage(null);
+    const response = await fetch(`/api/assets/${asset.id}/publish`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ platform: publishPlatform, scheduledAt: scheduledAt || null }),
+    });
+    const data = await response.json();
+    if (!response.ok) return setPublicationMessage(data.error || "Unable to queue publication.");
+    setPublicationMessage(data.connectorConfigured ? "Publication queued for the configured connector." : "Publication queued; configure the connector before processing it.");
+  };
+
   return (
     <div className="card card-accent border-l-pine p-6 space-y-4">
       <div className="flex items-center justify-between border-b border-line pb-3">
@@ -89,6 +104,7 @@ export default function AssetActionsPanel({ caseId, asset }: AssetActionsPanelPr
       </div>
 
       {error && <div className="text-xs text-brick bg-brick-tint border border-brick/30 rounded p-2">{error}</div>}
+      {publicationMessage && <div className="text-xs text-pine bg-pine-tint border border-pine/30 rounded p-2">{publicationMessage}</div>}
 
       {isEditing ? (
         <textarea
@@ -142,6 +158,13 @@ export default function AssetActionsPanel({ caseId, asset }: AssetActionsPanelPr
               >
                 <CheckCircle2 className="h-3 w-3" /> Approve this asset
               </button>
+            )}
+            {status === "APPROVED" && (
+              <div className="flex w-full flex-wrap items-end gap-2 border-t border-line pt-3">
+                <label className="text-[10px] text-muted">Platform<select value={publishPlatform} onChange={(event) => setPublishPlatform(event.target.value)} className="ml-1 rounded border border-line bg-surface px-2 py-1.5 text-[11px] text-ink"><option value="linkedin">LinkedIn</option><option value="facebook">Facebook</option><option value="instagram">Instagram</option><option value="x">X</option><option value="youtube">YouTube</option><option value="cms">CMS</option></select></label>
+                <label className="text-[10px] text-muted">Schedule<input type="datetime-local" value={scheduledAt} onChange={(event) => setScheduledAt(event.target.value)} className="ml-1 rounded border border-line bg-surface px-2 py-1.5 text-[11px] text-ink" /></label>
+                <button disabled={isSubmitting} onClick={queuePublication} className="flex items-center gap-1 rounded bg-pine px-3 py-1.5 text-[11px] font-medium text-white disabled:opacity-50"><Send className="h-3 w-3" /> Queue publication</button>
+              </div>
             )}
           </>
         )}

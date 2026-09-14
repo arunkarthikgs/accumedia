@@ -65,3 +65,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: error.message || "Failed to save publishing connection." }, { status: 500 });
   }
 }
+
+export async function DELETE(req: Request) {
+  try {
+    const { connectionId } = await req.json();
+    const connection = await db.publicationConnection.findUnique({ where: { id: connectionId } });
+    if (!connection) return NextResponse.json({ error: "Connection not found." }, { status: 404 });
+    await requireOrganizationAccess(connection.organizationId);
+    const updated = await db.publicationConnection.update({ where: { id: connectionId }, data: { isActive: false, accessTokenEncrypted: null, refreshTokenEncrypted: null, webhookUrlEncrypted: null } });
+    return NextResponse.json({ success: true, connection: publicConnection(updated) });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message || "Failed to revoke publishing connection." }, { status: 500 });
+  }
+}

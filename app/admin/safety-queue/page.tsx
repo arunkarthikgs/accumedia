@@ -27,6 +27,7 @@ interface Flag {
     organizationId: string;
     physician?: { name: string } | null;
   };
+  imageAsset?: { id: string; channel: string; sourceType: string; phiReviewStatus: string } | null;
 }
 
 interface Organization {
@@ -149,6 +150,7 @@ export default function SafetyQueuePage() {
                       <span className="text-[10px] font-medium text-muted uppercase tracking-wide">{f.flagType.replace("_", " ")}</span>
                     </div>
                     <p className="text-sm text-ink">{f.detail}</p>
+                    {f.imageAsset && <p className="mt-1 text-[11px] font-medium text-ochre">Image safety finding · {f.imageAsset.channel} · {f.imageAsset.phiReviewStatus}</p>}
                     <div className="mt-2 flex items-center gap-3 text-[11px] text-muted">
                       <Link href={`/cases/${f.case.id}/review`} className="flex items-center gap-1 hover:text-pine">
                         <Stethoscope className="h-3 w-3" /> {f.case.title}

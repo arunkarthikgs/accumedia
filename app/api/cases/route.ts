@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { assertCaseQuota } from "@/lib/quotas";
+import { requireOrganizationAccess } from "@/lib/tenant-auth";
 
 // GET /api/cases - List cases with optional filtering
 export async function GET(req: Request) {
@@ -13,6 +14,7 @@ export async function GET(req: Request) {
     const offset = parseInt(searchParams.get("offset") || "0", 10);
 
     const where: any = {};
+    if (orgId && orgId !== "ALL") await requireOrganizationAccess(orgId);
     if (orgId && orgId !== "ALL") where.organizationId = orgId;
     if (physicianId) where.physicianId = physicianId;
     if (status && status !== "ALL") where.status = status;
@@ -92,6 +94,7 @@ export async function POST(req: Request) {
     }
 
     await assertCaseQuota(organizationId);
+    await requireOrganizationAccess(organizationId);
 
     let targetPhysicianId = physicianId;
     if (!targetPhysicianId) {

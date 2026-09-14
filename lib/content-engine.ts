@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import type { ChannelDefinition, Organization } from "@prisma/client";
 import { validateGeneratedContent } from "./content-validation";
 import { logAIUsage } from "./ai-usage";
+import { assertAssetQuota } from "./quotas";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -76,6 +77,7 @@ export async function generateChannelAsset({
   organization,
   channel,
 }: GenerateOptions) {
+  await assertAssetQuota(organization.id);
   const outputType = channel.outputType || "SEO_BLOG";
   const basePrompt = channel.systemPrompt?.trim() || DEFAULT_PROMPTS[outputType];
   const platformLimit = await db.platformLimit.findUnique({ where: { platform: "x" } });

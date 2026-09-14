@@ -4,6 +4,7 @@ import OpenAI from "openai";
 import { MANDATORY_CLINICAL_SYNTHESIS_PROMPT } from "@/lib/prompts/clinical-synthesis";
 import { redactClinicalText, redactClinicalValue } from "@/lib/prompts/clinical-redaction";
 import { logAIUsage } from "@/lib/ai-usage";
+import { requireOrganizationAccess } from "@/lib/tenant-auth";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -27,6 +28,8 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
+
+    await requireOrganizationAccess(organizationId);
 
     // Resolve Attending Physician / RMP
     let resolvedPhysicianId = physicianId;

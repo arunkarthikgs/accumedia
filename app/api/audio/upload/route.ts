@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { uploadAudioToR2 } from "@/lib/r2";
-import { assertCaseQuota } from "@/lib/quotas";
+import { assertAudioQuota, assertCaseQuota } from "@/lib/quotas";
+import { requireOrganizationAccess } from "@/lib/tenant-auth";
 
 export async function POST(req: Request) {
   try {
@@ -29,6 +30,8 @@ export async function POST(req: Request) {
     }
 
     await assertCaseQuota(orgId);
+    await assertAudioQuota(orgId, Number.isFinite(durationSeconds) ? durationSeconds : 0);
+    await requireOrganizationAccess(orgId);
 
     // Resolve attending physician
     let physicianId = userId;

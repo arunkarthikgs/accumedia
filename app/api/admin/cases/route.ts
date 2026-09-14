@@ -1,14 +1,17 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { requireAuthenticatedUser } from "@/lib/tenant-auth";
 
 export async function GET(req: Request) {
   try {
+    const user = await requireAuthenticatedUser();
     const { searchParams } = new URL(req.url);
     const orgId = searchParams.get("orgId");
     const status = searchParams.get("status");
 
     const where: any = {};
     if (orgId && orgId !== "ALL") where.organizationId = orgId;
+    if (user && !user.isSuperAdmin && user.organizationId) where.organizationId = user.organizationId;
     if (status && status !== "ALL") where.status = status;
 
     const cases = await db.case.findMany({
@@ -52,6 +55,16 @@ export async function GET(req: Request) {
             validationCharacterCount: true,
             validationDurationSeconds: true,
           },
+        },
+        sources: {
+          select: {
+            id: true,
+            fileName: true,
+            sourceType: true,
+            status: true,
+            processingError: true,
+          },
+          orderBy: { createdAt: "desc" },
         },
         // RFP §16 — surfaced so the admin list can show "N open flags" and
         // disable/redirect the approve action instead of letting it silently

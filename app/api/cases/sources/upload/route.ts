@@ -24,6 +24,7 @@ export async function POST(req: Request) {
     const organizationId = formData.get("organizationId") as string | null;
     const userId = formData.get("userId") as string | null;
     const physicianId = formData.get("physicianId") as string | null;
+    const model = formData.get("model") as string | null;
 
     if (!file || !organizationId || !physicianId) {
       return NextResponse.json({ error: "file, organizationId, and physicianId are required." }, { status: 400 });
@@ -65,9 +66,10 @@ export async function POST(req: Request) {
       },
     });
 
-    if (sourceType === "DOCUMENT") {
+    if (sourceType) {
       try {
         const extractionUrl = new URL(`/api/cases/sources/${source.id}/process`, req.url);
+        if (model) extractionUrl.searchParams.set("model", model);
         await fetch(extractionUrl, { method: "POST" });
       } catch (processingError) {
         console.error("Document processing dispatch failed:", processingError);

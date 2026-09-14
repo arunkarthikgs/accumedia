@@ -336,12 +336,13 @@ export default function NewCasePage() {
       formData.append("file", file);
       formData.append("organizationId", selectedOrgId);
       formData.append("physicianId", selectedPhysicianId);
+      formData.append("model", selectedAsrModel);
       const response = await fetch("/api/cases/sources/upload", { method: "POST", body: formData });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Source upload failed.");
       if (data.source?.sourceType === "VIDEO") {
-        setErrorMessage("Video uploaded. Video-to-audio processing is not configured yet; the source is saved for processing.");
-        return;
+        setActiveTranscriberAgent(selectedAsrModel);
+        setCurrentDbStatus("VIDEO_TRANSCRIBED");
       }
       router.push(`/cases/${data.caseId}/review`);
     } catch (error: any) {

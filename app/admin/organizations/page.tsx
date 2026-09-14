@@ -170,7 +170,7 @@ export default function AdminOrganizationsPage() {
     <div className="readable-route min-h-screen bg-slate-50 text-slate-900">
       {/* Header */}
       <header className="bg-transparent px-8 pt-8">
-        <div className="ml-0 mr-auto flex max-w-5xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="ml-0 mr-auto flex max-w-7xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-pine">
               <Link href="/" className="flex items-center gap-1 hover:underline">
@@ -210,7 +210,7 @@ export default function AdminOrganizationsPage() {
       </header>
 
       {/* Main Content */}
-      <main className="ml-0 mr-auto max-w-5xl p-8 space-y-6">
+      <main className="ml-0 mr-auto max-w-7xl p-8 space-y-6">
         {errorMessage && (
           <div className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-xs font-medium text-red-700">
             <AlertCircle className="h-4 w-4 shrink-0 text-red-600" />
@@ -238,15 +238,15 @@ export default function AdminOrganizationsPage() {
         </div>
 
         {/* Hospitals Table */}
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs">
-          <table className="w-full text-left text-xs text-slate-600">
+        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-xs">
+          <table className="min-w-[1120px] w-full text-left text-xs text-slate-600">
             <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200">
               <tr>
-                <th className="px-6 py-3.5">Hospital Name & Slug</th>
-                <th className="px-6 py-3.5">Default Speech Engine (ASR)</th>
-                <th className="px-6 py-3.5">Clinicians & Cases</th>
-                <th className="px-6 py-3.5">Statutory Disclaimer</th>
-                <th className="px-6 py-3.5 text-right">Actions</th>
+                <th className="w-[250px] px-6 py-3.5">Hospital Name &amp; Slug</th>
+                <th className="w-[250px] px-6 py-3.5">Default Speech Engine (ASR)</th>
+                <th className="w-[210px] px-6 py-3.5">Clinicians &amp; Cases</th>
+                <th className="min-w-[260px] px-6 py-3.5">Statutory Disclaimer</th>
+                <th className="w-[250px] px-6 py-3.5 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">

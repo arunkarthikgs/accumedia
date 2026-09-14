@@ -22,7 +22,6 @@ export default function OrgSettingsPage() {
       </div>
 
       <form key={org?.id || "empty"} onSubmit={save} className="bg-surface rounded-lg border border-line p-6 space-y-5">
-        <label className="block text-xs font-bold uppercase tracking-wider text-muted">Hospital / organization<select value={org?.id || ""} onChange={(event) => { const next = organizations.find((item) => item.id === event.target.value); setOrg(next || null); window.history.replaceState(null, "", `/settings/organization?orgId=${event.target.value}`); }} className="mt-1 w-full rounded-lg border border-line bg-paper p-3 text-xs font-normal text-ink"><option value="" disabled>Select a hospital</option>{organizations.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
         <div>
           <label className="block text-xs font-bold uppercase tracking-wider text-muted mb-1">Hospital / Organization</label>
           <select

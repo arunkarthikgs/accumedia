@@ -12,6 +12,7 @@ import {
   FileEdit,
   Clock,
   CheckCircle2,
+  ShieldAlert,
 } from "lucide-react";
 import MetricCard from "@/components/ui/MetricCard";
 import CaseRow from "@/components/ui/CaseRow";
@@ -30,12 +31,13 @@ function toDisplayVariant(
 }
 
 export default async function DashboardPage() {
-  const [totalCases, pendingCases, approvedCases, rejectedCases, recentCases, orgCount] =
+  const [totalCases, pendingCases, approvedCases, rejectedCases, openSafetyFlags, recentCases, orgCount] =
     await Promise.all([
       db.case.count(),
       db.case.count({ where: { status: "PENDING_REVIEW" } }),
       db.case.count({ where: { status: "APPROVED" } }),
       db.case.count({ where: { status: "REJECTED" } }),
+      db.safetyFlag.count({ where: { status: "OPEN" } }),
       db.case.findMany({
         take: 6,
         orderBy: { createdAt: "desc" },
@@ -92,7 +94,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* Metrics Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <Link href="/admin/cases" className="block rounded-lg transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-pine/30" aria-label="View all clinical cases">
           <MetricCard
             label="Total clinical cases"
@@ -117,6 +119,15 @@ export default async function DashboardPage() {
             tone="success"
             description="Ready for publishing"
             icon={<CheckCircle2 className="h-6 w-6" />}
+          />
+        </Link>
+        <Link href="/admin/safety-queue" className="block rounded-lg transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-pine/30" aria-label="Open Safety Gate review queue">
+          <MetricCard
+            label="Safety Gate"
+            value={openSafetyFlags}
+            tone="warning"
+            description={openSafetyFlags > 0 ? "Flags awaiting sign-off" : "No open safety flags"}
+            icon={<ShieldAlert className="h-6 w-6" />}
           />
         </Link>
         <Link href="/admin/organizations" className="block rounded-lg transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-pine/30" aria-label="Manage hospital networks">

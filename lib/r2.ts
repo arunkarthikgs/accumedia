@@ -83,6 +83,18 @@ export async function getAudioPlaybackUrl(r2Key: string) {
   );
 }
 
+export async function getImagePreviewUrl(r2Key: string) {
+  if (!bucketName || !r2Key) {
+    throw new Error("Image preview configuration is missing.");
+  }
+
+  return getSignedUrl(
+    r2Client,
+    new GetObjectCommand({ Bucket: bucketName, Key: r2Key }),
+    { expiresIn: 900 }
+  );
+}
+
 // RFP §14-15 — same storage path as audio, namespaced under <orgId>/images/.
 // Used for both AI-generated images (lib/image-engine.ts) and doctor-uploaded
 // clinical images (app/api/cases/[id]/images/upload/route.ts).

@@ -1,5 +1,6 @@
 import { createWorker } from "tesseract.js";
 import OpenAI from "openai";
+import path from "node:path";
 
 const PII_PATTERNS = [
   /\b\d{10}\b/g,
@@ -14,10 +15,17 @@ type Finding = { type: string; detail: string; confidence?: string; region?: { x
 export async function screenImage(buffer: Buffer, mimeType = "image/png") {
   let ocrText = "";
   try {
-    const worker = await createWorker("eng");
-    const result = await worker.recognize(buffer);
-    ocrText = result.data.text || "";
-    await worker.terminate();
+    const workerPath = path.join(process.cwd(), "node_modules/tesseract.js/src/worker-script/node/index.js");
+    const worker = await createWorker("eng", undefined, {
+      workerPath,
+      errorHandler: () => undefined,
+    });
+    try {
+      const result = await worker.recognize(buffer);
+      ocrText = result.data.text || "";
+    } finally {
+      await worker.terminate();
+    }
   } catch (error) {
     if (process.env.IMAGE_SAFETY_REQUIRED === "true") throw new Error(`Image OCR screening failed: ${error instanceof Error ? error.message : "unknown error"}`);
   }

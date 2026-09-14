@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ImagePlus, Upload, ShieldCheck, ShieldAlert, RefreshCw, Trash2 } from "lucide-react";
+import { ImagePlus, Upload, ShieldCheck, ShieldAlert, RefreshCw, Trash2, Loader2 } from "lucide-react";
 
 interface ImageAssetData {
   id: string;
@@ -14,13 +14,13 @@ interface ImageAssetData {
 }
 
 const CHANNELS = [
-  "linkedin_cover",
-  "linkedin_carousel",
-  "facebook_post",
-  "ig_reels",
-  "x_image",
-  "yt_thumbnail",
-  "blog_featured",
+  { id: "linkedin_cover", label: "LinkedIn cover", description: "Wide editorial image for a LinkedIn article." },
+  { id: "linkedin_carousel", label: "LinkedIn carousel", description: "Square educational card for a swipeable carousel." },
+  { id: "facebook_post", label: "Facebook post", description: "Square image for a patient or family-facing post." },
+  { id: "ig_reels", label: "Instagram / Reels", description: "Portrait image for Instagram or short-form video cover art." },
+  { id: "x_image", label: "X image", description: "Wide supporting image for an X post or thread." },
+  { id: "yt_thumbnail", label: "YouTube thumbnail", description: "Wide thumbnail for YouTube or video content." },
+  { id: "blog_featured", label: "Blog featured image", description: "Wide hero image for the SEO blog article." },
 ];
 
 /**
@@ -31,9 +31,9 @@ const CHANNELS = [
 export default function ImagesPanel({ caseId, mccrApproved }: { caseId: string; mccrApproved: boolean }) {
   const [images, setImages] = useState<ImageAssetData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [genChannel, setGenChannel] = useState(CHANNELS[0]);
+  const [genChannel, setGenChannel] = useState(CHANNELS[0].id);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [uploadChannel, setUploadChannel] = useState(CHANNELS[0]);
+  const [uploadChannel, setUploadChannel] = useState(CHANNELS[0].id);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [consentConfirmed, setConsentConfirmed] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -144,15 +144,17 @@ export default function ImagesPanel({ caseId, mccrApproved }: { caseId: string; 
         <div>
           <label className="block text-[10px] text-muted uppercase tracking-wide mb-1">Generate for channel</label>
           <select value={genChannel} onChange={(e) => setGenChannel(e.target.value)} className="rounded border border-line px-2 py-1.5 text-xs bg-surface">
-            {CHANNELS.map((c) => <option key={c} value={c}>{c}</option>)}
+            {CHANNELS.map((channel) => <option key={channel.id} value={channel.id}>{channel.label}</option>)}
           </select>
+          <p className="mt-1 max-w-xs text-[10px] leading-4 text-muted">{CHANNELS.find((channel) => channel.id === genChannel)?.description}</p>
         </div>
         <button
           disabled={!mccrApproved || isGenerating}
           onClick={generate}
           className="flex items-center gap-1 rounded bg-pine px-3 py-1.5 text-[11px] font-medium text-white hover:bg-pine-dark disabled:opacity-40"
         >
-          <ImagePlus className={`h-3 w-3 ${isGenerating ? "animate-pulse" : ""}`} /> Generate AI image
+          {isGenerating ? <Loader2 className="h-3 w-3 animate-spin" /> : <ImagePlus className="h-3 w-3" />}
+          {isGenerating ? "Generating image, please wait…" : "Generate AI image"}
         </button>
       </div>
 
@@ -160,7 +162,7 @@ export default function ImagesPanel({ caseId, mccrApproved }: { caseId: string; 
         <div className="text-[10px] text-muted uppercase tracking-wide">Upload a clinical / doctor photo</div>
         <div className="flex flex-wrap items-center gap-2">
           <select value={uploadChannel} onChange={(e) => setUploadChannel(e.target.value)} className="rounded border border-line px-2 py-1.5 text-xs bg-surface">
-            {CHANNELS.map((c) => <option key={c} value={c}>{c}</option>)}
+            {CHANNELS.map((channel) => <option key={channel.id} value={channel.id}>{channel.label}</option>)}
           </select>
           <input type="file" accept="image/*" onChange={(e) => setUploadFile(e.target.files?.[0] || null)} className="text-xs" />
         </div>
@@ -188,13 +190,14 @@ export default function ImagesPanel({ caseId, mccrApproved }: { caseId: string; 
               <div className="aspect-video bg-paper flex items-center justify-center text-muted text-[10px]">
                 {img.storageUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={img.storageUrl} alt={img.channel} className="w-full h-full object-cover" />
+                  <img src={`/api/cases/${caseId}/images/${img.id}/preview`} alt={img.channel} className="w-full h-full object-cover" />
                 ) : (
                   "no preview"
                 )}
               </div>
               <div className="p-2 space-y-1.5">
-                <div className="text-[10px] font-medium text-ink">{img.channel}</div>
+                <div className="text-[10px] font-medium text-ink">{CHANNELS.find((channel) => channel.id === img.channel)?.label || img.channel}</div>
+                <div className="text-[10px] leading-4 text-muted">{CHANNELS.find((channel) => channel.id === img.channel)?.description}</div>
                 <div className="flex items-center gap-1 text-[10px]">
                   <span className={img.phiReviewStatus === "CLEAR" ? "text-sage" : img.phiReviewStatus === "FLAGGED" ? "text-brick" : "text-ochre"}>
                     PHI review: {img.phiReviewStatus}

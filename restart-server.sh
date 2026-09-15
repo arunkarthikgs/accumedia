@@ -32,4 +32,6 @@ else
 fi
 
 echo "🚀 Starting Next.js development server..."
-npm run dev
+#
+# npm run dev
+#

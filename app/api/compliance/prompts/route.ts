@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { DEFAULT_CLINICAL_REFINER_PROMPT } from "@/lib/clinical-refiner";
 import { DEFAULT_IMAGE_GENERATION_PROMPT, DEFAULT_IMAGE_SAFETY_PROMPT } from "@/lib/image-prompts";
+import { getResolvedAiPrompts } from "@/lib/ai-prompts";
 
 export const dynamic = "force-dynamic";
 
@@ -23,10 +24,6 @@ export async function GET(req: Request) {
         complianceRules: {
           where: { isActive: true },
         },
-        aiPromptTemplates: {
-          where: { isActive: true },
-          orderBy: { version: "desc" },
-        },
       },
     });
 
@@ -34,7 +31,8 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Organization not found" }, { status: 404 });
     }
 
-    // Default refiner template if not customized
+    const promptTemplates = await getResolvedAiPrompts(organization.id);
+    const imagePromptVersions = [...promptTemplates.values()];
     return NextResponse.json({
       success: true,
       data: {
@@ -43,9 +41,9 @@ export async function GET(req: Request) {
         customSystemPrompt: organization.customSystemPrompt || "",
         defaultDisclaimer: organization.defaultDisclaimer,
         clinicalRefinerPrompt: organization.clinicalRefinerPrompt || DEFAULT_CLINICAL_REFINER_PROMPT,
-        imageGenerationPrompt: organization.aiPromptTemplates.find((prompt) => prompt.promptKey === "IMAGE_GENERATION")?.content || DEFAULT_IMAGE_GENERATION_PROMPT,
-        imageSafetyPrompt: organization.aiPromptTemplates.find((prompt) => prompt.promptKey === "IMAGE_SAFETY")?.content || DEFAULT_IMAGE_SAFETY_PROMPT,
-        imagePromptVersions: organization.aiPromptTemplates,
+        imageGenerationPrompt: promptTemplates.get("IMAGE_GENERATION")?.content || DEFAULT_IMAGE_GENERATION_PROMPT,
+        imageSafetyPrompt: promptTemplates.get("IMAGE_SAFETY")?.content || DEFAULT_IMAGE_SAFETY_PROMPT,
+        imagePromptVersions,
         channelDefinitions: organization.channelDefinitions,
         complianceRules: organization.complianceRules,
       },
@@ -98,7 +96,7 @@ export async function PUT(req: Request) {
       }
     }
 
-    // Update organization-level clinical prompts and disclaimers
+    // Organization-level system prompt and disclaimer remain separate settings.
     const updatedOrg = await db.organization.update({
       where: { id: orgId },
       data: {
@@ -108,11 +106,18 @@ export async function PUT(req: Request) {
       },
     });
 
-    for (const [promptKey, content] of [["IMAGE_GENERATION", imageGenerationPrompt], ["IMAGE_SAFETY", imageSafetyPrompt]] as const) {
+    for (const [promptKey, content] of [["CLINICAL_REFINER", clinicalRefinerPrompt], ["IMAGE_GENERATION", imageGenerationPrompt], ["IMAGE_SAFETY", imageSafetyPrompt]] as const) {
       if (typeof content !== "string" || !content.trim()) continue;
+      const normalizedContent = content.trim();
+      const master = await db.aiPromptTemplate.findFirst({ where: { organizationId: null, promptKey, isActive: true }, orderBy: { version: "desc" } });
       const current = await db.aiPromptTemplate.findFirst({ where: { organizationId: orgId, promptKey, isActive: true }, orderBy: { version: "desc" } });
+      if (master?.content === normalizedContent) {
+        await db.aiPromptTemplate.updateMany({ where: { organizationId: orgId, promptKey, isActive: true }, data: { isActive: false } });
+        continue;
+      }
+      if (current?.content === normalizedContent) continue;
       await db.aiPromptTemplate.updateMany({ where: { organizationId: orgId, promptKey, isActive: true }, data: { isActive: false } });
-      await db.aiPromptTemplate.create({ data: { organizationId: orgId, promptKey, content: content.trim(), version: (current?.version || 0) + 1, isActive: true } });
+      await db.aiPromptTemplate.create({ data: { organizationId: orgId, promptKey, content: normalizedContent, version: (current?.version || master?.version || 0) + 1, isActive: true } });
     }
 
     // Update channel definitions if provided

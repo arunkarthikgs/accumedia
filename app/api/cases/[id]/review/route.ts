@@ -12,6 +12,7 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
         title: true,
         status: true,
         rawInput: true,
+        guidedSubmission: true,
         masterRecord: true,
         safetyAudit: true,
         physician: { select: { name: true, specialty: true } },

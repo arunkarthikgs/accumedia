@@ -519,6 +519,7 @@ export default function NewCasePage() {
           organizationId: selectedOrgId,
           audioRecordingId: recordingId || undefined,
           caseId: activeCaseId || undefined,
+          guidedSubmission: activeTranscriberAgent === "Guided clinical framework" ? guidedNotes : undefined,
         }),
       });
 

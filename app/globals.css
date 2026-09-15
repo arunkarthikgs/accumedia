@@ -163,3 +163,28 @@ input[type="range"]::-moz-range-thumb {
 .readable-route .shadow-2xl {
   box-shadow: 0 1px 2px rgb(28 37 33 / 0.06) !important;
 }
+
+.usage-page > header > div:nth-child(3) {
+  order: 3;
+}
+
+.usage-page > section:nth-of-type(1) {
+  order: 2;
+}
+
+.usage-page > section:nth-of-type(2) {
+  order: 4;
+}
+
+.usage-page label.text-xs.text-muted {
+  display: inline-flex !important;
+  align-items: center;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  white-space: nowrap !important;
+}
+
+.usage-page label.text-xs.text-muted input[type="date"] {
+  display: inline-block;
+  flex: 0 0 auto;
+}

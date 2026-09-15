@@ -88,6 +88,31 @@ const DEFAULT_REDACTION_RULES = [
   { pattern: "\\b(?:patient|pt|name|attendant|relative|address|phone|mobile|email)\\s*[:=-]\\s*[^,;\\n]+", flags: "gi", replacement: "[REDACTED_PERSONAL_INFORMATION]", description: "Redact labeled personal information." },
 ];
 
+const ROLE_PERMISSIONS = [
+  ["CASE_VIEW", "View clinical cases", "Clinical", "View cases and case status."],
+  ["CASE_CREATE", "Create clinical cases", "Clinical", "Create new case submissions."],
+  ["MCCR_EDIT", "Edit Master Clinical Records", "Clinical", "Edit structured clinical records."],
+  ["MCCR_APPROVE", "Approve Master Clinical Records", "Clinical", "Sign off approved clinical records."],
+  ["SAFETY_QUEUE_MANAGE", "Manage Safety Queue", "Compliance", "Review and resolve safety flags."],
+  ["PROMPT_MANAGE", "Manage AI prompts", "Governance", "Edit versioned clinical and AI prompts."],
+  ["ASSET_GENERATE", "Generate publishing assets", "Publishing", "Generate platform-specific assets."],
+  ["ASSET_VIEW", "View publishing assets", "Publishing", "View generated assets and image review state."],
+  ["ASSET_APPROVE", "Approve publishing assets", "Publishing", "Approve or edit individual assets."],
+  ["PUBLISH_MANAGE", "Manage publishing", "Publishing", "Connect platforms and queue publication."],
+  ["SEO_MANAGE", "Manage SEO keywords", "SEO", "Review keyword sets and SEO quality."],
+  ["USAGE_VIEW", "View AI usage and quotas", "Administration", "View usage, costs, and quota consumption."],
+  ["ROLE_MATRIX_MANAGE", "Manage role matrix", "Administration", "Assign task permissions to roles."],
+] as const;
+
+const ROLE_DEFINITIONS = [
+  { slug: "platform-admin", name: "Platform Administrator", description: "Global platform, tenant, role, and compliance administration.", system: true, permissions: ROLE_PERMISSIONS.map(([slug]) => slug) },
+  { slug: "organization-admin", name: "Organization Administrator", description: "Manage one hospital network and its users and configuration.", system: false, permissions: ["CASE_VIEW", "CASE_CREATE", "PROMPT_MANAGE", "ASSET_GENERATE", "ASSET_APPROVE", "PUBLISH_MANAGE", "USAGE_VIEW", "ROLE_MATRIX_MANAGE"] },
+  { slug: "attending-rmp", name: "Attending RMP", description: "Clinical submission, review, and Master Clinical Record sign-off.", system: false, permissions: ["CASE_VIEW", "CASE_CREATE", "MCCR_EDIT", "MCCR_APPROVE", "ASSET_VIEW"] },
+  { slug: "compliance-officer", name: "Compliance Officer", description: "DPDP, NMC, safety review, prompt, and audit governance.", system: false, permissions: ["CASE_VIEW", "SAFETY_QUEUE_MANAGE", "PROMPT_MANAGE", "USAGE_VIEW", "ROLE_MATRIX_MANAGE"] },
+  { slug: "publishing-editor", name: "Publishing & SEO Editor", description: "Asset editing, approval, SEO, and publishing workflows.", system: false, permissions: ["CASE_VIEW", "ASSET_GENERATE", "ASSET_APPROVE", "PUBLISH_MANAGE", "SEO_MANAGE"] },
+  { slug: "auditor", name: "Auditor", description: "Read-only governance, safety, usage, and version history access.", system: false, permissions: ["CASE_VIEW", "USAGE_VIEW"] },
+] as const;
+
 async function main() {
   let created = 0;
   for (const channel of DEFAULT_CHANNELS) {
@@ -118,24 +143,73 @@ async function main() {
     await db.complianceRule.create({ data: { ruleType: "DPDP_REDACTION", severity: "BLOCKER", patternOrCheck, description: rule.description, organizationId: null, isActive: true } });
     rulesCreated++;
   }
-  const organizations = await db.organization.findMany({ select: { id: true, clinicalRefinerPrompt: true } });
-  let promptTemplatesCreated = 0;
-  for (const organization of organizations) {
-    const prompts = [
-      ["MASTER_SYNTHESIS", MANDATORY_CLINICAL_SYNTHESIS_PROMPT],
-      ["SEO_KEYWORDS", DEFAULT_SEO_KEYWORD_PROMPT],
-      ["CLINICAL_REFINER", organization.clinicalRefinerPrompt || DEFAULT_CLINICAL_REFINER_PROMPT],
-      ["IMAGE_GENERATION", DEFAULT_IMAGE_GENERATION_PROMPT],
-      ["IMAGE_SAFETY", DEFAULT_IMAGE_SAFETY_PROMPT],
-    ] as const;
-    for (const [promptKey, content] of prompts) {
-      const existing = await db.aiPromptTemplate.findFirst({ where: { organizationId: organization.id, promptKey, isActive: true } });
-      if (existing) continue;
-      await db.aiPromptTemplate.create({ data: { organizationId: organization.id, promptKey, content, version: 1, isActive: true } });
-      promptTemplatesCreated++;
+  const permissions = new Map<string, string>();
+  for (const [slug, name, module, description] of ROLE_PERMISSIONS) {
+    const permission = await db.permission.upsert({ where: { slug }, update: { name, module, description }, create: { slug, name, module, description } });
+    permissions.set(slug, permission.id);
+  }
+  const organizationsForRoles = await db.organization.findMany({ select: { id: true } });
+  for (const definition of ROLE_DEFINITIONS) {
+    const masterDefinition = await db.roleDefinition.upsert({
+      where: { slug: definition.slug },
+      update: { name: definition.name, description: definition.description, isSystem: definition.system },
+      create: { slug: definition.slug, name: definition.name, description: definition.description, isSystem: definition.system },
+    });
+    for (const permissionSlug of definition.permissions) {
+      const permissionId = permissions.get(permissionSlug);
+      if (permissionId) await db.roleDefinitionPermission.upsert({ where: { roleDefinitionId_permissionId: { roleDefinitionId: masterDefinition.id, permissionId } }, update: {}, create: { roleDefinitionId: masterDefinition.id, permissionId } });
+    }
+    const scopes = definition.system ? [null] : organizationsForRoles.map((organization) => organization.id);
+    for (const organizationId of scopes) {
+      let role = await db.role.findFirst({ where: { slug: definition.slug, organizationId } });
+      role = role ? await db.role.update({ where: { id: role.id }, data: { name: definition.name, description: definition.description, isSystem: definition.system, definitionId: masterDefinition.id } }) : await db.role.create({ data: { slug: definition.slug, name: definition.name, description: definition.description, isSystem: definition.system, definitionId: masterDefinition.id, organizationId } });
+      for (const permissionSlug of definition.permissions) {
+        const permissionId = permissions.get(permissionSlug);
+        if (permissionId) await db.rolePermission.upsert({ where: { roleId_permissionId: { roleId: role.id, permissionId } }, update: {}, create: { roleId: role.id, permissionId } });
+      }
     }
   }
-  console.log(`Seeded ${created} channels, ${rulesCreated} redaction rules, and ${promptTemplatesCreated} AI prompt templates.`);
+  const masterPrompts = [
+    ["MASTER_SYNTHESIS", MANDATORY_CLINICAL_SYNTHESIS_PROMPT],
+    ["SEO_KEYWORDS", DEFAULT_SEO_KEYWORD_PROMPT],
+    ["CLINICAL_REFINER", DEFAULT_CLINICAL_REFINER_PROMPT],
+    ["IMAGE_GENERATION", DEFAULT_IMAGE_GENERATION_PROMPT],
+    ["IMAGE_SAFETY", DEFAULT_IMAGE_SAFETY_PROMPT],
+  ] as const;
+  let masterPromptsCreated = 0;
+  for (const [promptKey, content] of masterPrompts) {
+    const existing = await db.aiPromptTemplate.findFirst({ where: { organizationId: null, promptKey }, orderBy: { version: "desc" } });
+    if (!existing) {
+      await db.aiPromptTemplate.create({ data: { organizationId: null, promptKey, content, version: 1, isActive: true } });
+      masterPromptsCreated++;
+    } else if (existing.content === content && !existing.isActive) {
+      await db.aiPromptTemplate.update({ where: { id: existing.id }, data: { isActive: true } });
+    }
+  }
+
+  const organizations = await db.organization.findMany({ select: { id: true, clinicalRefinerPrompt: true } });
+  for (const organization of organizations) {
+    for (const [promptKey, masterContent] of masterPrompts) {
+      const master = await db.aiPromptTemplate.findFirst({ where: { organizationId: null, promptKey }, orderBy: { version: "desc" } });
+      if (!master) continue;
+      const activeOverrides = await db.aiPromptTemplate.findMany({ where: { organizationId: organization.id, promptKey, isActive: true }, orderBy: { version: "desc" } });
+      const preferredContent = promptKey === "CLINICAL_REFINER" && organization.clinicalRefinerPrompt?.trim()
+        ? organization.clinicalRefinerPrompt.trim()
+        : activeOverrides[0]?.content;
+      if (!preferredContent || preferredContent === masterContent) {
+        if (activeOverrides.length) await db.aiPromptTemplate.updateMany({ where: { id: { in: activeOverrides.map((prompt) => prompt.id) } }, data: { isActive: false } });
+        continue;
+      }
+      const current = activeOverrides[0];
+      if (current && current.content === preferredContent) {
+        if (activeOverrides.length > 1) await db.aiPromptTemplate.updateMany({ where: { id: { in: activeOverrides.slice(1).map((prompt) => prompt.id) } }, data: { isActive: false } });
+        continue;
+      }
+      if (activeOverrides.length) await db.aiPromptTemplate.updateMany({ where: { id: { in: activeOverrides.map((prompt) => prompt.id) } }, data: { isActive: false } });
+      await db.aiPromptTemplate.create({ data: { organizationId: organization.id, promptKey, content: preferredContent, version: (current?.version || master.version) + 1, isActive: true } });
+    }
+  }
+  console.log(`Seeded ${created} channels, ${rulesCreated} redaction rules, and ${masterPromptsCreated} master AI prompt templates.`);
 }
 
 main()

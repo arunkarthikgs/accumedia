@@ -4,6 +4,7 @@ import { refineClinicalText } from "@/lib/clinical-refiner";
 import { findUnredactedRuleMatches, redactClinicalText } from "@/lib/prompts/clinical-redaction";
 import { logAIUsage } from "@/lib/ai-usage";
 import { assertTokenQuota } from "@/lib/quotas";
+import { getResolvedAiPrompts } from "@/lib/ai-prompts";
 
 export async function POST(req: Request) {
   try {
@@ -19,17 +20,18 @@ export async function POST(req: Request) {
     const organization = recordingId
       ? (await db.audioRecording.findUnique({
           where: { id: recordingId },
-          select: { organization: { select: { clinicalRefinerPrompt: true, defaultDisclaimer: true, aiPromptTemplates: { where: { promptKey: "CLINICAL_REFINER", isActive: true }, orderBy: { version: "desc" }, take: 1 } } } },
+          select: { organization: { select: { id: true, clinicalRefinerPrompt: true, defaultDisclaimer: true } } },
         }))?.organization
       : organizationId
         ? await db.organization.findUnique({
             where: { id: organizationId },
-            select: { clinicalRefinerPrompt: true, defaultDisclaimer: true, aiPromptTemplates: { where: { promptKey: "CLINICAL_REFINER", isActive: true }, orderBy: { version: "desc" }, take: 1 } },
+            select: { id: true, clinicalRefinerPrompt: true, defaultDisclaimer: true },
           })
         : null;
 
     const resolvedOrganizationId = organizationId || (recordingId ? (await db.audioRecording.findUnique({ where: { id: recordingId }, select: { organizationId: true } }))?.organizationId : null);
-    const refinerPromptTemplate = organization?.aiPromptTemplates?.[0];
+    const promptTemplates = organization?.id ? await getResolvedAiPrompts(organization.id, ["CLINICAL_REFINER"]) : new Map();
+    const refinerPromptTemplate = promptTemplates.get("CLINICAL_REFINER");
     const redactionRules = await db.complianceRule.findMany({
       where: {
         ruleType: "DPDP_REDACTION",

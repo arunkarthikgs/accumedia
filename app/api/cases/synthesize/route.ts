@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import OpenAI from "openai";
 import { MANDATORY_CLINICAL_SYNTHESIS_PROMPT } from "@/lib/prompts/clinical-synthesis";
+import { getResolvedAiPrompts } from "@/lib/ai-prompts";
 import { findUnredactedRuleMatches, redactClinicalText, redactClinicalValue } from "@/lib/prompts/clinical-redaction";
 import { logAIUsage } from "@/lib/ai-usage";
 import { requireOrganizationAccess } from "@/lib/tenant-auth";
@@ -37,7 +38,7 @@ function summarizeRedactions(value: string) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { rawText, physicianId, organizationId, audioRecordingId, caseId, inputMode } = body;
+    const { rawText, physicianId, organizationId, audioRecordingId, caseId, inputMode, guidedSubmission } = body;
 
     if (!rawText || !rawText.trim()) {
       return NextResponse.json(
@@ -83,12 +84,12 @@ export async function POST(req: Request) {
       include: {
         channelDefinitions: { where: { isActive: true } },
         complianceRules: { where: { isActive: true } },
-        aiPromptTemplates: { where: { promptKey: { in: ["MASTER_SYNTHESIS", "SEO_KEYWORDS"] }, isActive: true }, orderBy: { version: "desc" } },
       },
     });
 
     const organizationPrompt = organization?.customSystemPrompt?.trim() || "";
-    const synthesisPromptTemplate = organization?.aiPromptTemplates.find((template) => template.promptKey === "MASTER_SYNTHESIS");
+    const promptTemplates = await getResolvedAiPrompts(organizationId, ["MASTER_SYNTHESIS", "SEO_KEYWORDS"]);
+    const synthesisPromptTemplate = promptTemplates.get("MASTER_SYNTHESIS");
     const synthesisPrompt = synthesisPromptTemplate?.content || MANDATORY_CLINICAL_SYNTHESIS_PROMPT;
 
     // 2. Synthesize Master Clinical Record & Redacted PHI Audit via GPT-4o
@@ -250,7 +251,7 @@ Return ONLY a valid JSON object matching this exact schema:
       ? await db.case.findUnique({ where: { id: targetCaseId } })
       : null;
 
-    const seoPromptTemplate = organization?.aiPromptTemplates.find((template) => template.promptKey === "SEO_KEYWORDS");
+    const seoPromptTemplate = promptTemplates.get("SEO_KEYWORDS");
     const seoKeywordResult = await generateSeoKeywordSet({ masterRecord, prompt: seoPromptTemplate?.content });
     await logAIUsage({ organizationId, caseId: targetCaseId || undefined, operation: "seo_keyword_generation", provider: "OpenAI", model: "gpt-4o", inputTokens: seoKeywordResult.usage?.prompt_tokens, outputTokens: seoKeywordResult.usage?.completion_tokens, metadata: { promptTemplateId: seoPromptTemplate?.id, promptVersion: seoPromptTemplate?.version } });
     const seoKeywords = seoKeywordResult.keywords;
@@ -264,6 +265,7 @@ Return ONLY a valid JSON object matching this exact schema:
           version: versionCount + 1,
           changeType: "pre_synthesis_snapshot",
           rawInput: previousCase.rawInput,
+          guidedSubmission: previousCase.guidedSubmission,
           masterRecord: previousCase.masterRecord,
           safetyAudit: previousCase.safetyAudit,
           status: previousCase.status,
@@ -278,6 +280,7 @@ Return ONLY a valid JSON object matching this exact schema:
         data: {
           title: generatedTitle,
           rawInput: sanitizedInput,
+          guidedSubmission: guidedSubmission && typeof guidedSubmission === "object" ? guidedSubmission : null,
           masterRecord,
           safetyAudit,
           synthesisPromptTemplateId: synthesisPromptTemplate?.id || null,
@@ -292,6 +295,7 @@ Return ONLY a valid JSON object matching this exact schema:
         data: {
           title: generatedTitle,
           rawInput: sanitizedInput,
+          guidedSubmission: guidedSubmission && typeof guidedSubmission === "object" ? guidedSubmission : null,
           masterRecord,
           safetyAudit,
           synthesisPromptTemplateId: synthesisPromptTemplate?.id || null,
@@ -310,6 +314,7 @@ Return ONLY a valid JSON object matching this exact schema:
           version: 1,
           changeType: "initial_synthesis",
           rawInput: finalizedCase.rawInput,
+          guidedSubmission: finalizedCase.guidedSubmission,
           masterRecord: finalizedCase.masterRecord,
           safetyAudit: finalizedCase.safetyAudit,
           status: finalizedCase.status,

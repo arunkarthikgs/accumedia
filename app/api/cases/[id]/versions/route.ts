@@ -48,6 +48,7 @@ export async function PATCH(
         version: versionCount + 1,
         changeType: body.action === "restore" ? "restore" : "manual_edit",
         rawInput: kase.rawInput,
+        guidedSubmission: kase.guidedSubmission,
         masterRecord: kase.masterRecord,
         safetyAudit: kase.safetyAudit,
         status: kase.status,
@@ -60,6 +61,7 @@ export async function PATCH(
         where: { id },
         data: {
           rawInput: target.rawInput,
+          guidedSubmission: target.guidedSubmission,
           masterRecord: target.masterRecord,
           safetyAudit: target.safetyAudit,
           status: "PENDING_REVIEW",

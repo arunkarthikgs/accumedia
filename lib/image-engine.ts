@@ -5,6 +5,7 @@ import { screenImage } from "@/lib/image-safety";
 import { recordAudit } from "@/lib/audit";
 import { applyBrandOverlay } from "@/lib/brand-compositor";
 import { DEFAULT_IMAGE_GENERATION_PROMPT, DEFAULT_IMAGE_SAFETY_PROMPT } from "@/lib/image-prompts";
+import { getResolvedAiPrompts } from "@/lib/ai-prompts";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -38,10 +39,11 @@ export async function generateCaseImage(caseId: string, channel: keyof typeof CH
 
   const kase = await db.case.findUniqueOrThrow({
     where: { id: caseId },
-    include: { organization: { include: { aiPromptTemplates: { where: { isActive: true }, orderBy: { version: "desc" } } } } },
+    include: { organization: true },
   });
 
   const org = kase.organization;
+  const promptTemplates = await getResolvedAiPrompts(org.id, ["IMAGE_GENERATION", "IMAGE_SAFETY"]);
   const masterRecord = kase.masterRecord as Record<string, any>;
   const brief =
     conceptBrief ||
@@ -52,12 +54,14 @@ export async function generateCaseImage(caseId: string, channel: keyof typeof CH
   // RFP §16 — never depict real patients, faces, or identifying imagery in
   // an AI-generated concept image; this is a brand/educational graphic, not
   // a photo of the case.
-  const generationTemplate = org.aiPromptTemplates.find((template) => template.promptKey === "IMAGE_GENERATION")?.content || DEFAULT_IMAGE_GENERATION_PROMPT;
-  const safetyTemplate = org.aiPromptTemplates.find((template) => template.promptKey === "IMAGE_SAFETY")?.content || DEFAULT_IMAGE_SAFETY_PROMPT;
-  const generationVersion = org.aiPromptTemplates.find((template) => template.promptKey === "IMAGE_GENERATION")?.version || 0;
-  const safetyVersion = org.aiPromptTemplates.find((template) => template.promptKey === "IMAGE_SAFETY")?.version || 0;
-  const generationPromptTemplateId = org.aiPromptTemplates.find((template) => template.promptKey === "IMAGE_GENERATION")?.id || null;
-  const safetyPromptTemplateId = org.aiPromptTemplates.find((template) => template.promptKey === "IMAGE_SAFETY")?.id || null;
+  const generationPromptTemplate = promptTemplates.get("IMAGE_GENERATION");
+  const safetyPromptTemplate = promptTemplates.get("IMAGE_SAFETY");
+  const generationTemplate = generationPromptTemplate?.content || DEFAULT_IMAGE_GENERATION_PROMPT;
+  const safetyTemplate = safetyPromptTemplate?.content || DEFAULT_IMAGE_SAFETY_PROMPT;
+  const generationVersion = generationPromptTemplate?.version || 0;
+  const safetyVersion = safetyPromptTemplate?.version || 0;
+  const generationPromptTemplateId = generationPromptTemplate?.id || null;
+  const safetyPromptTemplateId = safetyPromptTemplate?.id || null;
   const prompt = generationTemplate
     .replaceAll("{channelLabel}", spec.label)
     .replaceAll("{brief}", brief)

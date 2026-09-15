@@ -150,6 +150,8 @@ model Role {
   slug            String
   description     String?
   isSystem        Boolean          @default(false)
+  definitionId    String?
+  definition      RoleDefinition?  @relation(fields: [definitionId], references: [id], onDelete: SetNull)
   organizationId  String?
   organization    Organization?    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   users           User[]
@@ -161,6 +163,21 @@ model Role {
   @@map("macula_roles")
 }
 
+model RoleDefinition {
+  id                String                         @id @default(uuid())
+  slug              String                         @unique
+  name              String
+  description       String?
+  isSystem          Boolean                        @default(false)
+  createdAt         DateTime                       @default(now())
+  updatedAt         DateTime                       @default(now()) @updatedAt
+  roles             Role[]
+  defaultPermissions RoleDefinitionPermission[]
+
+  @@schema("macula")
+  @@map("macula_role_definitions")
+}
+
 model Permission {
   id              String           @id @default(uuid())
   name            String
@@ -168,6 +185,7 @@ model Permission {
   module          String?
   description     String?
   rolePermissions RolePermission[]
+  defaultRoleDefinitions RoleDefinitionPermission[]
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @default(now()) @updatedAt
 
@@ -185,6 +203,18 @@ model RolePermission {
   @@id([roleId, permissionId])
   @@schema("macula")
   @@map("macula_role_permissions")
+}
+
+model RoleDefinitionPermission {
+  roleDefinitionId String
+  permissionId     String
+  roleDefinition   RoleDefinition @relation(fields: [roleDefinitionId], references: [id], onDelete: Cascade)
+  permission       Permission     @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  createdAt        DateTime       @default(now())
+
+  @@id([roleDefinitionId, permissionId])
+  @@schema("macula")
+  @@map("macula_role_definition_permissions")
 }
 
 model User {
@@ -234,6 +264,7 @@ model Case {
   speciality      String?          @map("speciality")
   targetAudience  String?          @map("target_audience")
   rawInput        String           @default("") @db.Text @map("raw_input")
+  guidedSubmission Json?
   masterRecord    Json
   safetyAudit     Json
   synthesisPromptTemplateId String?
@@ -318,6 +349,7 @@ model CaseVersion {
   version      Int
   changeType   String     @default("synthesis")
   rawInput     String     @db.Text
+  guidedSubmission Json?
   masterRecord Json
   safetyAudit  Json
   status       CaseStatus

@@ -7,7 +7,7 @@ const PII_PATTERNS = [
   /\b[A-Z]{5}\d{4}[A-Z]\b/g,
   /\b\d{4}[ -]?\d{4}[ -]?\d{4}\b/g,
   /\b(?:mr|mrs|ms|dr)\.?\s+[a-z]+(?:\s+[a-z]+){0,2}\b/gi,
-  /\b(?:patient|name|dob|phone|mobile|email|mrn|uhid)\s*[:#-]?\s*[^\n]{2,}/gi,
+  /\b(?:patient|name|dob|phone|mobile|email|mrn|uhid)\s*[:#-]\s*[^\n]{2,}/gi,
 ];
 
 type Finding = { type: string; detail: string; confidence?: string; region?: { x: number; y: number; width: number; height: number } };

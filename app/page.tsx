@@ -123,7 +123,7 @@ export default async function DashboardPage() {
         </Link>
         <Link href="/admin/safety-queue" className="block rounded-lg transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-pine/30" aria-label="Open Safety Gate review queue">
           <MetricCard
-            label="Safety Gate"
+            label="Open safety violations"
             value={openSafetyFlags}
             tone="warning"
             description={openSafetyFlags > 0 ? "Flags awaiting sign-off" : "No open safety flags"}

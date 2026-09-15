@@ -22,6 +22,61 @@ type ReviewCase = {
   sources?: { id: string; fileName: string; sourceType: string; status: string; processingError: string | null }[];
 };
 
+function displayLabel(key: string) {
+  return key
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function ReadableValue({ value }: { value: unknown }) {
+  if (value === null || value === undefined || value === "") {
+    return <span className="text-muted">Not provided</span>;
+  }
+  if (typeof value === "boolean") {
+    return <span className={value ? "font-medium text-sage" : "text-muted"}>{value ? "Yes" : "No"}</span>;
+  }
+  if (typeof value === "string" || typeof value === "number") {
+    return <span className="whitespace-pre-wrap text-ink">{String(value)}</span>;
+  }
+  if (Array.isArray(value)) {
+    if (value.length === 0) return <span className="text-muted">None recorded</span>;
+    if (value.every((item) => typeof item === "string" || typeof item === "number")) {
+      return <ul className="space-y-1 pl-4 marker:text-pine">{value.map((item, index) => <li key={index} className="pl-1 text-ink">{String(item)}</li>)}</ul>;
+    }
+    return <div className="space-y-2">{value.map((item, index) => <div key={index} className="rounded border border-line bg-paper px-3 py-2"><ReadableValue value={item} /></div>)}</div>;
+  }
+  if (typeof value === "object") {
+    return <div className="grid gap-3 sm:grid-cols-2">{Object.entries(value as Record<string, unknown>).map(([key, nestedValue]) => <div key={key} className="border-l-2 border-pine/20 pl-3"><p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted">{displayLabel(key)}</p><div className="text-xs leading-5"><ReadableValue value={nestedValue} /></div></div>)}</div>;
+  }
+  return <span className="text-muted">Not provided</span>;
+}
+
+function ReadableRecord({ record }: { record: Record<string, unknown> }) {
+  const entries = Object.entries(record || {});
+  if (entries.length === 0) return <p className="mt-3 text-xs text-muted">No details recorded.</p>;
+  return <dl className="mt-3 space-y-4">{entries.map(([key, value]) => <div key={key}><dt className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted">{displayLabel(key)}</dt><dd className="text-sm leading-6"><ReadableValue value={value} /></dd></div>)}</dl>;
+}
+
+function ClinicalRecordSection({ title, fields, record }: { title: string; fields: string[]; record: Record<string, unknown> }) {
+  const presentFields = fields.filter((field) => field in record);
+  if (presentFields.length === 0) return null;
+  return <section className="overflow-hidden rounded border border-line"><h3 className="bg-paper px-4 py-2 text-xs font-bold text-ink">{title}</h3><dl className="divide-y divide-line">{presentFields.map((field) => <div key={field} className="grid gap-1 px-4 py-3 sm:grid-cols-[11rem_minmax(0,1fr)] sm:gap-4"><dt className="text-[10px] font-semibold uppercase tracking-wide text-muted">{displayLabel(field)}</dt><dd className="text-sm leading-6"><ReadableValue value={record[field]} /></dd></div>)}</dl></section>;
+}
+
+function MasterClinicalRecord({ record }: { record: Record<string, unknown> }) {
+  const sections = [
+    { title: "Case summary", fields: ["topic", "medicalSpecialty", "targetAudience"] },
+    { title: "Clinical learning and governance", fields: ["primaryEducationalMessage", "clinicalLearning", "decisionMaking", "keyDifferentiatorOrInsight", "patientSafetyConsiderations", "terminologyRetain", "terminologySimplify", "confidentialityFlags", "promotionalClaimsRequiringCaution"] },
+    { title: "Clinical assessment", fields: ["chiefComplaints", "historyOfPresentIllness", "clinicalExamination", "investigationsAndLabs", "differentialOrFinalDiagnosis"] },
+    { title: "Management plan", fields: ["managementPlan"] },
+  ];
+  const knownFields = new Set(sections.flatMap((section) => section.fields));
+  const additionalRecord = Object.fromEntries(Object.entries(record).filter(([key]) => !knownFields.has(key)));
+
+  return <div className="mt-4 space-y-4">{sections.map((section) => <ClinicalRecordSection key={section.title} {...section} record={record} />)}{Object.keys(additionalRecord).length > 0 && <section className="rounded border border-line p-4"><h3 className="text-xs font-bold text-ink">Additional record details</h3><ReadableRecord record={additionalRecord} /></section>}</div>;
+}
+
 export default function CaseReviewPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -31,7 +86,8 @@ export default function CaseReviewPage() {
   const [error, setError] = useState<string | null>(null);
   const [isEditingRecord, setIsEditingRecord] = useState(false);
   const [recordDraft, setRecordDraft] = useState("");
-  const [versions, setVersions] = useState<{ id: string; version: number; changeType: string; createdAt: string; masterRecord: Record<string, unknown> }[]>([]);
+  const [versions, setVersions] = useState<{ id: string; version: number; changeType: string; createdAt: string; rawInput: string; masterRecord: Record<string, unknown>; safetyAudit: Record<string, unknown> }[]>([]);
+  const [viewingVersion, setViewingVersion] = useState<typeof versions[number] | null>(null);
   const [auditEvents, setAuditEvents] = useState<{ id: string; action: string; detail: string | null; createdAt: string; actor: { name: string } | null }[]>([]);
 
   useEffect(() => {
@@ -172,8 +228,10 @@ export default function CaseReviewPage() {
       {openFlags.length > 0 && <section className="rounded-lg border border-ochre/40 bg-ochre-tint p-5"><h2 className="flex items-center gap-2 text-sm font-bold text-ochre"><ShieldAlert className="h-4 w-4" /> Safety review required</h2><p className="mt-1 text-xs text-ochre">Resolve all open flags in the Safety Queue before approval.</p><div className="mt-3 space-y-2">{openFlags.map((flag) => <div key={flag.id} className="rounded border border-ochre/30 bg-surface p-3 text-xs text-ink"><strong>{flag.flagType}</strong> · {flag.detail}</div>)}</div><Link href={`/admin/safety-queue?caseId=${reviewCase.id}`} className="mt-3 inline-flex text-xs font-semibold text-ochre underline">Open Safety Queue</Link></section>}
 
       <section className="rounded-lg border border-line bg-surface p-5"><h2 className="flex items-center gap-2 text-sm font-bold text-ink"><FileText className="h-4 w-4 text-pine" /> Clinician-reviewed narrative</h2><p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-ink">{narrative || "No narrative available."}</p>{recording?.transcriptionAgent && <p className="mt-4 text-[11px] font-mono text-muted">Transcribed by {recording.transcriptionAgent}</p>}</section>
-      <section className="grid grid-cols-1 gap-4 md:grid-cols-2"><div className="rounded-lg border border-line bg-surface p-5"><div className="flex items-center justify-between"><h2 className="text-sm font-bold text-ink">Master Clinical Record</h2>{!isEditingRecord && <button onClick={() => setIsEditingRecord(true)} className="flex items-center gap-1 rounded border border-line px-2 py-1 text-[11px] font-semibold text-ink hover:border-pine"><Pencil className="h-3 w-3" /> Edit</button>}</div>{isEditingRecord ? <><textarea value={recordDraft} onChange={(event) => setRecordDraft(event.target.value)} className="mt-3 h-72 w-full rounded border border-line bg-paper p-3 font-mono text-xs leading-6 text-ink focus:border-pine focus:outline-none" /><div className="mt-2 flex gap-2"><button onClick={saveRecord} className="rounded bg-pine px-3 py-1.5 text-xs font-semibold text-white">Save record</button><button onClick={() => { setIsEditingRecord(false); setRecordDraft(JSON.stringify(reviewCase.masterRecord, null, 2)); }} className="rounded border border-line px-3 py-1.5 text-xs font-semibold text-ink">Cancel</button></div></> : <pre className="mt-3 max-h-96 overflow-auto whitespace-pre-wrap text-xs leading-6 text-muted">{JSON.stringify(reviewCase.masterRecord, null, 2)}</pre>}</div><div className="rounded-lg border border-line bg-surface p-5"><h2 className="text-sm font-bold text-ink">Compliance audit</h2><pre className="mt-3 max-h-96 overflow-auto whitespace-pre-wrap text-xs leading-6 text-muted">{JSON.stringify(reviewCase.safetyAudit, null, 2)}</pre></div></section>
-      <section className="rounded-lg border border-line bg-surface p-5"><h2 className="flex items-center gap-2 text-sm font-bold text-ink"><History className="h-4 w-4 text-pine" /> Version history</h2>{versions.length === 0 ? <p className="mt-2 text-xs text-muted">No saved versions yet.</p> : <div className="mt-3 space-y-2">{versions.map((version) => <div key={version.id} className="flex items-center justify-between border-b border-line py-2 text-xs"><span><strong className="text-ink">v{version.version}</strong> · {version.changeType} · {new Date(version.createdAt).toLocaleString()}</span><button onClick={() => restoreVersion(version.id)} className="rounded border border-line px-2 py-1 font-semibold text-ink hover:border-pine">Restore</button></div>)}</div>}</section>
+      <section className="rounded-lg border border-line bg-surface p-5"><div className="flex items-center justify-between"><h2 className="text-sm font-bold text-ink">Master Clinical Record</h2>{!isEditingRecord && <button onClick={() => setIsEditingRecord(true)} className="flex items-center gap-1 rounded border border-line px-2 py-1 text-[11px] font-semibold text-ink hover:border-pine"><Pencil className="h-3 w-3" /> Edit</button>}</div>{isEditingRecord ? <><textarea value={recordDraft} onChange={(event) => setRecordDraft(event.target.value)} className="mt-3 h-72 w-full rounded border border-line bg-paper p-3 font-mono text-xs leading-6 text-ink focus:border-pine focus:outline-none" /><div className="mt-2 flex gap-2"><button onClick={saveRecord} className="rounded bg-pine px-3 py-1.5 text-xs font-semibold text-white">Save record</button><button onClick={() => { setIsEditingRecord(false); setRecordDraft(JSON.stringify(reviewCase.masterRecord, null, 2)); }} className="rounded border border-line px-3 py-1.5 text-xs font-semibold text-ink">Cancel</button></div></> : <MasterClinicalRecord record={reviewCase.masterRecord} />}</section>
+      <section className="rounded-lg border border-line bg-surface p-5"><h2 className="text-sm font-bold text-ink">Compliance audit</h2><ReadableRecord record={reviewCase.safetyAudit} /></section>
+      <section className="rounded-lg border border-line bg-surface p-5"><h2 className="flex items-center gap-2 text-sm font-bold text-ink"><History className="h-4 w-4 text-pine" /> Version history</h2>{versions.length === 0 ? <p className="mt-2 text-xs text-muted">No saved versions yet.</p> : <div className="mt-3 space-y-2">{versions.map((version) => <div key={version.id} className="flex items-center justify-between border-b border-line py-2 text-xs"><span><strong className="text-ink">v{version.version}</strong> · {version.changeType} · {new Date(version.createdAt).toLocaleString()}</span><div className="flex gap-2"><button onClick={() => setViewingVersion(version)} className="rounded border border-line px-2 py-1 font-semibold text-ink hover:border-pine">View</button><button onClick={() => restoreVersion(version.id)} className="rounded border border-line px-2 py-1 font-semibold text-ink hover:border-pine">Restore</button></div></div>)}</div>}</section>
+      {viewingVersion && <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4"><section className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-lg border border-line bg-surface p-6"><div className="flex items-center justify-between"><div><h2 className="text-lg font-bold text-ink">Version {viewingVersion.version}</h2><p className="text-xs text-muted">{viewingVersion.changeType} · {new Date(viewingVersion.createdAt).toLocaleString()}</p></div><button onClick={() => setViewingVersion(null)} className="rounded border border-line px-3 py-1 text-xs font-semibold text-ink">Close</button></div><h3 className="mt-5 text-xs font-bold uppercase tracking-wide text-muted">Source narrative</h3><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-ink">{viewingVersion.rawInput || "Not provided."}</p><h3 className="mt-5 text-xs font-bold uppercase tracking-wide text-muted">Master clinical record</h3><MasterClinicalRecord record={viewingVersion.masterRecord} /><h3 className="mt-5 text-xs font-bold uppercase tracking-wide text-muted">Compliance audit</h3><ReadableRecord record={viewingVersion.safetyAudit} /></section></div>}
       <section className="rounded-lg border border-line bg-surface p-5"><h2 className="text-sm font-bold text-ink">Immutable audit trail</h2>{auditEvents.length === 0 ? <p className="mt-2 text-xs text-muted">No review events recorded yet.</p> : <div className="mt-3 space-y-2">{auditEvents.map((event) => <div key={event.id} className="border-b border-line py-2 text-xs"><div className="flex justify-between gap-3"><strong className="text-ink">{event.action}</strong><span className="text-muted">{new Date(event.createdAt).toLocaleString()}</span></div><p className="mt-1 text-muted">{event.detail || "Recorded governance event"}{event.actor ? ` · ${event.actor.name}` : " · System"}</p></div>)}</div>}</section>
       <section className="rounded-lg border border-line bg-surface p-5"><h2 className="text-sm font-bold text-ink">Source and publication review</h2><div className="mt-3 space-y-2 text-xs">{(reviewCase.sources || []).map((source) => <div key={source.id} className="flex items-center justify-between border-b border-line py-2"><span className="text-ink">{source.fileName} <span className="text-muted">({source.sourceType})</span></span><span className={source.status === "READY" ? "text-sage" : source.status === "FAILED" ? "text-brick" : "text-ochre"}>{source.status}{source.processingError ? ` · ${source.processingError}` : ""}</span></div>)}<Link href={`/cases/${reviewCase.id}/assets`} className="mt-3 inline-flex rounded bg-pine px-3 py-1.5 font-semibold text-white">Review assets and images</Link></div></section>
       <ImagesPanel caseId={reviewCase.id} mccrApproved={Boolean(reviewCase.mccrApprovedAt)} />

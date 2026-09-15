@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -27,7 +27,7 @@ interface Flag {
     organizationId: string;
     physician?: { name: string } | null;
   };
-  imageAsset?: { id: string; channel: string; sourceType: string; phiReviewStatus: string } | null;
+  imageAsset?: { id: string; channel: string; sourceType: string; phiReviewStatus: string; safetyFindings?: unknown } | null;
 }
 
 interface Organization {
@@ -40,6 +40,20 @@ const CONFIDENCE_TONE: Record<string, "brick" | "ochre" | "muted"> = {
   medium: "ochre",
   low: "muted",
 };
+
+type ImageSafetyFinding = {
+  type?: string;
+  detail?: string;
+  confidence?: string;
+};
+
+function imageSafetyFindings(value: unknown): ImageSafetyFinding[] {
+  if (!value || typeof value !== "object") return [];
+  const findings = (value as { findings?: unknown }).findings;
+  return Array.isArray(findings)
+    ? findings.filter((finding): finding is ImageSafetyFinding => Boolean(finding) && typeof finding === "object")
+    : [];
+}
 
 export default function SafetyQueuePage() {
   const [flags, setFlags] = useState<Flag[]>([]);
@@ -73,6 +87,24 @@ export default function SafetyQueuePage() {
   useEffect(() => {
     loadFlags();
   }, [selectedOrgId]);
+
+  const safetySummary = useMemo(() => {
+    const byType = new Map<string, number>();
+    const caseIds = new Set<string>();
+    let highConfidence = 0;
+
+    for (const flag of flags) {
+      byType.set(flag.flagType, (byType.get(flag.flagType) || 0) + 1);
+      caseIds.add(flag.case.id);
+      if (flag.confidence === "high") highConfidence += 1;
+    }
+
+    return {
+      affectedCases: caseIds.size,
+      highConfidence,
+      byType: Array.from(byType.entries()).sort(([, countA], [, countB]) => countB - countA),
+    };
+  }, [flags]);
 
   const resolve = async (flagId: string, decision: "REVIEWED_OK" | "REVIEWED_REDACTED" | "REJECTED") => {
     setActingOnId(flagId);
@@ -131,6 +163,46 @@ export default function SafetyQueuePage() {
           </select>
         </div>
 
+        {!isLoading && (
+          <section aria-label="Safety violation summary" className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="rounded-lg border border-ochre/40 bg-ochre-tint p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-ochre">Open violations</p>
+              <p className="mt-1 text-2xl font-bold text-ink">{flags.length}</p>
+              <p className="mt-1 text-xs text-muted">Findings still needing a human decision</p>
+            </div>
+            <div className="rounded-lg border border-line bg-surface p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Cases affected</p>
+              <p className="mt-1 text-2xl font-bold text-ink">{safetySummary.affectedCases}</p>
+              <p className="mt-1 text-xs text-muted">Clinical cases blocked by open flags</p>
+            </div>
+            <div className="rounded-lg border border-brick/30 bg-brick-tint p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-brick">High confidence</p>
+              <p className="mt-1 text-2xl font-bold text-ink">{safetySummary.highConfidence}</p>
+              <p className="mt-1 text-xs text-muted">Findings needing priority review</p>
+            </div>
+          </section>
+        )}
+
+        {!isLoading && safetySummary.byType.length > 0 && (
+          <section className="rounded-lg border border-line bg-surface p-5" aria-label="Safety violations by type">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-bold text-ink">Violations by safety check</h2>
+                <p className="mt-1 text-xs text-muted">Counts below reflect the current organization filter.</p>
+              </div>
+              <ShieldAlert className="h-5 w-5 text-ochre" />
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {safetySummary.byType.map(([flagType, count]) => (
+                <div key={flagType} className="flex items-center gap-2 rounded border border-line bg-paper px-3 py-2">
+                  <span className="text-xs font-semibold text-ink">{flagType.replaceAll("_", " ")}</span>
+                  <span className="rounded-full bg-ochre-tint px-2 py-0.5 text-xs font-bold text-ochre">{count}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
         {isLoading ? (
           <div className="card p-12 text-center text-sm text-muted">Loading open flags…</div>
         ) : flags.length === 0 ? (
@@ -151,6 +223,23 @@ export default function SafetyQueuePage() {
                     </div>
                     <p className="text-sm text-ink">{f.detail}</p>
                     {f.imageAsset && <p className="mt-1 text-[11px] font-medium text-ochre">Image safety finding · {f.imageAsset.channel} · {f.imageAsset.phiReviewStatus}</p>}
+                                        {f.imageAsset && imageSafetyFindings(f.imageAsset.safetyFindings).length > 0 && (
+                                          <div className="mt-3 rounded border border-ochre/30 bg-ochre-tint p-3">
+                                            <p className="text-[10px] font-semibold uppercase tracking-wide text-ochre">Why this was flagged</p>
+                                            <ul className="mt-2 space-y-2">
+                                              {imageSafetyFindings(f.imageAsset.safetyFindings).map((finding, index) => (
+                                                <li key={`${finding.type || "finding"}-${index}`} className="text-xs leading-5 text-ink">
+                                                  <strong>{(finding.type || "Safety finding").replaceAll("_", " ")}</strong>
+                                                  {finding.confidence ? <span className="text-muted"> · {finding.confidence} confidence</span> : null}
+                                                  <span> · {finding.detail || "Potentially identifying content was detected."}</span>
+                                                </li>
+                                              ))}
+                                            </ul>
+                                          </div>
+                                        )}
+                                        {f.imageAsset && imageSafetyFindings(f.imageAsset.safetyFindings).length === 0 && (
+                                          <p className="mt-2 text-xs text-muted">Detailed screening evidence is unavailable for this earlier image scan. Open the case to inspect the source image before deciding.</p>
+                                        )}
                     <div className="mt-2 flex items-center gap-3 text-[11px] text-muted">
                       <Link href={`/cases/${f.case.id}/review`} className="flex items-center gap-1 hover:text-pine">
                         <Stethoscope className="h-3 w-3" /> {f.case.title}

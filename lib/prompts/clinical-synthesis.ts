@@ -21,7 +21,12 @@ Mandatory regulatory requirements:
 - Mark missing information as not provided rather than guessing.
 
 The response must include:
-- A structured clinical master record covering presentation, examination, investigations, management, outcome, and follow-up.
+- One structured Master Clinical Content Record containing the topic, specialty, target audience,
+	primary educational message, clinical learning, decision-making, key differentiator or insight,
+	patient-safety considerations, terminology to retain, terminology to simplify,
+	confidentiality flags, and promotional/outcome claims requiring caution.
+- A clinical record covering presentation, examination, investigations, management, outcome, and follow-up.
 - A compliance and safety audit listing detected/redacted PHI, NMC ethics findings, and a confidence score from 0 to 100.
-- Omnichannel clinical asset drafts for peer CME education, patient education, and a 60-second grand-rounds/video script.
+- Do not generate platform-specific assets at this stage. Platform adaptation happens only after the
+	Master Clinical Content Record is human-approved.
 `;

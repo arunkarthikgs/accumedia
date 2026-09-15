@@ -112,6 +112,7 @@ export async function PUT(req: Request) {
             where: { id: ch.id },
             data: {
               systemPrompt: ch.systemPrompt,
+              promptVersion: { increment: 1 },
               displayName: ch.displayName,
               targetAudience: ch.targetAudience,
               isActive: ch.isActive ?? true,

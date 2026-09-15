@@ -476,6 +476,7 @@ model ChannelDefinition {
   outputType     OutputType?   // maps this channel to one of the RFP's required output types
   targetAudience String        @default("Clinical")
   systemPrompt   String        @default("") @db.Text
+  promptVersion  Int           @default(1)
   wordCountMin   Int?
   wordCountMax   Int?
   durationLabel  String?       // for VIDEO_SCRIPT variants: "45s" | "60s" | "90s" | "2min" | "3min"

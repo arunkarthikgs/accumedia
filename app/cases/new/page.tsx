@@ -87,6 +87,10 @@ const GUIDED_SECTIONS = [
   ["takeaway", "G. What should the reader learn?", "Educational takeaway for patients or professionals"],
 ] as const;
 
+function countWords(value: string) {
+  return value.trim() ? value.trim().split(/\s+/).length : 0;
+}
+
 export default function NewCasePage() {
   const router = useRouter();
 
@@ -284,8 +288,8 @@ export default function NewCasePage() {
     const sections = GUIDED_SECTIONS
       .map(([key, title]) => `${title}\n${guidedNotes[key]?.trim() || "Not provided."}`)
       .join("\n\n");
-    if (!GUIDED_SECTIONS.some(([key]) => guidedNotes[key]?.trim())) {
-      setErrorMessage("Complete at least one guided clinical section before continuing.");
+    if (GUIDED_SECTIONS.some(([key]) => !guidedNotes[key]?.trim())) {
+      setErrorMessage("Complete all seven guided clinical sections before continuing.");
       return;
     }
     setErrorMessage(null);
@@ -495,6 +499,11 @@ export default function NewCasePage() {
       setErrorMessage("Please select a healthcare organization.");
       return;
     }
+    const narrativeWords = countWords(finalNarrative);
+    if (!audioBlob && (narrativeWords < 200 || narrativeWords > 300)) {
+      setErrorMessage(`Source content should be approximately 200–300 words. Current count: ${narrativeWords}.`);
+      return;
+    }
 
     setIsSynthesizing(true);
     try {
@@ -503,6 +512,7 @@ export default function NewCasePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           rawText: finalNarrative,
+          inputMode: audioBlob ? "audio" : "text",
           physicianId: selectedPhysicianId || undefined,
           organizationId: selectedOrgId,
           audioRecordingId: recordingId || undefined,
@@ -932,8 +942,25 @@ export default function NewCasePage() {
           )}
 
           <div className="border-t border-slate-100 pt-4">
+            <div className="mb-4 rounded-xl border-2 border-teal-200 bg-teal-50/60 p-4">
+              <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider text-teal-800">Primary submission: guided clinical framework</p>
+                  <p className="mt-1 text-[11px] text-teal-700">Complete all seven prompts to create a structured clinical content submission.</p>
+                </div>
+                <button type="button" onClick={useGuidedFramework} className="rounded-lg bg-teal-700 px-3 py-2 text-xs font-semibold text-white hover:bg-teal-800">Continue with guided case</button>
+              </div>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                {GUIDED_SECTIONS.map(([key, title, hint]) => (
+                  <label key={key} className="block">
+                    <span className="mb-1 block text-xs font-semibold text-slate-700">{title}</span>
+                    <textarea rows={3} value={guidedNotes[key] || ""} onChange={(event) => setGuidedNotes((current) => ({ ...current, [key]: event.target.value }))} placeholder={hint} className="w-full rounded-lg border border-teal-200 bg-white p-3 text-xs leading-relaxed text-slate-800 placeholder-slate-400 focus:border-teal-500 focus:outline-hidden" />
+                  </label>
+                ))}
+              </div>
+            </div>
             <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-500">
-              Or enter a text description
+              Alternative input: text description
             </label>
             <textarea
               rows={4}
@@ -942,8 +969,12 @@ export default function NewCasePage() {
               placeholder="Describe the clinical encounter, symptoms, findings, treatment, and outcome..."
               className="w-full rounded-xl border border-slate-200 bg-slate-50/50 p-4 text-sm leading-relaxed text-slate-800 placeholder-slate-400 focus:border-teal-500 focus:bg-white focus:outline-hidden"
             />
+            <div className="mt-1 flex items-center justify-between text-[11px]">
+              <span className="text-slate-400">Target length: approximately 200–300 words</span>
+              <span className={countWords(rawTranscript) >= 200 && countWords(rawTranscript) <= 300 ? "font-semibold text-teal-700" : "text-slate-400"}>{countWords(rawTranscript)} words</span>
+            </div>
             <div className="mt-2 flex items-center justify-between gap-3">
-              <span className="text-[11px] text-slate-400">Text descriptions skip audio archival and start at clinician review.</span>
+              <span className="text-[11px] text-slate-400">Alternate text input skips audio archival and starts at clinician review.</span>
               <div className="flex items-center gap-2">
                 <input
                   ref={textFileInputRef}
@@ -957,38 +988,15 @@ export default function NewCasePage() {
                   onClick={() => textFileInputRef.current?.click()}
                   className="flex items-center gap-1.5 rounded-lg border border-teal-200 bg-white px-3 py-2 text-xs font-semibold text-teal-800 hover:bg-teal-50 transition"
                 >
-                  <UploadCloud className="h-3.5 w-3.5 text-teal-600" /> Upload text
+                  <UploadCloud className="h-3.5 w-3.5 text-teal-600" /> Upload alternate text
                 </button>
                 <button
                   type="button"
                   onClick={useTextDescription}
                   className="flex items-center gap-1.5 rounded-lg bg-teal-700 px-3.5 py-2 text-xs font-semibold text-white hover:bg-teal-800 transition"
                 >
-                  <FileText className="h-3.5 w-3.5" /> Use description
+                  <FileText className="h-3.5 w-3.5" /> Use alternate description
                 </button>
-              </div>
-            </div>
-            <div className="mt-5 border-t border-slate-100 pt-4">
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Guided clinical framework</p>
-                  <p className="mt-1 text-[11px] text-slate-400">Capture the case in seven prompts before refinement.</p>
-                </div>
-                <button type="button" onClick={useGuidedFramework} className="rounded-lg bg-teal-700 px-3 py-2 text-xs font-semibold text-white hover:bg-teal-800">Use guided notes</button>
-              </div>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                {GUIDED_SECTIONS.map(([key, title, hint]) => (
-                  <label key={key} className="block">
-                    <span className="mb-1 block text-xs font-semibold text-slate-700">{title}</span>
-                    <textarea
-                      rows={3}
-                      value={guidedNotes[key] || ""}
-                      onChange={(event) => setGuidedNotes((current) => ({ ...current, [key]: event.target.value }))}
-                      placeholder={hint}
-                      className="w-full rounded-lg border border-slate-200 bg-slate-50/50 p-3 text-xs leading-relaxed text-slate-800 placeholder-slate-400 focus:border-teal-500 focus:bg-white focus:outline-hidden"
-                    />
-                  </label>
-                ))}
               </div>
             </div>
           </div>

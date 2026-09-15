@@ -38,6 +38,11 @@ export default function SidebarNav() {
 
   if (pathname === "/login") return null;
 
+  const signOut = async () => {
+    await fetch("/api/auth/logout", { method: "POST" });
+    window.location.href = "/login";
+  };
+
   return (
     <aside className="w-full shrink-0 border-b border-line bg-surface flex flex-col md:w-64 md:border-b-0 md:border-r">
       <div className="p-4 border-b border-line md:p-6">
@@ -94,13 +99,14 @@ export default function SidebarNav() {
             <p className="truncate text-[10px] text-muted">Vitreo-Retinal Consultant</p>
           </div>
         </div>
-        <Link
-          href="/login"
+        <button
+          type="button"
+          onClick={signOut}
           className="mt-2 flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-semibold text-muted transition hover:bg-brick-tint hover:text-brick md:mt-3 md:py-2"
         >
           <LogOut className="h-3.5 w-3.5" />
           <span>Sign out</span>
-        </Link>
+        </button>
       </div>
     </aside>
   );

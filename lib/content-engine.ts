@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import crypto from "node:crypto";
 import { db } from "@/lib/db";
 import type { ChannelDefinition, Organization } from "@prisma/client";
 import { validateGeneratedContent } from "./content-validation";
@@ -84,14 +85,15 @@ export async function generateChannelAsset({
 
   const systemPrompt = `${basePrompt}
 
-Never include anything listed under the record's confidentiality_flags.
+Never include anything listed under the record's confidentialityFlags or confidentiality_flags.
 Never state or imply a guaranteed outcome. Respect the record's
-terminology_retain / terminology_simplify guidance. Include this disclaimer
+terminologyRetain, terminologySimplify, terminology_retain, and terminology_simplify guidance. Include this disclaimer
 where applicable: "${organization.defaultDisclaimer}".`;
 
   const resolvedPrompt = systemPrompt
     .replace("{duration}", channel.durationLabel || "60 seconds")
     .replace("{platform_char_limit}", String(platformLimit?.maxCharacters || 280));
+  const promptTemplateVersion = `${channel.promptVersion}:${crypto.createHash("sha256").update(resolvedPrompt).digest("hex").slice(0, 12)}`;
 
   await assertTokenQuota(organization.id, Math.ceil((resolvedPrompt.length + JSON.stringify(masterRecord).length) / 4) + 4096);
 
@@ -135,6 +137,7 @@ where applicable: "${organization.defaultDisclaimer}".`;
       validationDurationSeconds: validation.estimatedDurationSeconds,
       version: 1,
       promptTemplateId: channel.id,
+      promptTemplateVersion,
       modelUsed: "gpt-4o",
     },
   });

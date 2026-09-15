@@ -15,13 +15,19 @@ const openai = new OpenAI({
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { rawText, physicianId, organizationId, audioRecordingId, caseId } = body;
+    const { rawText, physicianId, organizationId, audioRecordingId, caseId, inputMode } = body;
 
     if (!rawText || !rawText.trim()) {
       return NextResponse.json(
         { error: "Clinical narrative text is required for synthesis." },
         { status: 400 }
       );
+    }
+    if (inputMode !== "audio") {
+      const wordCount = rawText.trim().split(/\s+/).length;
+      if (wordCount < 200 || wordCount > 300) {
+        return NextResponse.json({ error: `Source content should be approximately 200–300 words. Current count: ${wordCount}.` }, { status: 422 });
+      }
     }
 
     if (!organizationId) {
@@ -81,6 +87,18 @@ Return ONLY a valid JSON object matching this exact schema:
 {
   "caseTitle": "Short informative case title (e.g., Acute Pancreatitis Secondary to Alcohol Consumption)",
   "masterRecord": {
+    "topic": "string — the clinical topic or case subject",
+    "medicalSpecialty": "string — the relevant medical specialty",
+    "targetAudience": "string — patients, families, clinicians, or another defined audience",
+    "primaryEducationalMessage": "string — the main educational message",
+    "clinicalLearning": "string — the clinical learning point",
+    "decisionMaking": "string — the clinical reasoning and decision taken",
+    "keyDifferentiatorOrInsight": "string — the important differentiator or insight",
+    "patientSafetyConsiderations": ["safety consideration or not provided"],
+    "terminologyRetain": ["medical terms that should remain unchanged"],
+    "terminologySimplify": ["terms that should be explained in plain language"],
+    "confidentialityFlags": ["potential confidentiality or patient-identification issue"],
+    "promotionalClaimsRequiringCaution": ["claim requiring caution or none"],
     "chiefComplaints": ["complaint 1", "complaint 2"],
     "historyOfPresentIllness": "Narrative paragraph detailing onset, duration, progression",
     "clinicalExamination": {
@@ -130,25 +148,7 @@ Return ONLY a valid JSON object matching this exact schema:
     "questionKeywords": [],
     "semanticKeywords": [],
     "searchIntent": "patient education or professional clinical content"
-  },
-  "channelDrafts": [
-    {
-      "channelKey": "DISCHARGE_SUMMARY",
-      "channelName": "Discharge Summary",
-      "content": {
-        "summary": "...",
-        "patientCareInstructions": "..."
-      }
-    },
-    {
-      "channelKey": "REFERRAL_LETTER",
-      "channelName": "Specialist Referral Letter",
-      "content": {
-        "referralReason": "...",
-        "clinicalSummary": "..."
-      }
-    }
-  ]
+  }
 }`,
         },
         {
@@ -174,11 +174,23 @@ Return ONLY a valid JSON object matching this exact schema:
 
     const sanitizedOutput = redactClinicalValue(parsedOutput);
     const generatedTitle = sanitizedOutput.caseTitle || "Clinical Case Record";
-    const masterRecord = sanitizedOutput.masterRecord || {};
+    const rawMasterRecord = sanitizedOutput.masterRecord || {};
+    const masterRecord = {
+      topic: rawMasterRecord.topic || generatedTitle,
+      medicalSpecialty: rawMasterRecord.medicalSpecialty || "Not provided",
+      targetAudience: rawMasterRecord.targetAudience || "Not provided",
+      primaryEducationalMessage: rawMasterRecord.primaryEducationalMessage || "Not provided",
+      clinicalLearning: rawMasterRecord.clinicalLearning || "Not provided",
+      decisionMaking: rawMasterRecord.decisionMaking || "Not provided",
+      keyDifferentiatorOrInsight: rawMasterRecord.keyDifferentiatorOrInsight || "Not provided",
+      patientSafetyConsiderations: Array.isArray(rawMasterRecord.patientSafetyConsiderations) ? rawMasterRecord.patientSafetyConsiderations : ["Not provided"],
+      terminologyRetain: Array.isArray(rawMasterRecord.terminologyRetain) ? rawMasterRecord.terminologyRetain : [],
+      terminologySimplify: Array.isArray(rawMasterRecord.terminologySimplify) ? rawMasterRecord.terminologySimplify : [],
+      confidentialityFlags: Array.isArray(rawMasterRecord.confidentialityFlags) ? rawMasterRecord.confidentialityFlags : [],
+      promotionalClaimsRequiringCaution: Array.isArray(rawMasterRecord.promotionalClaimsRequiringCaution) ? rawMasterRecord.promotionalClaimsRequiringCaution : [],
+      ...rawMasterRecord,
+    };
     const safetyAudit = sanitizedOutput.safetyAudit || {};
-    const channelDrafts = Array.isArray(sanitizedOutput.channelDrafts)
-      ? sanitizedOutput.channelDrafts
-      : [];
       const seoKeywords = sanitizedOutput.seoKeywords || {};
       const seoQuality = assessSeoQuality(seoKeywords);
 
@@ -341,27 +353,12 @@ Return ONLY a valid JSON object matching this exact schema:
       });
     }
 
-    // 5. Upsert downstream generated assets (e.g. Discharge Summary, Referral Letter)
-    await db.generatedAsset.deleteMany({
-      where: { caseId: finalizedCase.id },
-    });
-
-    if (channelDrafts.length > 0) {
-      await db.generatedAsset.createMany({
-        data: channelDrafts.map((draft: any) => ({
-          caseId: finalizedCase.id,
-          channelKey: draft.channelKey || "DEFAULT",
-          channelName: draft.channelName || "Clinical Channel Asset",
-          content: draft.content || {},
-        })),
-      });
-    }
-
     return NextResponse.json({
       success: true,
       case: finalizedCase,
       safetyFlagsCount: findings.length,
-      assetsCount: channelDrafts.length,
+      assetsCount: 0,
+      assetsGeneration: "available_after_master_record_approval",
     });
   } catch (error: any) {
     console.error("Clinical synthesis error:", error);

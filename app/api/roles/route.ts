@@ -10,12 +10,17 @@ async function requireRoleManager() {
   return user;
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const user = await requireRoleManager();
+    const requestedOrganizationId = new URL(req.url).searchParams.get("organizationId");
+    const organizationId = user.isSuperAdmin ? requestedOrganizationId : user.organizationId;
+    if (!organizationId && !user.isSuperAdmin) {
+      return NextResponse.json({ error: "User is not assigned to an organization." }, { status: 400 });
+    }
     const [roles, permissions, definitions, taskDefinitions] = await Promise.all([
       db.role.findMany({
-        where: user.isSuperAdmin || !user.organizationId ? undefined : { OR: [{ organizationId: null }, { organizationId: user.organizationId }] },
+        where: organizationId ? { OR: [{ organizationId: null }, { organizationId }] } : undefined,
         include: {
           definition: { select: { id: true, slug: true, name: true, isSystem: true } },
           rolePermissions: { include: { permission: true } },
@@ -26,10 +31,14 @@ export async function GET() {
         orderBy: { module: "asc" },
       }),
       db.roleDefinition.findMany({ include: { defaultPermissions: { include: { permission: true } } }, orderBy: { slug: "asc" } }),
-      db.taskDefinition.findMany({ orderBy: [{ module: "asc" }, { slug: "asc" }] }),
+      db.taskDefinition.findMany({ include: { permissions: { select: { id: true } } }, orderBy: [{ module: "asc" }, { slug: "asc" }] }),
     ]);
 
-    return NextResponse.json({ roles, permissions, definitions, taskDefinitions });
+    const organizations = user.isSuperAdmin
+      ? await db.organization.findMany({ select: { id: true, name: true, slug: true }, orderBy: { name: "asc" } })
+      : [];
+
+    return NextResponse.json({ roles, permissions, definitions, taskDefinitions, organizations, organizationId });
   } catch (error: any) {
     console.error("Failed to fetch role matrix:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -48,7 +57,7 @@ export async function POST(req: Request) {
     const role = await db.role.findUnique({ where: { id: roleId }, select: { organizationId: true, isSystem: true } });
     const permission = await db.permission.findUnique({ where: { id: permissionId }, select: { id: true } });
     if (!role || !permission) return NextResponse.json({ error: "Role or permission not found." }, { status: 404 });
-    if (!user.isSuperAdmin && role.organizationId && role.organizationId !== user.organizationId) {
+    if (!user.isSuperAdmin && (!role.organizationId || role.organizationId !== user.organizationId)) {
       return NextResponse.json({ error: "Cannot modify another organization’s role." }, { status: 403 });
     }
     if (role.isSystem && !user.isSuperAdmin) return NextResponse.json({ error: "Only platform administrators can modify system roles." }, { status: 403 });

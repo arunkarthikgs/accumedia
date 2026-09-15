@@ -106,7 +106,7 @@ const ROLE_PERMISSIONS = [
 
 const ROLE_DEFINITIONS = [
   { slug: "platform-admin", name: "Platform Administrator", description: "Global platform, tenant, role, and compliance administration.", system: true, permissions: ROLE_PERMISSIONS.map(([slug]) => slug) },
-  { slug: "organization-admin", name: "Organization Administrator", description: "Manage one hospital network and its users and configuration.", system: false, permissions: ["CASE_VIEW", "CASE_CREATE", "PROMPT_MANAGE", "ASSET_GENERATE", "ASSET_APPROVE", "PUBLISH_MANAGE", "USAGE_VIEW", "ROLE_MATRIX_MANAGE"] },
+  { slug: "organization-admin", name: "Organization Administrator", description: "Manage every feature within one hospital network and its users and configuration.", system: false, permissions: ROLE_PERMISSIONS.map(([slug]) => slug) },
   { slug: "attending-rmp", name: "Attending RMP", description: "Clinical submission, review, and Master Clinical Record sign-off.", system: false, permissions: ["CASE_VIEW", "CASE_CREATE", "MCCR_EDIT", "MCCR_APPROVE", "ASSET_VIEW"] },
   { slug: "compliance-officer", name: "Compliance Officer", description: "DPDP, NMC, safety review, prompt, and audit governance.", system: false, permissions: ["CASE_VIEW", "SAFETY_QUEUE_MANAGE", "PROMPT_MANAGE", "USAGE_VIEW", "ROLE_MATRIX_MANAGE"] },
   { slug: "publishing-editor", name: "Publishing & SEO Editor", description: "Asset editing, approval, SEO, and publishing workflows.", system: false, permissions: ["CASE_VIEW", "ASSET_GENERATE", "ASSET_APPROVE", "PUBLISH_MANAGE", "SEO_MANAGE"] },

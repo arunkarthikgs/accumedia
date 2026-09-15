@@ -1,6 +1,7 @@
 import { createWorker } from "tesseract.js";
 import OpenAI from "openai";
 import path from "node:path";
+import { DEFAULT_IMAGE_SAFETY_PROMPT } from "@/lib/image-prompts";
 
 const PII_PATTERNS = [
   /\b\d{10}\b/g,
@@ -12,7 +13,7 @@ const PII_PATTERNS = [
 
 type Finding = { type: string; detail: string; confidence?: string; region?: { x: number; y: number; width: number; height: number } };
 
-export async function screenImage(buffer: Buffer, mimeType = "image/png") {
+export async function screenImage(buffer: Buffer, mimeType = "image/png", safetyPrompt = DEFAULT_IMAGE_SAFETY_PROMPT) {
   let ocrText = "";
   try {
     const workerPath = path.join(process.cwd(), "node_modules/tesseract.js/src/worker-script/node/index.js");
@@ -42,7 +43,7 @@ export async function screenImage(buffer: Buffer, mimeType = "image/png") {
         messages: [{
           role: "user",
           content: [
-            { type: "text", text: "Screen this clinical image for publication safety. Detect real human faces, patient names, dates of birth, phone numbers, emails, medical record numbers, IDs, readable clinical text, and other patient-identifying information. Do not treat generic diagrams or anatomical illustrations as a real face. Return JSON only: {faceDetected:boolean, findings:[{type:string,detail:string,confidence:'high'|'medium'|'low',region:{x:number,y:number,width:number,height:number}}]}. Coordinates must be normalized 0-1; use zeroes when unknown." },
+            { type: "text", text: safetyPrompt },
             { type: "image_url", image_url: { url: `data:${mimeType};base64,${buffer.toString("base64")}`, detail: "high" } },
           ],
         }],

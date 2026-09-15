@@ -19,16 +19,17 @@ export async function POST(req: Request) {
     const organization = recordingId
       ? (await db.audioRecording.findUnique({
           where: { id: recordingId },
-          select: { organization: { select: { customSystemPrompt: true, defaultDisclaimer: true } } },
+          select: { organization: { select: { clinicalRefinerPrompt: true, defaultDisclaimer: true, aiPromptTemplates: { where: { promptKey: "CLINICAL_REFINER", isActive: true }, orderBy: { version: "desc" }, take: 1 } } } },
         }))?.organization
       : organizationId
         ? await db.organization.findUnique({
             where: { id: organizationId },
-            select: { customSystemPrompt: true, defaultDisclaimer: true },
+            select: { clinicalRefinerPrompt: true, defaultDisclaimer: true, aiPromptTemplates: { where: { promptKey: "CLINICAL_REFINER", isActive: true }, orderBy: { version: "desc" }, take: 1 } },
           })
         : null;
 
     const resolvedOrganizationId = organizationId || (recordingId ? (await db.audioRecording.findUnique({ where: { id: recordingId }, select: { organizationId: true } }))?.organizationId : null);
+    const refinerPromptTemplate = organization?.aiPromptTemplates?.[0];
     const redactionRules = await db.complianceRule.findMany({
       where: {
         ruleType: "DPDP_REDACTION",
@@ -71,7 +72,7 @@ export async function POST(req: Request) {
     const refinedText = redactClinicalText(
       await refineClinicalText(
         sanitizedInput,
-        organization?.customSystemPrompt || "",
+        refinerPromptTemplate?.content || organization?.clinicalRefinerPrompt || undefined,
         organization?.defaultDisclaimer || ""
       ),
       redactionRules
@@ -90,7 +91,7 @@ export async function POST(req: Request) {
     const updated = recordingId
       ? await db.audioRecording.update({
           where: { id: recordingId },
-          data: { transcribedText: refinedText, transcriptionStatus: "REFINED", refinerAgent: "gpt-4o" },
+          data: { transcribedText: refinedText, transcriptionStatus: "REFINED", refinerAgent: "gpt-4o", refinerPromptTemplateId: refinerPromptTemplate?.id || null, refinerPromptVersion: refinerPromptTemplate?.version || null },
         })
       : null;
 

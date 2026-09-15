@@ -106,6 +106,7 @@ model Organization {
   brandTagline       String?
   preferredAsrModel  String              @default("whisper-1")
   customSystemPrompt String?             @db.Text
+  clinicalRefinerPrompt String?          @db.Text
   defaultDisclaimer  String              @default("This clinical summary is generated under NMC registered medical practitioner supervision.")
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @default(now()) @updatedAt
@@ -122,6 +123,7 @@ model Organization {
   publicationJobs    PublicationJob[]
   publicationConnections PublicationConnection[]
   imageGenerationJobs ImageGenerationJob[]
+  aiPromptTemplates  AiPromptTemplate[]
   auditLogs          AuditLog[]
   subscription       Subscription?
 
@@ -234,6 +236,8 @@ model Case {
   rawInput        String           @default("") @db.Text @map("raw_input")
   masterRecord    Json
   safetyAudit     Json
+  synthesisPromptTemplateId String?
+  synthesisPromptVersion   Int?
   status          CaseStatus       @default(DRAFT)
 
   // RFP §6 — the MCCR approval gate is separate from, and must precede,
@@ -508,6 +512,24 @@ model PlatformTemplate {
   @@map("macula_platform_templates")
 }
 
+model AiPromptTemplate {
+  id             String   @id @default(uuid())
+  promptKey      String   // "IMAGE_GENERATION" | "IMAGE_SAFETY"
+  content        String   @db.Text
+  version        Int      @default(1)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @default(now()) @updatedAt
+
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, promptKey, version])
+  @@index([organizationId, promptKey, isActive])
+  @@schema("macula")
+  @@map("macula_ai_prompt_templates")
+}
+
 model PlatformLimit {
   id             String   @id @default(uuid())
   platform       String   @unique
@@ -585,6 +607,10 @@ model ImageAsset {
   phiReviewStatus    String   @default("PENDING") // "PENDING" | "CLEAR" | "FLAGGED"
   ocrText            String?  @db.Text
   safetyFindings     Json?
+  generationPromptTemplateId String?
+  generationPromptVersion   Int?
+  safetyPromptTemplateId     String?
+  safetyPromptVersion       Int?
   faceDetected       Boolean  @default(false)
   screenedAt         DateTime?
   createdAt          DateTime @default(now())
@@ -655,6 +681,8 @@ model AudioRecording {
   transcribedText     String?       @db.Text
   transcriptionAgent  String?
   refinerAgent        String?       @default("gpt-4o")
+  refinerPromptTemplateId String?
+  refinerPromptVersion   Int?
   mimeType            String        @default("audio/webm")
 
   userId              String?

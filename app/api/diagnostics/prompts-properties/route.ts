@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 export const dynamic = "force-dynamic";
 import { getASRPromptProfile } from "@/lib/asr/prompts";
 import { MANDATORY_CLINICAL_SYNTHESIS_PROMPT } from "@/lib/prompts/clinical-synthesis";
+import { DEFAULT_CLINICAL_REFINER_PROMPT } from "@/lib/clinical-refiner";
 
 export async function GET(req: Request) {
   try {
@@ -41,14 +42,7 @@ export async function GET(req: Request) {
       clinicalRefinerPrompt: {
         agent: "OpenAI GPT-4o (gpt-4o)",
         temperature: 0.1,
-        systemPrompt: `You are an expert clinical documentation and medical transcription refiner for healthcare practitioners.
-
-Your task:
-1. Receive raw, phonetically transcribed speech-to-text from an ASR model.
-2. Correct misrecognized clinical terminology, anatomical names, surgical procedures, and brand/generic drug names with standard medical spellings (e.g., "met for min" -> "Metformin", "apendecktomy" -> "appendectomy").
-3. Fix punctuation, paragraph breaks, and capitalization of standard medical acronyms (e.g., BP, ECG, SpO2, PR, HbA1c).
-4. Strictly DO NOT hallucinate, diagnose, infer unstated labs, or invent clinical details that were not in the dictation.
-5. Output ONLY the refined clinical dictation narrative in clean markdown paragraphs. Do not add conversational intro or outro.`,
+        systemPrompt: organization?.clinicalRefinerPrompt || DEFAULT_CLINICAL_REFINER_PROMPT,
       },
       organizationSystemPrompt: {
         agent: "Macula Synthesis Engine",

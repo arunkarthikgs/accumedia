@@ -18,6 +18,7 @@ import {
   Sparkles,
   Sliders,
   Layers,
+  Image,
 } from "lucide-react";
 
 interface ChannelDefinition {
@@ -28,7 +29,6 @@ interface ChannelDefinition {
   systemPrompt: string;
   isActive: boolean;
 }
-
 interface Organization {
   id: string;
   name: string;
@@ -43,10 +43,12 @@ export default function CompliancePromptsAdminPage() {
   const [customSystemPrompt, setCustomSystemPrompt] = useState("");
   const [defaultDisclaimer, setDefaultDisclaimer] = useState("");
   const [clinicalRefinerPrompt, setClinicalRefinerPrompt] = useState("");
+  const [imageGenerationPrompt, setImageGenerationPrompt] = useState("");
+  const [imageSafetyPrompt, setImageSafetyPrompt] = useState("");
   const [channels, setChannels] = useState<ChannelDefinition[]>([]);
 
   // Testing Sandbox State
-  const [activeTab, setActiveTab] = useState<"synthesizer" | "refiner" | "disclaimer" | "channels">("synthesizer");
+  const [activeTab, setActiveTab] = useState<"synthesizer" | "refiner" | "disclaimer" | "channels" | "imageGeneration" | "imageSafety">("synthesizer");
   const [testInput, setTestInput] = useState(
     "Patient 45yo male presents with severe epigastric pain radiating to back since 6 hours. Hx of alcohol intake. BP 130/80, PR 102. Serum amylase 840, lipase 1200. USG abdomen shows bulky pancreas. Started on IV fluids, analgesics."
   );
@@ -106,6 +108,8 @@ export default function CompliancePromptsAdminPage() {
           setCustomSystemPrompt(json.data.customSystemPrompt || "");
           setDefaultDisclaimer(json.data.defaultDisclaimer || "");
           setClinicalRefinerPrompt(json.data.clinicalRefinerPrompt || "");
+          setImageGenerationPrompt(json.data.imageGenerationPrompt || "");
+          setImageSafetyPrompt(json.data.imageSafetyPrompt || "");
           setChannels(json.data.channelDefinitions || []);
         } else {
           setStatusMessage({ type: "error", text: json.error || "Failed to load prompts" });
@@ -131,6 +135,9 @@ export default function CompliancePromptsAdminPage() {
           orgId: selectedOrgId,
           userId: currentUser?.id,
           customSystemPrompt,
+          clinicalRefinerPrompt,
+          imageGenerationPrompt,
+          imageSafetyPrompt,
           defaultDisclaimer,
           channels,
         }),
@@ -323,6 +330,9 @@ export default function CompliancePromptsAdminPage() {
               >
                 <Layers className="h-3.5 w-3.5" /> Channel Prompts
               </button>
+
+              <button type="button" onClick={() => setActiveTab("imageGeneration")} className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${activeTab === "imageGeneration" ? "bg-teal-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}><Image className="h-3.5 w-3.5" /> Image Generation</button>
+              <button type="button" onClick={() => setActiveTab("imageSafety")} className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${activeTab === "imageSafety" ? "bg-teal-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}><ShieldAlert className="h-3.5 w-3.5" /> Image Safety</button>
             </div>
 
             {/* Tab Editor Views */}
@@ -429,6 +439,9 @@ export default function CompliancePromptsAdminPage() {
                   ))}
                 </div>
               )}
+
+              {activeTab === "imageGeneration" && <div><h3 className="text-xs font-bold text-slate-800">Image Generation Prompt</h3><p className="mb-2 text-[11px] text-slate-500">Versioned prompt used for AI-generated clinical education images.</p><textarea rows={16} value={imageGenerationPrompt} onChange={(e) => setImageGenerationPrompt(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-900 p-4 font-mono text-xs leading-relaxed text-teal-300 focus:border-teal-500 focus:outline-hidden" /></div>}
+              {activeTab === "imageSafety" && <div><h3 className="text-xs font-bold text-slate-800">Image Safety Screening Prompt</h3><p className="mb-2 text-[11px] text-slate-500">Versioned vision prompt used to screen images for faces and patient-identifying content.</p><textarea rows={16} value={imageSafetyPrompt} onChange={(e) => setImageSafetyPrompt(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-900 p-4 font-mono text-xs leading-relaxed text-amber-300 focus:border-teal-500 focus:outline-hidden" /></div>}
             </div>
           </div>
 

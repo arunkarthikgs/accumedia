@@ -4,6 +4,7 @@ import { uploadImageToR2 } from "@/lib/r2";
 import { screenImage } from "@/lib/image-safety";
 import { recordAudit } from "@/lib/audit";
 import { applyBrandOverlay } from "@/lib/brand-compositor";
+import { DEFAULT_IMAGE_GENERATION_PROMPT, DEFAULT_IMAGE_SAFETY_PROMPT } from "@/lib/image-prompts";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -37,7 +38,7 @@ export async function generateCaseImage(caseId: string, channel: keyof typeof CH
 
   const kase = await db.case.findUniqueOrThrow({
     where: { id: caseId },
-    include: { organization: true },
+    include: { organization: { include: { aiPromptTemplates: { where: { isActive: true }, orderBy: { version: "desc" } } } } },
   });
 
   const org = kase.organization;
@@ -51,13 +52,16 @@ export async function generateCaseImage(caseId: string, channel: keyof typeof CH
   // RFP §16 — never depict real patients, faces, or identifying imagery in
   // an AI-generated concept image; this is a brand/educational graphic, not
   // a photo of the case.
-  const prompt = `Professional, non-sensational medical education graphic for a ${spec.label}.
-Subject/theme: ${brief}
-Style: clean, modern healthcare editorial illustration — abstract or iconographic,
-NOT a photorealistic depiction of a patient or any identifiable person.
-Brand accent colour: ${org.brandingHex || "#0f766e"}.
-Leave clear negative space in one corner for a logo and title text overlay.
-No embedded text in the image itself.`;
+  const generationTemplate = org.aiPromptTemplates.find((template) => template.promptKey === "IMAGE_GENERATION")?.content || DEFAULT_IMAGE_GENERATION_PROMPT;
+  const safetyTemplate = org.aiPromptTemplates.find((template) => template.promptKey === "IMAGE_SAFETY")?.content || DEFAULT_IMAGE_SAFETY_PROMPT;
+  const generationVersion = org.aiPromptTemplates.find((template) => template.promptKey === "IMAGE_GENERATION")?.version || 0;
+  const safetyVersion = org.aiPromptTemplates.find((template) => template.promptKey === "IMAGE_SAFETY")?.version || 0;
+  const generationPromptTemplateId = org.aiPromptTemplates.find((template) => template.promptKey === "IMAGE_GENERATION")?.id || null;
+  const safetyPromptTemplateId = org.aiPromptTemplates.find((template) => template.promptKey === "IMAGE_SAFETY")?.id || null;
+  const prompt = generationTemplate
+    .replaceAll("{channelLabel}", spec.label)
+    .replaceAll("{brief}", brief)
+    .replaceAll("{accent}", org.brandingHex || "#0f766e");
 
   const result = await openai.images.generate({
     model: "gpt-image-1",
@@ -72,7 +76,7 @@ No embedded text in the image itself.`;
   }
   const baseBuffer = Buffer.from(b64, "base64");
   const buffer = await applyBrandOverlay(baseBuffer, { accent: org.brandingHex || "#0f766e", logoUrl: org.logoUrl, title: kase.title, tagline: org.brandTagline, disclaimer: org.defaultDisclaimer, font: org.brandFont });
-  const screening = await screenImage(buffer, "image/png");
+  const screening = await screenImage(buffer, "image/png", safetyTemplate);
   const fileName = `${channel}-${Date.now()}.png`;
 
   const { r2Key, storageUrl } = await uploadImageToR2(buffer, fileName, "image/png", kase.organizationId);
@@ -88,7 +92,11 @@ No embedded text in the image itself.`;
       consentConfirmed: true, // AI-generated, no patient depicted — no consent question applies
       phiReviewStatus: screening.phiReviewStatus === "FLAGGED" ? "FLAGGED" : "CLEAR",
       ocrText: screening.ocrText || null,
-      safetyFindings: { findings: screening.findings, regions: screening.regions },
+      safetyFindings: { findings: screening.findings, regions: screening.regions, promptVersion: safetyVersion },
+      generationPromptTemplateId,
+      generationPromptVersion: generationVersion || null,
+      safetyPromptTemplateId,
+      safetyPromptVersion: safetyVersion || null,
       faceDetected: screening.faceDetected,
       screenedAt: new Date(),
     },
@@ -98,7 +106,7 @@ No embedded text in the image itself.`;
       data: { targetType: "IMAGE_ASSET", flagType: screening.faceDetected ? "face" : "phi", confidence: "high", detail: "Generated image safety screening returned findings.", caseId, imageAssetId: image.id },
     });
   }
-  await recordAudit({ organizationId: kase.organizationId, caseId, targetType: "IMAGE_ASSET", targetId: image.id, action: "IMAGE_GENERATED_AND_SCREENED" });
+  await recordAudit({ organizationId: kase.organizationId, caseId, targetType: "IMAGE_ASSET", targetId: image.id, action: "IMAGE_GENERATED_AND_SCREENED", metadata: { generationPromptVersion: generationVersion, safetyPromptVersion: safetyVersion } });
   return image;
 }
 

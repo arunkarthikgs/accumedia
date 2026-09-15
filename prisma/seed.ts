@@ -1,4 +1,7 @@
 import { PrismaClient } from "@prisma/client";
+import { DEFAULT_CLINICAL_REFINER_PROMPT } from "../lib/clinical-refiner";
+import { DEFAULT_IMAGE_GENERATION_PROMPT, DEFAULT_IMAGE_SAFETY_PROMPT } from "../lib/image-prompts";
+import { MANDATORY_CLINICAL_SYNTHESIS_PROMPT } from "../lib/prompts/clinical-synthesis";
 
 const db = new PrismaClient();
 
@@ -114,7 +117,23 @@ async function main() {
     await db.complianceRule.create({ data: { ruleType: "DPDP_REDACTION", severity: "BLOCKER", patternOrCheck, description: rule.description, organizationId: null, isActive: true } });
     rulesCreated++;
   }
-  console.log(`Seeded ${created} new default channel definitions and ${rulesCreated} redaction rules.`);
+  const organizations = await db.organization.findMany({ select: { id: true, clinicalRefinerPrompt: true } });
+  let promptTemplatesCreated = 0;
+  for (const organization of organizations) {
+    const prompts = [
+      ["MASTER_SYNTHESIS", MANDATORY_CLINICAL_SYNTHESIS_PROMPT],
+      ["CLINICAL_REFINER", organization.clinicalRefinerPrompt || DEFAULT_CLINICAL_REFINER_PROMPT],
+      ["IMAGE_GENERATION", DEFAULT_IMAGE_GENERATION_PROMPT],
+      ["IMAGE_SAFETY", DEFAULT_IMAGE_SAFETY_PROMPT],
+    ] as const;
+    for (const [promptKey, content] of prompts) {
+      const existing = await db.aiPromptTemplate.findFirst({ where: { organizationId: organization.id, promptKey, isActive: true } });
+      if (existing) continue;
+      await db.aiPromptTemplate.create({ data: { organizationId: organization.id, promptKey, content, version: 1, isActive: true } });
+      promptTemplatesCreated++;
+    }
+  }
+  console.log(`Seeded ${created} channels, ${rulesCreated} redaction rules, and ${promptTemplatesCreated} AI prompt templates.`);
 }
 
 main()

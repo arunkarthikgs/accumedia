@@ -83,10 +83,13 @@ export async function POST(req: Request) {
       include: {
         channelDefinitions: { where: { isActive: true } },
         complianceRules: { where: { isActive: true } },
+        aiPromptTemplates: { where: { promptKey: "MASTER_SYNTHESIS", isActive: true }, orderBy: { version: "desc" }, take: 1 },
       },
     });
 
     const organizationPrompt = organization?.customSystemPrompt?.trim() || "";
+    const synthesisPromptTemplate = organization?.aiPromptTemplates[0];
+    const synthesisPrompt = synthesisPromptTemplate?.content || MANDATORY_CLINICAL_SYNTHESIS_PROMPT;
 
     // 2. Synthesize Master Clinical Record & Redacted PHI Audit via GPT-4o
     const redactionRules = await db.complianceRule.findMany({
@@ -122,7 +125,7 @@ export async function POST(req: Request) {
       messages: [
         {
           role: "system",
-          content: `${MANDATORY_CLINICAL_SYNTHESIS_PROMPT}
+          content: `${synthesisPrompt}
 
 Organization-specific instructions:
 ${organizationPrompt || "No additional organization-specific instructions were configured."}
@@ -282,6 +285,8 @@ Return ONLY a valid JSON object matching this exact schema:
           rawInput: sanitizedInput,
           masterRecord,
           safetyAudit,
+          synthesisPromptTemplateId: synthesisPromptTemplate?.id || null,
+          synthesisPromptVersion: synthesisPromptTemplate?.version || null,
           status: "PENDING_REVIEW",
           physicianId: resolvedPhysicianId,
           organizationId,
@@ -294,6 +299,8 @@ Return ONLY a valid JSON object matching this exact schema:
           rawInput: sanitizedInput,
           masterRecord,
           safetyAudit,
+          synthesisPromptTemplateId: synthesisPromptTemplate?.id || null,
+          synthesisPromptVersion: synthesisPromptTemplate?.version || null,
           status: "PENDING_REVIEW",
           physicianId: resolvedPhysicianId,
           organizationId,

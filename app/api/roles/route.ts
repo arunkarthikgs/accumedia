@@ -20,7 +20,7 @@ export async function GET(req: Request) {
     }
     const [roles, permissions, definitions, taskDefinitions] = await Promise.all([
       db.role.findMany({
-        where: organizationId ? { OR: [{ organizationId: null }, { organizationId }] } : undefined,
+        where: organizationId ? { organizationId } : { organizationId: "__hospital_scope_required__" },
         include: {
           definition: { select: { id: true, slug: true, name: true, isSystem: true } },
           rolePermissions: { include: { permission: true } },

@@ -31,7 +31,10 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Organization not found" }, { status: 404 });
     }
 
-    const promptTemplates = await getResolvedAiPrompts(organization.id);
+    const [promptTemplates, promptDefinitions] = await Promise.all([
+      getResolvedAiPrompts(organization.id),
+      db.aiPromptDefinition.findMany({ orderBy: { promptKey: "asc" } }),
+    ]);
     const imagePromptVersions = [...promptTemplates.values()];
     return NextResponse.json({
       success: true,
@@ -40,10 +43,11 @@ export async function GET(req: Request) {
         orgName: organization.name,
         customSystemPrompt: organization.customSystemPrompt || "",
         defaultDisclaimer: organization.defaultDisclaimer,
-        clinicalRefinerPrompt: organization.clinicalRefinerPrompt || DEFAULT_CLINICAL_REFINER_PROMPT,
+        clinicalRefinerPrompt: promptTemplates.get("CLINICAL_REFINER")?.content || DEFAULT_CLINICAL_REFINER_PROMPT,
         imageGenerationPrompt: promptTemplates.get("IMAGE_GENERATION")?.content || DEFAULT_IMAGE_GENERATION_PROMPT,
         imageSafetyPrompt: promptTemplates.get("IMAGE_SAFETY")?.content || DEFAULT_IMAGE_SAFETY_PROMPT,
         imagePromptVersions,
+        promptDefinitions,
         channelDefinitions: organization.channelDefinitions,
         complianceRules: organization.complianceRules,
       },

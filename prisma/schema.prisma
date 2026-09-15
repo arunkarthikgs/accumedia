@@ -184,6 +184,8 @@ model Permission {
   slug            String           @unique
   module          String?
   description     String?
+  taskDefinitionId String?
+  taskDefinition  TaskDefinition?  @relation(fields: [taskDefinitionId], references: [id], onDelete: SetNull)
   rolePermissions RolePermission[]
   defaultRoleDefinitions RoleDefinitionPermission[]
   createdAt       DateTime         @default(now())
@@ -191,6 +193,20 @@ model Permission {
 
   @@schema("macula")
   @@map("macula_permissions")
+}
+
+model TaskDefinition {
+  id          String       @id @default(uuid())
+  slug        String       @unique
+  name        String
+  module      String?
+  description String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @default(now()) @updatedAt
+  permissions Permission[]
+
+  @@schema("macula")
+  @@map("macula_task_definitions")
 }
 
 model RolePermission {
@@ -547,6 +563,8 @@ model PlatformTemplate {
 model AiPromptTemplate {
   id             String   @id @default(uuid())
   promptKey      String   // "IMAGE_GENERATION" | "IMAGE_SAFETY"
+  definitionId   String?
+  definition     AiPromptDefinition? @relation(fields: [definitionId], references: [id], onDelete: SetNull)
   content        String   @db.Text
   version        Int      @default(1)
   isActive       Boolean  @default(true)
@@ -560,6 +578,20 @@ model AiPromptTemplate {
   @@index([organizationId, promptKey, isActive])
   @@schema("macula")
   @@map("macula_ai_prompt_templates")
+}
+
+model AiPromptDefinition {
+  id          String             @id @default(uuid())
+  promptKey   String             @unique
+  name        String
+  description String?
+  isSystem    Boolean            @default(true)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @default(now()) @updatedAt
+  templates   AiPromptTemplate[]
+
+  @@schema("macula")
+  @@map("macula_ai_prompt_definitions")
 }
 
 model PlatformLimit {

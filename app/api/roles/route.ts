@@ -13,7 +13,7 @@ async function requireRoleManager() {
 export async function GET() {
   try {
     const user = await requireRoleManager();
-    const [roles, permissions, definitions] = await Promise.all([
+    const [roles, permissions, definitions, taskDefinitions] = await Promise.all([
       db.role.findMany({
         where: user.isSuperAdmin || !user.organizationId ? undefined : { OR: [{ organizationId: null }, { organizationId: user.organizationId }] },
         include: {
@@ -26,9 +26,10 @@ export async function GET() {
         orderBy: { module: "asc" },
       }),
       db.roleDefinition.findMany({ include: { defaultPermissions: { include: { permission: true } } }, orderBy: { slug: "asc" } }),
+      db.taskDefinition.findMany({ orderBy: [{ module: "asc" }, { slug: "asc" }] }),
     ]);
 
-    return NextResponse.json({ roles, permissions, definitions });
+    return NextResponse.json({ roles, permissions, definitions, taskDefinitions });
   } catch (error: any) {
     console.error("Failed to fetch role matrix:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });

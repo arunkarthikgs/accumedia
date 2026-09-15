@@ -145,7 +145,12 @@ async function main() {
   }
   const permissions = new Map<string, string>();
   for (const [slug, name, module, description] of ROLE_PERMISSIONS) {
-    const permission = await db.permission.upsert({ where: { slug }, update: { name, module, description }, create: { slug, name, module, description } });
+    const taskDefinition = await db.taskDefinition.upsert({
+      where: { slug },
+      update: { name, module, description },
+      create: { slug, name, module, description },
+    });
+    const permission = await db.permission.upsert({ where: { slug }, update: { name, module, description, taskDefinitionId: taskDefinition.id }, create: { slug, name, module, description, taskDefinitionId: taskDefinition.id } });
     permissions.set(slug, permission.id);
   }
   const organizationsForRoles = await db.organization.findMany({ select: { id: true } });
@@ -176,14 +181,32 @@ async function main() {
     ["IMAGE_GENERATION", DEFAULT_IMAGE_GENERATION_PROMPT],
     ["IMAGE_SAFETY", DEFAULT_IMAGE_SAFETY_PROMPT],
   ] as const;
+  const promptDefinitionsCatalog: Record<(typeof masterPrompts)[number][0], { name: string; description: string }> = {
+    MASTER_SYNTHESIS: { name: "Master Clinical Synthesis", description: "Generates the governed Master Clinical Record from sanitized clinical inputs." },
+    SEO_KEYWORDS: { name: "SEO Keyword Generation", description: "Generates and validates the SEO keyword set for approved clinical content." },
+    CLINICAL_REFINER: { name: "Clinical Transcript Refinement", description: "Refines sanitized ASR output into accurate clinical documentation without adding facts." },
+    IMAGE_GENERATION: { name: "Clinical Image Generation", description: "Creates educational clinical imagery for approved publishing channels." },
+    IMAGE_SAFETY: { name: "Clinical Image Safety", description: "Screens generated or uploaded clinical imagery for privacy, safety, and public-use risks." },
+  };
+  const promptDefinitions = new Map<string, string>();
+  for (const [promptKey] of masterPrompts) {
+    const catalogEntry = promptDefinitionsCatalog[promptKey];
+    const definition = await db.aiPromptDefinition.upsert({
+      where: { promptKey },
+      update: { name: catalogEntry.name, description: catalogEntry.description, isSystem: true },
+      create: { promptKey, name: catalogEntry.name, description: catalogEntry.description, isSystem: true },
+    });
+    promptDefinitions.set(promptKey, definition.id);
+  }
   let masterPromptsCreated = 0;
   for (const [promptKey, content] of masterPrompts) {
+    const definitionId = promptDefinitions.get(promptKey);
     const existing = await db.aiPromptTemplate.findFirst({ where: { organizationId: null, promptKey }, orderBy: { version: "desc" } });
     if (!existing) {
-      await db.aiPromptTemplate.create({ data: { organizationId: null, promptKey, content, version: 1, isActive: true } });
+      await db.aiPromptTemplate.create({ data: { organizationId: null, promptKey, definitionId, content, version: 1, isActive: true } });
       masterPromptsCreated++;
-    } else if (existing.content === content && !existing.isActive) {
-      await db.aiPromptTemplate.update({ where: { id: existing.id }, data: { isActive: true } });
+    } else {
+      await db.aiPromptTemplate.update({ where: { id: existing.id }, data: { definitionId, isActive: existing.content === content ? true : existing.isActive } });
     }
   }
 
@@ -206,7 +229,7 @@ async function main() {
         continue;
       }
       if (activeOverrides.length) await db.aiPromptTemplate.updateMany({ where: { id: { in: activeOverrides.map((prompt) => prompt.id) } }, data: { isActive: false } });
-      await db.aiPromptTemplate.create({ data: { organizationId: organization.id, promptKey, content: preferredContent, version: (current?.version || master.version) + 1, isActive: true } });
+      await db.aiPromptTemplate.create({ data: { organizationId: organization.id, promptKey, definitionId: promptDefinitions.get(promptKey), content: preferredContent, version: (current?.version || master.version) + 1, isActive: true } });
     }
   }
   console.log(`Seeded ${created} channels, ${rulesCreated} redaction rules, and ${masterPromptsCreated} master AI prompt templates.`);

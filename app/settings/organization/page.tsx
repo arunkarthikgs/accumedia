@@ -1,16 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 
 export default function OrgSettingsPage() {
   const [org, setOrg] = useState<any>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [organizations, setOrganizations] = useState<any[]>([]);
-  const searchParams = useSearchParams();
-  const selectedOrgId = searchParams.get("orgId") || "";
-  useEffect(() => { fetch("/api/admin/organizations").then((response) => response.json()).then((data) => { const items = data.organizations || []; setOrganizations(items); setOrg(items.find((item: any) => item.id === selectedOrgId) || items[0] || null); }); }, [selectedOrgId]);
+  useEffect(() => { const selectedOrgId = new URLSearchParams(window.location.search).get("orgId") || ""; fetch("/api/admin/organizations").then((response) => response.json()).then((data) => { const items = data.organizations || []; setOrganizations(items); setOrg(items.find((item: any) => item.id === selectedOrgId) || items[0] || null); }); }, []);
   const save = async (event: React.FormEvent<HTMLFormElement>) => { event.preventDefault(); const values = Object.fromEntries(new FormData(event.currentTarget)); const response = await fetch("/api/admin/organizations", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ organizationId: org.id, ...values }) }); const data = await response.json(); setMessage(response.ok ? "Brand settings saved." : data.error || "Unable to save brand settings."); if (response.ok) setOrg(data.organization); };
 
   return (

@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
-    serverComponentsExternalPackages: ["tesseract.js", "sharp"],
+    serverComponentsExternalPackages: ["tesseract.js", "sharp", "ffmpeg-static"],
   },
 };
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { RefreshCw, Pencil, CheckCircle2, Save, X, Send, Eye } from "lucide-react";
+import { RefreshCw, Pencil, CheckCircle2, Save, X, Send, Eye, Video, Loader2 } from "lucide-react";
 import StatusTag, { StatusTone } from "@/components/ui/StatusTag";
 
 interface AssetActionsPanelProps {
@@ -14,6 +14,9 @@ interface AssetActionsPanelProps {
     status: string;
     version: number;
     content: any;
+    videoR2Key?: string | null;
+    videoDurationSeconds?: number | null;
+    videoStatus?: string | null;
   };
 }
 
@@ -43,6 +46,15 @@ function previewText(content: any) {
     .join("\n\n");
 }
 
+function readableDraft(content: any) {
+  if (typeof content === "string") return content;
+  if (!content || typeof content !== "object") return "";
+  return Object.entries(content)
+    .filter(([key, value]) => value !== null && value !== undefined && value !== "" && !["image_brief", "carousel_cards", "hashtags", "keywords", "faq_section", "suggested_headings"].includes(key))
+    .map(([key, value]) => `${key.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase())}\n${Array.isArray(value) ? value.join("\n") : typeof value === "object" ? Object.entries(value as Record<string, unknown>).map(([childKey, childValue]) => `${childKey.replace(/_/g, " ")}: ${childValue}`).join("\n") : String(value)}`)
+    .join("\n\n");
+}
+
 /**
  * RFP §17 — "Regenerate only one platform output", independent per-asset
  * approval, edit/expand/shorten. Every action here calls
@@ -54,13 +66,16 @@ export default function AssetActionsPanel({ caseId, asset }: AssetActionsPanelPr
   const [status, setStatus] = useState(asset.status);
   const [version, setVersion] = useState(asset.version);
   const [isEditing, setIsEditing] = useState(false);
-  const [draftText, setDraftText] = useState(JSON.stringify(asset.content, null, 2));
+  const [draftText, setDraftText] = useState(readableDraft(asset.content));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [publishPlatform, setPublishPlatform] = useState(defaultPlatform(asset));
   const [scheduledAt, setScheduledAt] = useState("");
   const [publicationMessage, setPublicationMessage] = useState<string | null>(null);
   const [previewPlatform, setPreviewPlatform] = useState(defaultPlatform(asset));
+  const [videoUrl, setVideoUrl] = useState<string | null>(asset.videoR2Key ? `/api/cases/${caseId}/assets/${asset.id}/video` : null);
+  const [isRenderingVideo, setIsRenderingVideo] = useState(false);
+  const [voiceFile, setVoiceFile] = useState<File | null>(null);
 
   const callAction = async (action: "regenerate" | "approve" | "manual_edit", body: any = {}) => {
     setIsSubmitting(true);
@@ -79,7 +94,7 @@ export default function AssetActionsPanel({ caseId, asset }: AssetActionsPanelPr
       setContent(json.asset.content);
       setStatus(json.asset.status);
       setVersion(json.asset.version);
-      setDraftText(JSON.stringify(json.asset.content, null, 2));
+      setDraftText(readableDraft(json.asset.content));
       setIsEditing(false);
     } catch (err: any) {
       setError(err.message || "Action failed.");
@@ -88,14 +103,7 @@ export default function AssetActionsPanel({ caseId, asset }: AssetActionsPanelPr
     }
   };
 
-  const saveEdit = () => {
-    try {
-      const parsed = JSON.parse(draftText);
-      callAction("manual_edit", { content: parsed });
-    } catch {
-      callAction("manual_edit", { content: { raw_text: draftText } });
-    }
-  };
+  const saveEdit = () => callAction("manual_edit", { content: { draft_text: draftText } });
 
   const queuePublication = async () => {
     setPublicationMessage(null);
@@ -107,6 +115,18 @@ export default function AssetActionsPanel({ caseId, asset }: AssetActionsPanelPr
     const data = await response.json();
     if (!response.ok) return setPublicationMessage(data.error || "Unable to queue publication.");
     setPublicationMessage(data.connectorConfigured ? "Publication queued for the configured connector." : "Publication queued; configure the connector before processing it.");
+  };
+
+  const renderVideo = async () => {
+    setIsRenderingVideo(true);
+    setError(null);
+    const form = new FormData();
+    if (voiceFile) form.append("voice", voiceFile);
+    const response = await fetch(`/api/cases/${caseId}/assets/${asset.id}/render-video`, { method: "POST", body: form });
+    const data = await response.json();
+    setIsRenderingVideo(false);
+    if (!response.ok) return setError(data.error || "Video rendering failed.");
+    setVideoUrl(`/api/cases/${caseId}/assets/${asset.id}/video?ts=${Date.now()}`);
   };
 
   return (
@@ -142,6 +162,8 @@ export default function AssetActionsPanel({ caseId, asset }: AssetActionsPanelPr
         </div>
       </section>
 
+      {asset.outputType === "VIDEO_SCRIPT" && status === "APPROVED" && <section className="rounded border border-line bg-surface p-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h3 className="flex items-center gap-1.5 text-xs font-semibold text-ink"><Video className="h-3.5 w-3.5 text-pine" /> Rendered video</h3><p className="mt-1 text-[10px] text-muted">Create an MP4 with AI narration and organization branding, or upload a doctor voice recording.</p></div><div className="flex flex-wrap items-center gap-2"><label className="rounded border border-line bg-paper px-2 py-1.5 text-[10px] text-muted">Doctor voice<input type="file" accept="audio/*" onChange={(event) => setVoiceFile(event.target.files?.[0] || null)} className="ml-2 max-w-32 text-[10px]" /></label><button type="button" onClick={renderVideo} disabled={isRenderingVideo} className="flex items-center gap-1 rounded bg-pine px-3 py-1.5 text-[11px] font-semibold text-white disabled:opacity-50">{isRenderingVideo ? <Loader2 className="h-3 w-3 animate-spin" /> : <Video className="h-3 w-3" />}{isRenderingVideo ? "Rendering video…" : "Render MP4"}</button></div></div>{videoUrl && <video className="mt-3 w-full rounded border border-line bg-black" controls src={videoUrl} />}</section>}
+
       {isEditing ? (
         <textarea
           value={draftText}
@@ -149,8 +171,8 @@ export default function AssetActionsPanel({ caseId, asset }: AssetActionsPanelPr
           className="w-full h-48 rounded bg-paper p-4 font-mono text-xs leading-relaxed text-ink border border-line focus:border-pine focus:outline-none"
         />
       ) : (
-        <div className="rounded bg-paper p-4 font-mono text-xs leading-relaxed text-ink border border-line whitespace-pre-wrap overflow-x-auto max-h-64 overflow-y-auto">
-          {typeof content === "object" ? JSON.stringify(content, null, 2) : String(content)}
+        <div className="rounded bg-paper p-4 text-sm leading-7 text-ink border border-line whitespace-pre-wrap max-h-64 overflow-y-auto">
+          {readableDraft(content) || "No draft content available."}
         </div>
       )}
 

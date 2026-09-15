@@ -33,7 +33,7 @@ async function uploadBufferToR2(
   fileName: string,
   mimeType: string,
   orgId: string,
-  folder: "audio" | "images" | "sources"
+  folder: "audio" | "images" | "sources" | "videos"
 ) {
   if (!accountId || !accessKeyId || !secretAccessKey || !bucketName) {
     throw new Error(
@@ -114,4 +114,8 @@ export async function uploadSourceToR2(
   orgId: string
 ) {
   return uploadBufferToR2(fileBuffer, fileName, mimeType, orgId, "sources");
+}
+
+export async function uploadVideoToR2(fileBuffer: Buffer, fileName: string, mimeType: string, orgId: string) {
+  return uploadBufferToR2(fileBuffer, fileName, mimeType, orgId, "videos");
 }

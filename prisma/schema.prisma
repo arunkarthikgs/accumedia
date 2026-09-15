@@ -288,6 +288,10 @@ model GeneratedAsset {
   promptTemplateId      String?
   promptTemplateVersion String?
   modelUsed             String?
+  videoR2Key            String?
+  videoStorageUrl       String?
+  videoDurationSeconds  Int?
+  videoStatus           String?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @default(now()) @updatedAt
 

@@ -2,6 +2,7 @@ import { PrismaClient } from "@prisma/client";
 import { DEFAULT_CLINICAL_REFINER_PROMPT } from "../lib/clinical-refiner";
 import { DEFAULT_IMAGE_GENERATION_PROMPT, DEFAULT_IMAGE_SAFETY_PROMPT } from "../lib/image-prompts";
 import { MANDATORY_CLINICAL_SYNTHESIS_PROMPT } from "../lib/prompts/clinical-synthesis";
+import { DEFAULT_SEO_KEYWORD_PROMPT } from "../lib/seo-keyword-engine";
 
 const db = new PrismaClient();
 
@@ -122,6 +123,7 @@ async function main() {
   for (const organization of organizations) {
     const prompts = [
       ["MASTER_SYNTHESIS", MANDATORY_CLINICAL_SYNTHESIS_PROMPT],
+      ["SEO_KEYWORDS", DEFAULT_SEO_KEYWORD_PROMPT],
       ["CLINICAL_REFINER", organization.clinicalRefinerPrompt || DEFAULT_CLINICAL_REFINER_PROMPT],
       ["IMAGE_GENERATION", DEFAULT_IMAGE_GENERATION_PROMPT],
       ["IMAGE_SAFETY", DEFAULT_IMAGE_SAFETY_PROMPT],

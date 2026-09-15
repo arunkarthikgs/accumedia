@@ -1,0 +1,12 @@
+name = "macula-healthcare-job-scheduler"
+main = "workers/job-scheduler.ts"
+compatibility_date = "2024-09-23"
+
+[triggers]
+crons = ["* * * * *"]
+
+[vars]
+APP_URL = "https://macula.yourhospital.in"
+
+# Set this secret with:
+# wrangler secret put PUBLISHING_CRON_SECRET --config wrangler.scheduler.toml

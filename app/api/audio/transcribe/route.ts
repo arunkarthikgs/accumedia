@@ -31,6 +31,19 @@ export async function POST(req: Request) {
       selectedModel = (recording?.organization as any)?.preferredAsrModel || process.env.DEFAULT_ASR_MODEL || "whisper-1";
     }
 
+    const normalizedModel = selectedModel.trim().toLowerCase();
+    const externalAsrModel = ["whisper-1", "openai", "deepgram", "deepgram-nova-3-medical"].includes(normalizedModel);
+    if (process.env.NODE_ENV === "production" && externalAsrModel && process.env.ALLOW_EXTERNAL_ASR !== "true") {
+      return NextResponse.json(
+        {
+          error: "External ASR is disabled in production because it would send raw audio outside the hospital environment.",
+          requiredModel: "faster-whisper-self-hosted",
+          configuration: "Set ALLOW_EXTERNAL_ASR=true only after privacy approval.",
+        },
+        { status: 409 }
+      );
+    }
+
     const arrayBuffer = await audioFile.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
     const fileName = audioFile.name ? audioFile.name.replace(/[^a-zA-Z0-9.-]/g, "_") : "dictation.webm";

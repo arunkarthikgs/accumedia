@@ -82,6 +82,9 @@ export async function generateChannelAsset({
   const outputType = channel.outputType || "SEO_BLOG";
   const basePrompt = channel.systemPrompt?.trim() || DEFAULT_PROMPTS[outputType];
   const platformLimit = await db.platformLimit.findUnique({ where: { platform: "x" } });
+  const seoKeywordSet = outputType === "SEO_BLOG"
+    ? await db.seoKeywordSet.findUnique({ where: { caseId }, select: { primaryKeyword: true, secondaryKeywords: true, longTailKeywords: true, localKeywords: true, questionKeywords: true, semanticKeywords: true, searchIntent: true } })
+    : null;
 
   const systemPrompt = `${basePrompt}
 
@@ -92,7 +95,8 @@ where applicable: "${organization.defaultDisclaimer}".`;
 
   const resolvedPrompt = systemPrompt
     .replace("{duration}", channel.durationLabel || "60 seconds")
-    .replace("{platform_char_limit}", String(platformLimit?.maxCharacters || 280));
+    .replace("{platform_char_limit}", String(platformLimit?.maxCharacters || 280)) +
+    (seoKeywordSet ? `\nUse this approved keyword strategy; do not invent replacement keywords:\n${JSON.stringify(seoKeywordSet, null, 2)}` : "");
   const promptTemplateVersion = `${channel.promptVersion}:${crypto.createHash("sha256").update(resolvedPrompt).digest("hex").slice(0, 12)}`;
 
   await assertTokenQuota(organization.id, Math.ceil((resolvedPrompt.length + JSON.stringify(masterRecord).length) / 4) + 4096);

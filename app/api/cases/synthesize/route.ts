@@ -6,7 +6,7 @@ import { findUnredactedRuleMatches, redactClinicalText, redactClinicalValue } fr
 import { logAIUsage } from "@/lib/ai-usage";
 import { requireOrganizationAccess } from "@/lib/tenant-auth";
 import { assertTokenQuota } from "@/lib/quotas";
-import { assessSeoQuality } from "@/lib/seo-quality";
+import { generateSeoKeywordSet } from "@/lib/seo-keyword-engine";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -83,12 +83,12 @@ export async function POST(req: Request) {
       include: {
         channelDefinitions: { where: { isActive: true } },
         complianceRules: { where: { isActive: true } },
-        aiPromptTemplates: { where: { promptKey: "MASTER_SYNTHESIS", isActive: true }, orderBy: { version: "desc" }, take: 1 },
+        aiPromptTemplates: { where: { promptKey: { in: ["MASTER_SYNTHESIS", "SEO_KEYWORDS"] }, isActive: true }, orderBy: { version: "desc" } },
       },
     });
 
     const organizationPrompt = organization?.customSystemPrompt?.trim() || "";
-    const synthesisPromptTemplate = organization?.aiPromptTemplates[0];
+    const synthesisPromptTemplate = organization?.aiPromptTemplates.find((template) => template.promptKey === "MASTER_SYNTHESIS");
     const synthesisPrompt = synthesisPromptTemplate?.content || MANDATORY_CLINICAL_SYNTHESIS_PROMPT;
 
     // 2. Synthesize Master Clinical Record & Redacted PHI Audit via GPT-4o
@@ -189,15 +189,6 @@ Return ONLY a valid JSON object matching this exact schema:
     },
     "auditTimestamp": "${new Date().toISOString()}"
   },
-  "seoKeywords": {
-    "primaryKeyword": "...",
-    "secondaryKeywords": [],
-    "longTailKeywords": [],
-    "localKeywords": [],
-    "questionKeywords": [],
-    "semanticKeywords": [],
-    "searchIntent": "patient education or professional clinical content"
-  }
 }`,
         },
         {
@@ -240,8 +231,6 @@ Return ONLY a valid JSON object matching this exact schema:
       ...rawMasterRecord,
     };
     const safetyAudit = sanitizedOutput.safetyAudit || {};
-      const seoKeywords = sanitizedOutput.seoKeywords || {};
-      const seoQuality = assessSeoQuality(seoKeywords);
 
     let targetCaseId = caseId;
 
@@ -260,6 +249,12 @@ Return ONLY a valid JSON object matching this exact schema:
     const previousCase = targetCaseId
       ? await db.case.findUnique({ where: { id: targetCaseId } })
       : null;
+
+    const seoPromptTemplate = organization?.aiPromptTemplates.find((template) => template.promptKey === "SEO_KEYWORDS");
+    const seoKeywordResult = await generateSeoKeywordSet({ masterRecord, prompt: seoPromptTemplate?.content });
+    await logAIUsage({ organizationId, caseId: targetCaseId || undefined, operation: "seo_keyword_generation", provider: "OpenAI", model: "gpt-4o", inputTokens: seoKeywordResult.usage?.prompt_tokens, outputTokens: seoKeywordResult.usage?.completion_tokens, metadata: { promptTemplateId: seoPromptTemplate?.id, promptVersion: seoPromptTemplate?.version } });
+    const seoKeywords = seoKeywordResult.keywords;
+    const seoQuality = seoKeywordResult.quality;
 
     if (previousCase) {
       const versionCount = await db.caseVersion.count({ where: { caseId: previousCase.id } });

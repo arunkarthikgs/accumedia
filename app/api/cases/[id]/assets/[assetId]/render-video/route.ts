@@ -15,7 +15,11 @@ export async function POST(req: Request, props: { params: Promise<{ id: string; 
     const form = req.headers.get("content-type")?.includes("multipart/form-data") ? await req.formData() : null;
     const voice = form?.get("voice");
     const content = asset.content as Record<string, unknown>;
-    const script = typeof content.script === "string" ? content.script : String(content.raw_text || "");
+    const script = typeof content.script === "string"
+      ? content.script
+      : typeof content.draft_text === "string"
+        ? content.draft_text
+        : String(content.raw_text || "");
     if (!script.trim()) return NextResponse.json({ error: "The video script is empty." }, { status: 400 });
     const rendered = await renderClinicalVideo({ script, title: asset.case.title, accent: asset.case.organization.brandingHex || "#0f766e", disclaimer: asset.case.organization.defaultDisclaimer, logoUrl: asset.case.organization.logoUrl, voiceFile: voice instanceof File ? Buffer.from(await voice.arrayBuffer()) : undefined });
     const stored = await uploadVideoToR2(rendered.buffer, `${asset.channelKey}-${Date.now()}.mp4`, rendered.mimeType, asset.case.organizationId);

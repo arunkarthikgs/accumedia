@@ -4,13 +4,11 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ArrowLeft, CheckCircle2, FileText, History, Loader2, Pencil, ShieldAlert, XCircle } from "lucide-react";
-import ImagesPanel from "@/components/ImagesPanel";
 
 type ReviewCase = {
   id: string;
   title: string;
   status: string;
-  mccrApprovedAt: string | null;
   rawInput: string;
   masterRecord: Record<string, unknown>;
   safetyAudit: Record<string, unknown>;
@@ -89,23 +87,30 @@ export default function CaseReviewPage() {
   const [versions, setVersions] = useState<{ id: string; version: number; changeType: string; createdAt: string; rawInput: string; masterRecord: Record<string, unknown>; safetyAudit: Record<string, unknown> }[]>([]);
   const [viewingVersion, setViewingVersion] = useState<typeof versions[number] | null>(null);
   const [auditEvents, setAuditEvents] = useState<{ id: string; action: string; detail: string | null; createdAt: string; actor: { name: string } | null }[]>([]);
+  const [auditCursor, setAuditCursor] = useState<string | null>(null);
+  const [isLoadingEarlierAuditEvents, setIsLoadingEarlierAuditEvents] = useState(false);
 
   useEffect(() => {
     async function loadCase() {
       try {
-        const response = await fetch("/api/admin/cases?status=ALL");
+        const [response, versionsResponse, auditResponse] = await Promise.all([
+          fetch(`/api/cases/${params.id}/review`),
+          fetch(`/api/cases/${params.id}/versions`),
+          fetch(`/api/cases/${params.id}/audit`),
+        ]);
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || "Unable to load case.");
-        const found = data.cases?.find((item: ReviewCase) => item.id === params.id);
+        const found = data.case as ReviewCase | undefined;
         if (!found) throw new Error("Case not found.");
         setReviewCase(found);
         setRecordDraft(JSON.stringify(found.masterRecord, null, 2));
-        const versionsResponse = await fetch(`/api/cases/${params.id}/versions`);
         const versionsData = await versionsResponse.json();
         if (versionsResponse.ok) setVersions(versionsData.versions || []);
-        const auditResponse = await fetch(`/api/cases/${params.id}/audit`);
         const auditData = await auditResponse.json();
-        if (auditResponse.ok) setAuditEvents(auditData.events || []);
+        if (auditResponse.ok) {
+          setAuditEvents(auditData.events || []);
+          setAuditCursor(auditData.nextCursor || null);
+        }
       } catch (requestError: any) {
         setError(requestError.message || "Unable to load case.");
       } finally {
@@ -135,6 +140,22 @@ export default function CaseReviewPage() {
       if (auditResponse.ok) setAuditEvents(auditData.events || []);
     } catch (actionError: any) {
       setError(actionError.message || "Unable to save the clinical record.");
+    }
+  };
+
+  const loadEarlierAuditEvents = async () => {
+    if (!auditCursor) return;
+    setIsLoadingEarlierAuditEvents(true);
+    try {
+      const response = await fetch(`/api/cases/${params.id}/audit?cursor=${encodeURIComponent(auditCursor)}`);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Unable to load earlier audit events.");
+      setAuditEvents((current) => [...current, ...(data.events || [])]);
+      setAuditCursor(data.nextCursor || null);
+    } catch (requestError: any) {
+      setError(requestError.message || "Unable to load earlier audit events.");
+    } finally {
+      setIsLoadingEarlierAuditEvents(false);
     }
   };
 
@@ -232,9 +253,8 @@ export default function CaseReviewPage() {
       <section className="rounded-lg border border-line bg-surface p-5"><h2 className="text-sm font-bold text-ink">Compliance audit</h2><ReadableRecord record={reviewCase.safetyAudit} /></section>
       <section className="rounded-lg border border-line bg-surface p-5"><h2 className="flex items-center gap-2 text-sm font-bold text-ink"><History className="h-4 w-4 text-pine" /> Version history</h2>{versions.length === 0 ? <p className="mt-2 text-xs text-muted">No saved versions yet.</p> : <div className="mt-3 space-y-2">{versions.map((version) => <div key={version.id} className="flex items-center justify-between border-b border-line py-2 text-xs"><span><strong className="text-ink">v{version.version}</strong> · {version.changeType} · {new Date(version.createdAt).toLocaleString()}</span><div className="flex gap-2"><button onClick={() => setViewingVersion(version)} className="rounded border border-line px-2 py-1 font-semibold text-ink hover:border-pine">View</button><button onClick={() => restoreVersion(version.id)} className="rounded border border-line px-2 py-1 font-semibold text-ink hover:border-pine">Restore</button></div></div>)}</div>}</section>
       {viewingVersion && <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4"><section className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-lg border border-line bg-surface p-6"><div className="flex items-center justify-between"><div><h2 className="text-lg font-bold text-ink">Version {viewingVersion.version}</h2><p className="text-xs text-muted">{viewingVersion.changeType} · {new Date(viewingVersion.createdAt).toLocaleString()}</p></div><button onClick={() => setViewingVersion(null)} className="rounded border border-line px-3 py-1 text-xs font-semibold text-ink">Close</button></div><h3 className="mt-5 text-xs font-bold uppercase tracking-wide text-muted">Source narrative</h3><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-ink">{viewingVersion.rawInput || "Not provided."}</p><h3 className="mt-5 text-xs font-bold uppercase tracking-wide text-muted">Master clinical record</h3><MasterClinicalRecord record={viewingVersion.masterRecord} /><h3 className="mt-5 text-xs font-bold uppercase tracking-wide text-muted">Compliance audit</h3><ReadableRecord record={viewingVersion.safetyAudit} /></section></div>}
-      <section className="rounded-lg border border-line bg-surface p-5"><h2 className="text-sm font-bold text-ink">Immutable audit trail</h2>{auditEvents.length === 0 ? <p className="mt-2 text-xs text-muted">No review events recorded yet.</p> : <div className="mt-3 space-y-2">{auditEvents.map((event) => <div key={event.id} className="border-b border-line py-2 text-xs"><div className="flex justify-between gap-3"><strong className="text-ink">{event.action}</strong><span className="text-muted">{new Date(event.createdAt).toLocaleString()}</span></div><p className="mt-1 text-muted">{event.detail || "Recorded governance event"}{event.actor ? ` · ${event.actor.name}` : " · System"}</p></div>)}</div>}</section>
+      <section className="rounded-lg border border-line bg-surface p-5"><h2 className="text-sm font-bold text-ink">Immutable audit trail</h2>{auditEvents.length === 0 ? <p className="mt-2 text-xs text-muted">No review events recorded yet.</p> : <div className="mt-3 space-y-2">{auditEvents.map((event) => <div key={event.id} className="border-b border-line py-2 text-xs"><div className="flex justify-between gap-3"><strong className="text-ink">{event.action}</strong><span className="text-muted">{new Date(event.createdAt).toLocaleString()}</span></div><p className="mt-1 text-muted">{event.detail || "Recorded governance event"}{event.actor ? ` · ${event.actor.name}` : " · System"}</p></div>)}{auditCursor && <button type="button" onClick={loadEarlierAuditEvents} disabled={isLoadingEarlierAuditEvents} className="mt-3 rounded border border-line bg-paper px-3 py-1.5 text-xs font-semibold text-ink hover:border-pine disabled:opacity-50">{isLoadingEarlierAuditEvents ? "Loading..." : "Load earlier events"}</button>}</div>}</section>
       <section className="rounded-lg border border-line bg-surface p-5"><h2 className="text-sm font-bold text-ink">Source and publication review</h2><div className="mt-3 space-y-2 text-xs">{(reviewCase.sources || []).map((source) => <div key={source.id} className="flex items-center justify-between border-b border-line py-2"><span className="text-ink">{source.fileName} <span className="text-muted">({source.sourceType})</span></span><span className={source.status === "READY" ? "text-sage" : source.status === "FAILED" ? "text-brick" : "text-ochre"}>{source.status}{source.processingError ? ` · ${source.processingError}` : ""}</span></div>)}<Link href={`/cases/${reviewCase.id}/assets`} className="mt-3 inline-flex rounded bg-pine px-3 py-1.5 font-semibold text-white">Review assets and images</Link></div></section>
-      <ImagesPanel caseId={reviewCase.id} mccrApproved={Boolean(reviewCase.mccrApprovedAt)} />
       <section className="rounded-lg border border-line bg-surface p-5"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="text-sm font-bold text-ink">Generated assets</h2><p className="mt-1 text-xs text-muted">{reviewCase.assets.length} assets currently attached to this case.</p></div><Link href={`/cases/${reviewCase.id}/assets`} className="inline-flex items-center justify-center rounded bg-pine px-3 py-2 text-xs font-semibold text-white hover:bg-pine-dark">Review and approve assets</Link></div><div className="mt-3 space-y-2">{reviewCase.assets.map((asset) => <div key={asset.id} className="flex items-center justify-between rounded border border-line bg-paper px-3 py-2 text-xs"><span className="font-medium text-ink">{asset.channelName}</span><span className={asset.status === "REVIEW" ? "text-ochre" : "text-muted"}>{asset.status}{asset.validationWarnings?.length ? ` · ${asset.validationWarnings.length} validation warning(s)` : ""}</span></div>)}</div></section>
     </main>
   );

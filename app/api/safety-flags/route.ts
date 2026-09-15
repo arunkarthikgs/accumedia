@@ -14,6 +14,7 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const orgId = searchParams.get("orgId");
     const caseId = searchParams.get("caseId");
+    const flagId = searchParams.get("flagId");
     const status = searchParams.get("status") || "OPEN";
     const user = await requireAuthenticatedUser();
     const scopedOrgId = user?.isSuperAdmin ? orgId : user?.organizationId;
@@ -24,9 +25,22 @@ export async function GET(req: Request) {
         status: status === "ALL" ? undefined : (status as any),
         ...(scopedOrgId ? { case: { organizationId: scopedOrgId } } : {}),
         ...(caseId ? { caseId } : {}),
+        ...(flagId ? { id: flagId } : {}),
       },
       include: {
-        case: { select: { id: true, title: true, organizationId: true, physician: { select: { name: true } } } },
+        case: {
+          select: {
+            id: true,
+            title: true,
+            organizationId: true,
+            physician: { select: { name: true } },
+            ...(flagId ? { recordings: {
+              take: 1,
+              orderBy: { recordedAt: "desc" },
+              select: { transcribedText: true },
+            } } : {}),
+          },
+        },
         imageAsset: { select: { id: true, channel: true, sourceType: true, phiReviewStatus: true, safetyFindings: true } },
       },
       orderBy: { createdAt: "desc" },

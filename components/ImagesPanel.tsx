@@ -38,6 +38,7 @@ export default function ImagesPanel({ caseId, mccrApproved }: { caseId: string; 
   const [consentConfirmed, setConsentConfirmed] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [queueMessage, setQueueMessage] = useState<string | null>(null);
 
   const load = async () => {
     setIsLoading(true);
@@ -57,6 +58,7 @@ export default function ImagesPanel({ caseId, mccrApproved }: { caseId: string; 
   const generate = async () => {
     setIsGenerating(true);
     setError(null);
+    setQueueMessage(null);
     try {
       const res = await fetch(`/api/cases/${caseId}/images`, {
         method: "POST",
@@ -65,7 +67,7 @@ export default function ImagesPanel({ caseId, mccrApproved }: { caseId: string; 
       });
       const json = await res.json();
       if (!res.ok) { setError(json.error); return; }
-      setImages((prev) => [json.image, ...prev]);
+      setQueueMessage(json.message || "Image generation queued. It will appear here after background processing.");
     } finally {
       setIsGenerating(false);
     }
@@ -133,6 +135,7 @@ export default function ImagesPanel({ caseId, mccrApproved }: { caseId: string; 
       </div>
 
       {error && <div className="text-xs text-brick bg-brick-tint border border-brick/30 rounded p-2">{error}</div>}
+      {queueMessage && <div className="text-xs text-pine bg-pine-tint border border-pine/30 rounded p-2">{queueMessage}</div>}
 
       {!mccrApproved && (
         <div className="text-xs text-ochre bg-ochre-tint border border-ochre/30 rounded p-2">

@@ -24,6 +24,7 @@ import {
   ArrowRight,
   Cpu,
   Clock,
+  ChevronDown,
   ExternalLink,
   Layers,
 } from "lucide-react";
@@ -124,6 +125,7 @@ export default function NewCasePage() {
   const [rawTranscript, setRawTranscript] = useState("");
   const [refinedText, setRefinedText] = useState("");
   const [guidedNotes, setGuidedNotes] = useState<Record<string, string>>({});
+  const [alternativeInput, setAlternativeInput] = useState<"guided" | "text" | null>(null);
 
   // Async Processing Indicators
   const [isUploadingAudio, setIsUploadingAudio] = useState(false);
@@ -942,10 +944,22 @@ export default function NewCasePage() {
           )}
 
           <div className="border-t border-slate-100 pt-4">
-            <div className="mb-4 rounded-xl border-2 border-teal-200 bg-teal-50/60 p-4">
+            <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+              <button type="button" onClick={() => setAlternativeInput((current) => current ? null : "guided")} className="flex w-full items-center justify-between gap-3 text-left">
+                <span><span className="block text-xs font-semibold text-slate-700">Use text instead of audio</span><span className="mt-0.5 block text-[11px] text-slate-500">For clinical notes that should not be recorded or uploaded as audio.</span></span>
+                <ChevronDown className={`h-4 w-4 shrink-0 text-slate-500 transition ${alternativeInput ? "rotate-180" : ""}`} />
+              </button>
+            </div>
+            {alternativeInput && <div className="mt-3 rounded-lg border border-slate-200 bg-white p-4">
+              <div className="mb-4 flex gap-2 border-b border-slate-100 pb-3">
+                <button type="button" onClick={() => setAlternativeInput("guided")} className={`rounded px-3 py-1.5 text-xs font-semibold ${alternativeInput === "guided" ? "bg-teal-700 text-white" : "border border-slate-200 text-slate-600 hover:border-teal-300"}`}>Guided framework</button>
+                <button type="button" onClick={() => setAlternativeInput("text")} className={`rounded px-3 py-1.5 text-xs font-semibold ${alternativeInput === "text" ? "bg-teal-700 text-white" : "border border-slate-200 text-slate-600 hover:border-teal-300"}`}>Paste or upload text</button>
+              </div>
+            {alternativeInput === "guided" && <div>
+            <div className="mb-4">
               <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-wider text-teal-800">Primary submission: guided clinical framework</p>
+                  <p className="text-xs font-bold uppercase tracking-wider text-teal-800">Guided clinical framework</p>
                   <p className="mt-1 text-[11px] text-teal-700">Complete all seven prompts to create a structured clinical content submission.</p>
                 </div>
                 <button type="button" onClick={useGuidedFramework} className="rounded-lg bg-teal-700 px-3 py-2 text-xs font-semibold text-white hover:bg-teal-800">Continue with guided case</button>
@@ -959,6 +973,8 @@ export default function NewCasePage() {
                 ))}
               </div>
             </div>
+            </div>}
+            {alternativeInput === "text" && <div>
             <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-500">
               Alternative input: text description
             </label>
@@ -999,6 +1015,8 @@ export default function NewCasePage() {
                 </button>
               </div>
             </div>
+            </div>}
+            </div>}
           </div>
         </div>
 
@@ -1017,10 +1035,10 @@ export default function NewCasePage() {
                 )}
               </div>
               <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-1.5">
-                <FileText className="h-4 w-4 text-teal-600" /> Literal Speech-to-Text
+                <FileText className="h-4 w-4 text-teal-600" /> Sanitized Speech-to-Text
               </h3>
               <p className="text-[11px] text-slate-500">
-                Review the engine output for terminology, names, measurements, and clinical context before refinement.
+                Review clinical terminology, measurements, and context. Patient-identifying information is replaced with redaction markers before LLM refinement.
               </p>
             </div>
 

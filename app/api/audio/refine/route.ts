@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { refineClinicalText } from "@/lib/clinical-refiner";
-import { redactClinicalText } from "@/lib/prompts/clinical-redaction";
+import { findUnredactedRuleMatches, redactClinicalText } from "@/lib/prompts/clinical-redaction";
 import { logAIUsage } from "@/lib/ai-usage";
 import { assertTokenQuota } from "@/lib/quotas";
 
@@ -35,7 +35,7 @@ export async function POST(req: Request) {
         isActive: true,
         OR: [{ organizationId: null }, ...(resolvedOrganizationId ? [{ organizationId: resolvedOrganizationId }] : [])],
       },
-      select: { patternOrCheck: true },
+      select: { patternOrCheck: true, description: true },
     });
 
     if (recordingId) {
@@ -47,6 +47,26 @@ export async function POST(req: Request) {
 
     // Run Stage 2: LLM Clinical Refinement (GPT-4o)
     const sanitizedInput = redactClinicalText(textToRefine.trim(), redactionRules);
+    const unresolvedRules = findUnredactedRuleMatches(sanitizedInput, redactionRules);
+    if (unresolvedRules.length > 0) {
+      const recording = recordingId
+        ? await db.audioRecording.findUnique({ where: { id: recordingId }, select: { caseId: true } })
+        : null;
+      if (recording?.caseId) {
+        await db.safetyFlag.create({
+          data: {
+            targetType: "CASE",
+            caseId: recording.caseId,
+            flagType: "pii",
+            detail: `LLM refinement blocked: ${unresolvedRules.join("; ")}. Update the database redaction rule before continuing.`,
+            confidence: "high",
+            status: "OPEN",
+          },
+        });
+      }
+      if (recordingId) await db.audioRecording.update({ where: { id: recordingId }, data: { transcriptionStatus: "SAFETY_REVIEW" } });
+      return NextResponse.json({ error: "Refinement was blocked because possible identifying information remains after redaction.", safetyReviewRequired: true, unresolvedRules }, { status: 422 });
+    }
     if (resolvedOrganizationId) await assertTokenQuota(resolvedOrganizationId, Math.ceil(sanitizedInput.length / 4) + 2048);
     const refinedText = redactClinicalText(
       await refineClinicalText(

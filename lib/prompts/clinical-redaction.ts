@@ -12,31 +12,52 @@ const REDACTION_PATTERNS: Array<[RegExp, string]> = [
 
 type DatabaseRedactionRule = {
   patternOrCheck: string;
+  description?: string;
 };
 
-function databasePatterns(rules: DatabaseRedactionRule[]): Array<[RegExp, string]> {
+type ParsedRedactionRule = {
+  pattern: RegExp;
+  replacement: string;
+  description: string;
+};
+
+function databasePatterns(rules: DatabaseRedactionRule[]): ParsedRedactionRule[] {
   return rules.flatMap((rule) => {
     try {
       const definition = JSON.parse(rule.patternOrCheck) as { pattern?: string; flags?: string; replacement?: string };
       if (!definition.pattern || !definition.replacement) return [];
-      return [[new RegExp(definition.pattern, definition.flags || "gi"), definition.replacement] as [RegExp, string]];
+      return [{
+        pattern: new RegExp(definition.pattern, definition.flags || "gi"),
+        replacement: definition.replacement,
+        description: rule.description || "Configured redaction rule",
+      }];
     } catch {
       return [];
     }
-  });
+  }).sort((left, right) => right.pattern.source.length - left.pattern.source.length);
 }
 
 export function redactClinicalText(value: string, rules?: DatabaseRedactionRule[]): string {
-  const patterns = rules && rules.length > 0 ? databasePatterns(rules) : REDACTION_PATTERNS;
-  return patterns.reduce((text, [pattern, replacement]) => text.replace(pattern, replacement), value);
+  const patterns = rules && rules.length > 0
+    ? databasePatterns(rules)
+    : REDACTION_PATTERNS.map(([pattern, replacement]) => ({ pattern, replacement, description: "Built-in redaction rule" }));
+  return patterns.reduce((text, rule) => text.replace(rule.pattern, rule.replacement), value);
 }
 
-export function redactClinicalValue<T>(value: T): T {
-  if (typeof value === "string") return redactClinicalText(value) as T;
-  if (Array.isArray(value)) return value.map((item) => redactClinicalValue(item)) as T;
+export function findUnredactedRuleMatches(value: string, rules: DatabaseRedactionRule[]): string[] {
+  if (rules.length === 0) return ["No active database redaction rules are configured."];
+  return databasePatterns(rules).flatMap((rule) => {
+    rule.pattern.lastIndex = 0;
+    return rule.pattern.test(value) ? [rule.description] : [];
+  });
+}
+
+export function redactClinicalValue<T>(value: T, rules?: DatabaseRedactionRule[]): T {
+  if (typeof value === "string") return redactClinicalText(value, rules) as T;
+  if (Array.isArray(value)) return value.map((item) => redactClinicalValue(item, rules)) as T;
   if (value && typeof value === "object") {
     return Object.fromEntries(
-      Object.entries(value).map(([key, item]) => [key, redactClinicalValue(item)])
+      Object.entries(value).map(([key, item]) => [key, redactClinicalValue(item, rules)])
     ) as T;
   }
   return value;

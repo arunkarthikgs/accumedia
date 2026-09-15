@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import OpenAI from "openai";
 import { MANDATORY_CLINICAL_SYNTHESIS_PROMPT } from "@/lib/prompts/clinical-synthesis";
-import { redactClinicalText, redactClinicalValue } from "@/lib/prompts/clinical-redaction";
+import { findUnredactedRuleMatches, redactClinicalText, redactClinicalValue } from "@/lib/prompts/clinical-redaction";
 import { logAIUsage } from "@/lib/ai-usage";
 import { requireOrganizationAccess } from "@/lib/tenant-auth";
 import { assertTokenQuota } from "@/lib/quotas";
@@ -11,6 +11,28 @@ import { assessSeoQuality } from "@/lib/seo-quality";
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
+
+const REDACTION_MARKERS = [
+  { marker: "[REDACTED_DOB]", label: "date of birth" },
+  { marker: "[REDACTED_DATE]", label: "date" },
+  { marker: "[REDACTED_EMAIL]", label: "email address" },
+  { marker: "[REDACTED_PHONE]", label: "phone number" },
+  { marker: "[REDACTED_IDENTIFIER]", label: "hospital identifier" },
+  { marker: "[REDACTED_AADHAAR]", label: "Aadhaar number" },
+  { marker: "[REDACTED_PERSON]", label: "titled person name" },
+  { marker: "[REDACTED_PERSONAL_INFORMATION]", label: "labeled personal information" },
+  { marker: "[REDACTED_ADDRESS]", label: "residential address" },
+  { marker: "[REDACTED_INSURANCE_IDENTIFIER]", label: "insurance identifier" },
+  { marker: "[REDACTED_INSURANCE_INFORMATION]", label: "insurance information" },
+  { marker: "[REDACTED_EMPLOYMENT_INFORMATION]", label: "employment information" },
+];
+
+function summarizeRedactions(value: string) {
+  return REDACTION_MARKERS.flatMap(({ marker, label }) => {
+    const count = value.split(marker).length - 1;
+    return count > 0 ? [`${count} ${label}${count === 1 ? "" : "s"}`] : [];
+  });
+}
 
 export async function POST(req: Request) {
   try {
@@ -73,9 +95,25 @@ export async function POST(req: Request) {
         isActive: true,
         OR: [{ organizationId: null }, { organizationId }],
       },
-      select: { patternOrCheck: true },
+      select: { patternOrCheck: true, description: true },
     });
     const sanitizedInput = redactClinicalText(rawText.trim(), redactionRules);
+    const unresolvedRules = findUnredactedRuleMatches(sanitizedInput, redactionRules);
+    if (unresolvedRules.length > 0) {
+      if (caseId) {
+        await db.safetyFlag.create({
+          data: {
+            targetType: "CASE",
+            caseId,
+            flagType: "pii",
+            detail: `LLM synthesis blocked: ${unresolvedRules.join("; ")}. Update the database redaction rule before continuing.`,
+            confidence: "high",
+            status: "OPEN",
+          },
+        });
+      }
+      return NextResponse.json({ error: "Synthesis was blocked because possible identifying information remains after redaction.", safetyReviewRequired: true, unresolvedRules }, { status: 422 });
+    }
     await assertTokenQuota(organizationId, Math.ceil(sanitizedInput.length / 4) + 6000);
     const synthesisResponse = await openai.chat.completions.create({
       model: "gpt-4o",
@@ -180,7 +218,7 @@ Return ONLY a valid JSON object matching this exact schema:
       synthesisResponse.choices[0]?.message?.content || "{}"
     );
 
-    const sanitizedOutput = redactClinicalValue(parsedOutput);
+    const sanitizedOutput = redactClinicalValue(parsedOutput, redactionRules);
     const generatedTitle = sanitizedOutput.caseTitle || "Clinical Case Record";
     const rawMasterRecord = sanitizedOutput.masterRecord || {};
     const masterRecord = {
@@ -325,12 +363,12 @@ Return ONLY a valid JSON object matching this exact schema:
     const phiCheck = safetyAudit?.phiRedactionCheck || {};
     const ethicsCheck = safetyAudit?.nmcComplianceCheck || {};
     const findings: Array<{ flagType: string; detail: string; confidence: string }> = [];
-    const dateOfBirthRedacted = (rawText.match(/\[REDACTED_DOB\]/g) || []).length;
+    const redactionSummary = summarizeRedactions(rawText);
 
-    if (dateOfBirthRedacted > 0) {
+    if (redactionSummary.length > 0) {
       findings.push({
         flagType: "pii",
-        detail: `${dateOfBirthRedacted} date of birth identifier${dateOfBirthRedacted === 1 ? " was" : "s were"} removed during refinement. Confirm no patient-identifying context remains before approval.`,
+        detail: `Removed during refinement: ${redactionSummary.join(", ")}. Confirm no patient-identifying context remains before approval.`,
         confidence: "high",
       });
     } else if (phiCheck.directIdentifiersDetected || Number(phiCheck.redactedTokensCount || 0) > 0) {

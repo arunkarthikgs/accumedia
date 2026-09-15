@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { generateCaseImage, IMAGE_CHANNELS } from "@/lib/image-engine";
+import { IMAGE_CHANNELS } from "@/lib/image-engine";
 import { requireOrganizationAccess } from "@/lib/tenant-auth";
 
 export async function GET(
@@ -52,8 +52,10 @@ export async function POST(
       );
     }
 
-    const image = await generateCaseImage(id, channel, conceptBrief);
-    return NextResponse.json({ success: true, image });
+    const job = await db.imageGenerationJob.create({
+      data: { caseId: id, organizationId: kase.organizationId, channel, conceptBrief: conceptBrief || null },
+    });
+    return NextResponse.json({ success: true, job, message: "Image generation queued for background processing." }, { status: 202 });
   } catch (error: any) {
     console.error("Image generation error:", error);
     return NextResponse.json({ error: error.message || "Image generation failed." }, { status: 500 });

@@ -28,14 +28,75 @@ async function createNarration(script: string, voiceFile?: Buffer) {
   return Buffer.from(await response.arrayBuffer());
 }
 
+function durationFromFfmpegOutput(stderr: string) {
+  const match = stderr.match(/Duration: (\d+):(\d+):(\d+\.\d+)/);
+  if (match) return Math.ceil(Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3]));
+  const progress = [...stderr.matchAll(/time=\s*(\d+):(\d+):(\d+(?:\.\d+)?)/g)].at(-1);
+  return progress ? Math.ceil(Number(progress[1]) * 3600 + Number(progress[2]) * 60 + Number(progress[3])) : 0;
+}
+
 async function getDurationSeconds(video: Buffer) {
   try {
     const result = await runFfmpeg(["-i", "pipe:0", "-f", "null", "pipe:1"], video);
-    const match = result.stderr.match(/Duration: (\d+):(\d+):(\d+\.\d+)/);
-    return match ? Math.ceil(Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3])) : 0;
+    return durationFromFfmpegOutput(result.stderr);
   } catch {
     return 0;
   }
+}
+
+async function getFileDurationSeconds(filePath: string) {
+  try {
+    const result = await runFfmpeg(["-i", filePath, "-f", "null", "pipe:1"]);
+    return durationFromFfmpegOutput(result.stderr);
+  } catch {
+    return 0;
+  }
+}
+
+function escapeXml(value: string) {
+  return value.replace(/[<>&'"]/g, (character) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&apos;", '"': "&quot;" }[character] || character));
+}
+
+function wrapText(value: string, maxLength = 54) {
+  const words = value.replace(/\s+/g, " ").trim().split(" ");
+  const lines: string[] = [];
+  let line = "";
+  for (const word of words) {
+    if (`${line} ${word}`.trim().length > maxLength && line) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = `${line} ${word}`.trim();
+    }
+  }
+  if (line) lines.push(line);
+  return lines.slice(0, 6);
+}
+
+function scriptScenes(script: string, title: string) {
+  const sentences = script.replace(/\s+/g, " ").match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [script];
+  const chunks: string[] = [];
+  let chunk = "";
+  for (const sentence of sentences) {
+    if (`${chunk} ${sentence}`.trim().length > 260 && chunk) {
+      chunks.push(chunk.trim());
+      chunk = sentence;
+    } else {
+      chunk = `${chunk} ${sentence}`.trim();
+    }
+  }
+  if (chunk) chunks.push(chunk.trim());
+  return [{ heading: title, body: "Clinical education summary" }, ...chunks.slice(0, 9).map((body, index) => ({ heading: `Clinical review ${index + 1}`, body }))];
+}
+
+async function createSlide(options: { width: number; height: number; accent: string; heading: string; body: string; disclaimer?: string; logo?: Buffer | null }) {
+  const bodyLines = wrapText(options.body).map((line, index) => `<text x="80" y="${300 + index * 48}" font-family="Arial" font-size="30" fill="#263834">${escapeXml(line)}</text>`).join("");
+  const svg = `<svg width="${options.width}" height="${options.height}" xmlns="http://www.w3.org/2000/svg"><rect width="100%" height="100%" fill="#f7faf8"/><rect width="100%" height="24" fill="${escapeXml(options.accent)}"/><text x="80" y="180" font-family="Arial" font-size="22" font-weight="700" fill="${escapeXml(options.accent)}">MACULA CLINICAL EDUCATION</text><text x="80" y="245" font-family="Arial" font-size="46" font-weight="700" fill="#13211f">${escapeXml(options.heading)}</text>${bodyLines}<line x1="80" y1="620" x2="1200" y2="620" stroke="#d7e1dc"/><text x="80" y="660" font-family="Arial" font-size="16" fill="#52615d">${escapeXml((options.disclaimer || "Clinical education - RMP reviewed").slice(0, 140))}</text></svg>`;
+  let slide = await sharp(Buffer.from(svg)).png().toBuffer();
+  if (options.logo) {
+    slide = await sharp(slide).composite([{ input: await sharp(options.logo).resize(180, 80, { fit: "inside" }).png().toBuffer(), top: 55, left: 1010 }]).png().toBuffer();
+  }
+  return slide;
 }
 
 export async function renderClinicalVideo(options: { script: string; title: string; accent: string; disclaimer?: string; logoUrl?: string | null; voiceFile?: Buffer }) {
@@ -43,19 +104,24 @@ export async function renderClinicalVideo(options: { script: string; title: stri
   const width = 1280;
   const height = 720;
   const logo = options.logoUrl ? await fetch(options.logoUrl).then(async (response) => response.ok ? Buffer.from(await response.arrayBuffer()) : null).catch(() => null) : null;
-  const svg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg"><rect width="100%" height="100%" fill="#f7faf8"/><rect width="100%" height="24" fill="${options.accent}"/><text x="70" y="260" font-family="Arial" font-size="48" font-weight="700" fill="#13211f">${options.title.replace(/[<&>]/g, "")}</text><text x="70" y="330" font-family="Arial" font-size="26" fill="#52615d">Clinical education • RMP reviewed</text><text x="70" y="650" font-family="Arial" font-size="18" fill="#52615d">${(options.disclaimer || "").slice(0, 150).replace(/[<&>]/g, "")}</text></svg>`;
-  let slide = await sharp(Buffer.from(svg)).png().toBuffer();
-  if (logo) {
-    slide = await sharp(slide).composite([{ input: await sharp(logo).resize(180, 100, { fit: "inside" }).png().toBuffer(), top: 45, left: 70 }]).png().toBuffer();
-  }
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "macula-video-"));
-  const slidePath = path.join(tempDir, "slide.png");
   const audioPath = path.join(tempDir, "voice.mp3");
+  const concatPath = path.join(tempDir, "slides.txt");
   try {
-    await writeFile(slidePath, slide);
     await writeFile(audioPath, audio);
-    const video = await runFfmpeg(["-loop", "1", "-i", slidePath, "-i", audioPath, "-shortest", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-movflags", "+frag_keyframe+empty_moov", "-f", "mp4", "pipe:1"]);
-    const durationSeconds = await getDurationSeconds(video.output);
+    const narrationSeconds = Math.max(6, await getFileDurationSeconds(audioPath));
+    const scenes = scriptScenes(options.script, options.title);
+    const totalWords = scenes.reduce((total, scene) => total + scene.body.split(/\s+/).length, 0);
+    const durations = scenes.map((scene) => Math.max(3, (scene.body.split(/\s+/).length / totalWords) * narrationSeconds));
+    const slidePaths = await Promise.all(scenes.map(async (scene, index) => {
+      const slidePath = path.join(tempDir, `slide-${index}.png`);
+      await writeFile(slidePath, await createSlide({ width, height, accent: options.accent, heading: scene.heading, body: scene.body, disclaimer: options.disclaimer, logo }));
+      return slidePath;
+    }));
+    const concatInput = slidePaths.map((slidePath, index) => `file '${slidePath}'\nduration ${durations[index].toFixed(3)}`).join("\n") + `\nfile '${slidePaths[slidePaths.length - 1]}'\n`;
+    await writeFile(concatPath, concatInput);
+    const video = await runFfmpeg(["-f", "concat", "-safe", "0", "-i", concatPath, "-i", audioPath, "-shortest", "-r", "30", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-movflags", "+frag_keyframe+empty_moov", "-f", "mp4", "pipe:1"]);
+    const durationSeconds = narrationSeconds;
     if (!durationSeconds || durationSeconds > 600) throw new Error("Rendered video duration could not be validated or exceeds 10 minutes.");
     return { buffer: video.output, durationSeconds, mimeType: "video/mp4" };
   } finally {

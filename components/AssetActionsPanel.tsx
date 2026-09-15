@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { RefreshCw, Pencil, CheckCircle2, Save, X, Send, Eye, Video, Loader2 } from "lucide-react";
+import { RefreshCw, Pencil, CheckCircle2, Save, X, Send, Eye, Video, Loader2, History } from "lucide-react";
 import StatusTag, { StatusTone } from "@/components/ui/StatusTag";
 
 interface AssetActionsPanelProps {
@@ -11,6 +11,7 @@ interface AssetActionsPanelProps {
     channelKey: string;
     channelName: string;
     outputType: string | null;
+    variant?: string | null;
     status: string;
     version: number;
     content: any;
@@ -76,6 +77,9 @@ export default function AssetActionsPanel({ caseId, asset }: AssetActionsPanelPr
   const [videoUrl, setVideoUrl] = useState<string | null>(asset.videoR2Key ? `/api/cases/${caseId}/assets/${asset.id}/video` : null);
   const [isRenderingVideo, setIsRenderingVideo] = useState(false);
   const [voiceFile, setVoiceFile] = useState<File | null>(null);
+  const [versions, setVersions] = useState<{ id: string; version: number; changeType: string; createdAt: string; content: unknown }[]>([]);
+  const [isVersionHistoryOpen, setIsVersionHistoryOpen] = useState(false);
+  const [viewingVersionId, setViewingVersionId] = useState<string | null>(null);
 
   const callAction = async (action: "regenerate" | "approve" | "manual_edit", body: any = {}) => {
     setIsSubmitting(true);
@@ -129,6 +133,14 @@ export default function AssetActionsPanel({ caseId, asset }: AssetActionsPanelPr
     setVideoUrl(`/api/cases/${caseId}/assets/${asset.id}/video?ts=${Date.now()}`);
   };
 
+  const loadVersions = async () => {
+    const response = await fetch(`/api/cases/${caseId}/assets/${asset.id}`);
+    const data = await response.json();
+    if (!response.ok) return setError(data.error || "Unable to load asset history.");
+    setVersions(data.asset?.versions || []);
+    setIsVersionHistoryOpen(true);
+  };
+
   return (
     <div className="card card-accent border-l-pine p-6 space-y-4">
       <div className="flex items-center justify-between border-b border-line pb-3">
@@ -141,6 +153,8 @@ export default function AssetActionsPanel({ caseId, asset }: AssetActionsPanelPr
         <StatusTag tone={STATUS_TONE[status] || "muted"}>{status}</StatusTag>
       </div>
 
+      {asset.outputType === "VIDEO_SCRIPT" && <div className="rounded border border-pine/20 bg-pine-tint p-3 text-xs text-ink"><p className="font-semibold text-pine-dark">Doctor-narrated clinical education video{asset.variant ? ` · ${asset.variant}` : ""}</p><p className="mt-1 leading-5 text-muted">This script is used for the branded multi-slide MP4. Review it as a teleprompter-ready clinical summary before approval and rendering.</p></div>}
+
       {error && <div className="text-xs text-brick bg-brick-tint border border-brick/30 rounded p-2">{error}</div>}
       {publicationMessage && <div className="text-xs text-pine bg-pine-tint border border-pine/30 rounded p-2">{publicationMessage}</div>}
 
@@ -149,7 +163,7 @@ export default function AssetActionsPanel({ caseId, asset }: AssetActionsPanelPr
         <div className="mt-3 flex flex-wrap gap-1.5 border-b border-line pb-2">
           {["facebook", "youtube", "linkedin", "instagram"].map((platform) => <button key={platform} type="button" onClick={() => setPreviewPlatform(platform)} className={`rounded px-2.5 py-1 text-[10px] font-semibold capitalize ${previewPlatform === platform ? "bg-pine text-white" : "bg-paper text-muted hover:text-ink"}`}>{platform}</button>)}
         </div>
-        <div className={`mt-3 rounded-lg border border-line p-4 ${previewPlatform === "instagram" ? "mx-auto max-w-xs" : "max-w-xl"} bg-paper`}>
+        <div className={`mt-3 rounded-lg border border-line p-4 ${previewPlatform === "instagram" ? "mx-auto max-w-xs" : "w-full"} bg-paper`}>
           <div className="flex items-center gap-2 border-b border-line pb-3 text-[11px] font-semibold text-ink">
             <span className="flex h-7 w-7 items-center justify-center rounded-full bg-pine text-white">M</span>
             <span>Macula Healthcare</span>
@@ -163,6 +177,8 @@ export default function AssetActionsPanel({ caseId, asset }: AssetActionsPanelPr
       </section>
 
       {asset.outputType === "VIDEO_SCRIPT" && status === "APPROVED" && <section className="rounded border border-line bg-surface p-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h3 className="flex items-center gap-1.5 text-xs font-semibold text-ink"><Video className="h-3.5 w-3.5 text-pine" /> Rendered video</h3><p className="mt-1 text-[10px] text-muted">Create an MP4 with AI narration and organization branding, or upload a doctor voice recording.</p></div><div className="flex flex-wrap items-center gap-2"><label className="rounded border border-line bg-paper px-2 py-1.5 text-[10px] text-muted">Doctor voice<input type="file" accept="audio/*" onChange={(event) => setVoiceFile(event.target.files?.[0] || null)} className="ml-2 max-w-32 text-[10px]" /></label><button type="button" onClick={renderVideo} disabled={isRenderingVideo} className="flex items-center gap-1 rounded bg-pine px-3 py-1.5 text-[11px] font-semibold text-white disabled:opacity-50">{isRenderingVideo ? <Loader2 className="h-3 w-3 animate-spin" /> : <Video className="h-3 w-3" />}{isRenderingVideo ? "Rendering video…" : "Render MP4"}</button></div></div>{videoUrl && <video className="mt-3 w-full rounded border border-line bg-black" controls src={videoUrl} />}</section>}
+
+      {isVersionHistoryOpen && <section className="rounded border border-line bg-surface p-4"><div className="flex items-center justify-between"><h3 className="flex items-center gap-1.5 text-xs font-semibold text-ink"><History className="h-3.5 w-3.5 text-pine" /> Version history</h3><button type="button" onClick={() => setIsVersionHistoryOpen(false)} className="text-[11px] font-semibold text-muted hover:text-ink">Close</button></div>{versions.length === 0 ? <p className="mt-3 text-xs text-muted">No earlier versions have been saved.</p> : <div className="mt-3 space-y-2">{versions.map((savedVersion) => <div key={savedVersion.id} className="rounded border border-line bg-paper p-3"><button type="button" onClick={() => setViewingVersionId((current) => current === savedVersion.id ? null : savedVersion.id)} className="flex w-full items-center justify-between gap-3 text-left"><span className="text-xs font-semibold text-ink">v{savedVersion.version} · {savedVersion.changeType.replaceAll("_", " ")}</span><span className="text-[10px] text-muted">{new Date(savedVersion.createdAt).toLocaleString()}</span></button>{viewingVersionId === savedVersion.id && <div className="mt-3 border-t border-line pt-3 text-xs leading-6 text-ink whitespace-pre-wrap">{readableDraft(savedVersion.content) || "No readable draft content available."}</div>}</div>)}</div>}</section>}
 
       {isEditing ? (
         <textarea
@@ -207,6 +223,13 @@ export default function AssetActionsPanel({ caseId, asset }: AssetActionsPanelPr
               className="flex items-center gap-1 rounded border border-line bg-surface px-3 py-1.5 text-[11px] font-medium text-ink hover:border-pine"
             >
               <Pencil className="h-3 w-3" /> Edit
+            </button>
+            <button
+              type="button"
+              onClick={loadVersions}
+              className="flex items-center gap-1 rounded border border-line bg-surface px-3 py-1.5 text-[11px] font-medium text-ink hover:border-pine"
+            >
+              <History className="h-3 w-3" /> Versions
             </button>
             {status !== "APPROVED" && (
               <button

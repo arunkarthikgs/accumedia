@@ -25,13 +25,20 @@ export async function POST(req: Request) {
       orderBy: { createdAt: "asc" },
       take: body.jobId ? 1 : 25,
     });
-    const results = [];
-    for (const job of jobs) {
-      const connection = await db.publicationConnection.findFirst({ where: { organizationId: job.organizationId, platform: job.platform, isActive: true } });
+    const connections = await db.publicationConnection.findMany({
+      where: {
+        isActive: true,
+        OR: [...new Map(jobs.map((job) => [`${job.organizationId}:${job.platform}`, { organizationId: job.organizationId, platform: job.platform }])).values()],
+      },
+    });
+    const connectionByPlatform = new Map(connections.map((connection) => [`${connection.organizationId}:${connection.platform}`, connection]));
+    const results: Array<Record<string, unknown>> = [];
+    const processJob = async (job: typeof jobs[number]) => {
+      const connection = connectionByPlatform.get(`${job.organizationId}:${job.platform}`);
       if (!connection) {
         await db.publicationJob.update({ where: { id: job.id }, data: { status: "FAILED", failureReason: `No active ${job.platform} connection is configured.` } });
         results.push({ id: job.id, status: "FAILED" });
-        continue;
+        return;
       }
       if (connection.expiresAt && connection.expiresAt <= now && connection.refreshTokenEncrypted && ["linkedin", "x", "youtube"].includes(connection.platform)) {
         try {
@@ -41,7 +48,7 @@ export async function POST(req: Request) {
         } catch (error: any) {
           await db.publicationJob.update({ where: { id: job.id }, data: { status: "FAILED", failureReason: `Token refresh failed: ${error.message}` } });
           results.push({ id: job.id, status: "FAILED" });
-          continue;
+          return;
         }
       }
       await db.publicationJob.update({ where: { id: job.id }, data: { status: "PROCESSING", lastAttemptAt: now, attemptCount: { increment: 1 } } });
@@ -59,6 +66,10 @@ export async function POST(req: Request) {
         await db.publicationJob.update({ where: { id: job.id }, data: { status: retry ? "QUEUED" : "FAILED", failureReason: error.message || "Publishing failed.", nextAttemptAt: retry ? new Date(Date.now() + attempts * 5 * 60 * 1000) : null } });
         results.push({ id: job.id, status: retry ? "QUEUED" : "FAILED", error: error.message });
       }
+    };
+    const concurrency = 3;
+    for (let index = 0; index < jobs.length; index += concurrency) {
+      await Promise.all(jobs.slice(index, index + concurrency).map(processJob));
     }
     return NextResponse.json({ success: true, processed: results.length, results });
   } catch (error: any) {

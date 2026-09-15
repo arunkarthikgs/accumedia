@@ -121,6 +121,7 @@ model Organization {
   usageLogs          AIUsageLog[]
   publicationJobs    PublicationJob[]
   publicationConnections PublicationConnection[]
+  imageGenerationJobs ImageGenerationJob[]
   auditLogs          AuditLog[]
   subscription       Subscription?
 
@@ -263,6 +264,7 @@ model Case {
   images          ImageAsset[]
   safetyFlags     SafetyFlag[]
   auditLogs       AuditLog[]
+  imageGenerationJobs ImageGenerationJob[]
 
   @@index([physicianId])
   @@index([organizationId])
@@ -372,6 +374,8 @@ model PublicationJob {
   asset          GeneratedAsset   @relation(fields: [assetId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, status])
+  @@index([organizationId, status, scheduledAt])
+  @@index([status, nextAttemptAt])
   @@index([scheduledAt])
   @@schema("macula")
   @@map("macula_publication_jobs")
@@ -562,6 +566,8 @@ model SafetyFlag {
 
   @@index([caseId])
   @@index([status])
+  @@index([status, createdAt])
+  @@index([caseId, status, createdAt])
   @@schema("macula")
   @@map("macula_safety_flags")
 }
@@ -591,6 +597,27 @@ model ImageAsset {
   @@index([caseId])
   @@schema("macula")
   @@map("macula_image_assets")
+}
+
+model ImageGenerationJob {
+  id           String   @id @default(uuid())
+  channel      String
+  conceptBrief String?  @db.Text
+  status       String   @default("QUEUED") // "QUEUED" | "PROCESSING" | "COMPLETED" | "FAILED"
+  error        String?  @db.Text
+  createdAt    DateTime @default(now())
+  startedAt    DateTime?
+  completedAt  DateTime?
+
+  caseId       String
+  case         Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  organizationId String
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([caseId])
+  @@schema("macula")
+  @@map("macula_image_generation_jobs")
 }
 
 model AuditLog {

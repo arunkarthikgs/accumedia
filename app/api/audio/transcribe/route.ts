@@ -52,7 +52,17 @@ export async function POST(req: Request) {
       prompt: promptProfile.prompt || undefined,
     });
 
-    const sanitizedTranscript = redactClinicalText(result.rawTranscript);
+    const redactionRules = recordingMeta
+      ? await db.complianceRule.findMany({
+          where: {
+            ruleType: "DPDP_REDACTION",
+            isActive: true,
+            OR: [{ organizationId: null }, { organizationId: recordingMeta.organizationId }],
+          },
+          select: { patternOrCheck: true, description: true },
+        })
+      : [];
+    const sanitizedTranscript = redactClinicalText(result.rawTranscript, redactionRules);
 
     if (recordingMeta) {
       await logAIUsage({

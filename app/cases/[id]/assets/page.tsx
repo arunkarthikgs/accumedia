@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
-import AssetActionsPanel from "@/components/AssetActionsPanel";
-import ImagesPanel from "@/components/ImagesPanel";
+import PublishingContentTabs from "@/components/PublishingContentTabs";
 import {
   ArrowLeft,
   Share2,
@@ -69,7 +68,7 @@ export default async function CaseAssetsPage(props: {
 
   return (
     <div className="min-h-screen bg-paper p-8 text-ink">
-      <div className="mx-auto max-w-5xl space-y-6">
+      <div className="max-w-[1440px] space-y-6">
         <div>
           <div className="mb-2 flex items-center gap-1.5 text-[11px] font-medium text-muted">
             <Link href="/" className="flex items-center gap-1 hover:text-pine">
@@ -106,28 +105,7 @@ export default async function CaseAssetsPage(props: {
           </div>
         </div>
 
-        {caseData.assets.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-line bg-surface p-12 text-center">
-            <Share2 className="mx-auto h-9 w-9 text-muted mb-3" strokeWidth={1.5} />
-            <p className="text-sm font-medium text-ink">No assets compiled yet</p>
-            <p className="text-xs text-muted mt-1 max-w-sm mx-auto">
-              This case needs to pass through the safety gate before omnichannel publication assets are compiled.
-            </p>
-            <div className="mt-5">
-              <Link href={`/cases/${caseData.id}/review`} className="inline-flex items-center gap-1.5 rounded bg-pine px-4 py-2 text-xs font-medium text-white hover:bg-pine-dark transition">
-                Go to safety gate audit
-              </Link>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-5">
-            {caseData.assets.map((asset: any) => (
-              <AssetActionsPanel key={asset.id} caseId={caseData.id} asset={asset} />
-            ))}
-          </div>
-        )}
-
-        <ImagesPanel caseId={caseData.id} mccrApproved={Boolean(caseData.mccrApprovedAt)} />
+        <PublishingContentTabs caseId={caseData.id} assets={caseData.assets} mccrApproved={Boolean(caseData.mccrApprovedAt)} />
       </div>
     </div>
   );

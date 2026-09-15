@@ -3,14 +3,32 @@ const REDACTION_PATTERNS: Array<[RegExp, string]> = [
   [/(?<!\d)(?:\+?91[-\s]?)?[6-9]\d{9}(?!\d)/g, "[REDACTED_PHONE]"],
   [/(?<!\d)\d{4}[\s-]?\d{4}[\s-]?\d{4}(?!\d)/g, "[REDACTED_AADHAAR]"],
   [/\b(?:UHID|MRN|IPD|OPD|ABHA|Aadhaar)\s*[:#-]?\s*[A-Z0-9-]{4,}\b/gi, "[REDACTED_IDENTIFIER]"],
+  [/\b(?:date\s+of\s+birth|dob)\s*[:#=-]?\s*(?:\d{1,2}[/-])?(?:\d{1,2}[/-])\d{2,4}\b/gi, "[REDACTED_DOB]"],
   [/(?<!\d)(?:\d{1,2}[/-])?(?:\d{1,2}[/-])\d{2,4}(?!\d)/g, "[REDACTED_DATE]"],
   [/\b(?:Mr|Mrs|Ms|Miss|Dr)\.?\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2}\b/g, "[REDACTED_PERSON]"],
   [/(?<!\d)\b(?:\d{1,2})(?:st|nd|rd|th)?\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{2,4}\b/gi, "[REDACTED_DATE]"],
   [/\b(?:patient|pt|name|attendant|relative|address|phone|mobile|email)\s*[:=-]\s*[^,;\n]+/gi, "[REDACTED_PERSONAL_INFORMATION]"],
 ];
 
-export function redactClinicalText(value: string): string {
-  return REDACTION_PATTERNS.reduce((text, [pattern, replacement]) => text.replace(pattern, replacement), value);
+type DatabaseRedactionRule = {
+  patternOrCheck: string;
+};
+
+function databasePatterns(rules: DatabaseRedactionRule[]): Array<[RegExp, string]> {
+  return rules.flatMap((rule) => {
+    try {
+      const definition = JSON.parse(rule.patternOrCheck) as { pattern?: string; flags?: string; replacement?: string };
+      if (!definition.pattern || !definition.replacement) return [];
+      return [[new RegExp(definition.pattern, definition.flags || "gi"), definition.replacement] as [RegExp, string]];
+    } catch {
+      return [];
+    }
+  });
+}
+
+export function redactClinicalText(value: string, rules?: DatabaseRedactionRule[]): string {
+  const patterns = rules && rules.length > 0 ? databasePatterns(rules) : REDACTION_PATTERNS;
+  return patterns.reduce((text, [pattern, replacement]) => text.replace(pattern, replacement), value);
 }
 
 export function redactClinicalValue<T>(value: T): T {

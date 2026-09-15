@@ -28,6 +28,16 @@ export async function POST(req: Request) {
           })
         : null;
 
+    const resolvedOrganizationId = organizationId || (recordingId ? (await db.audioRecording.findUnique({ where: { id: recordingId }, select: { organizationId: true } }))?.organizationId : null);
+    const redactionRules = await db.complianceRule.findMany({
+      where: {
+        ruleType: "DPDP_REDACTION",
+        isActive: true,
+        OR: [{ organizationId: null }, ...(resolvedOrganizationId ? [{ organizationId: resolvedOrganizationId }] : [])],
+      },
+      select: { patternOrCheck: true },
+    });
+
     if (recordingId) {
       await db.audioRecording.update({
         where: { id: recordingId },
@@ -36,15 +46,15 @@ export async function POST(req: Request) {
     }
 
     // Run Stage 2: LLM Clinical Refinement (GPT-4o)
-    const sanitizedInput = redactClinicalText(textToRefine.trim());
-    const resolvedOrganizationId = organizationId || (recordingId ? (await db.audioRecording.findUnique({ where: { id: recordingId }, select: { organizationId: true } }))?.organizationId : null);
+    const sanitizedInput = redactClinicalText(textToRefine.trim(), redactionRules);
     if (resolvedOrganizationId) await assertTokenQuota(resolvedOrganizationId, Math.ceil(sanitizedInput.length / 4) + 2048);
     const refinedText = redactClinicalText(
       await refineClinicalText(
         sanitizedInput,
         organization?.customSystemPrompt || "",
         organization?.defaultDisclaimer || ""
-      )
+      ),
+      redactionRules
     );
 
     if (resolvedOrganizationId) {

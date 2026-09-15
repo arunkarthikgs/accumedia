@@ -37,6 +37,17 @@ const DEFAULT_CHANNELS: Array<{
   { channelKey: "SEO_BLOG", displayName: "SEO Blog Article", outputType: "SEO_BLOG", targetAudience: "Mixed" },
 ];
 
+const DEFAULT_REDACTION_RULES = [
+  { pattern: "\\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}\\b", flags: "gi", replacement: "[REDACTED_EMAIL]", description: "Redact email addresses." },
+  { pattern: "(?<!\\d)(?:\\+?91[-\\s]?)?[6-9]\\d{9}(?!\\d)", flags: "g", replacement: "[REDACTED_PHONE]", description: "Redact Indian mobile numbers." },
+  { pattern: "(?<!\\d)\\d{4}[\\s-]?\\d{4}[\\s-]?\\d{4}(?!\\d)", flags: "g", replacement: "[REDACTED_AADHAAR]", description: "Redact Aadhaar numbers." },
+  { pattern: "\\b(?:UHID|MRN|IPD|OPD|ABHA|Aadhaar)\\s*[:#-]?\\s*[A-Z0-9-]{4,}\\b", flags: "gi", replacement: "[REDACTED_IDENTIFIER]", description: "Redact hospital and health identifiers." },
+  { pattern: "\\b(?:date\\s+of\\s+birth|dob)\\s*[:#=-]?\\s*(?:\\d{1,2}[/-])?(?:\\d{1,2}[/-])\\d{2,4}\\b", flags: "gi", replacement: "[REDACTED_DOB]", description: "Redact labeled dates of birth and create a PII review marker." },
+  { pattern: "(?<!\\d)(?:\\d{1,2}[/-])?(?:\\d{1,2}[/-])\\d{2,4}(?!\\d)", flags: "g", replacement: "[REDACTED_DATE]", description: "Redact standalone numeric dates." },
+  { pattern: "\\b(?:Mr|Mrs|Ms|Miss|Dr)\\.?\\s+[A-Z][a-z]+(?:\\s+[A-Z][a-z]+){0,2}\\b", flags: "g", replacement: "[REDACTED_PERSON]", description: "Redact titled person names." },
+  { pattern: "\\b(?:patient|pt|name|attendant|relative|address|phone|mobile|email)\\s*[:=-]\\s*[^,;\\n]+", flags: "gi", replacement: "[REDACTED_PERSONAL_INFORMATION]", description: "Redact labeled personal information." },
+];
+
 async function main() {
   let created = 0;
   for (const channel of DEFAULT_CHANNELS) {
@@ -59,7 +70,15 @@ async function main() {
     });
     created++;
   }
-  console.log(`Seeded ${created} new default channel definitions (${DEFAULT_CHANNELS.length - created} already existed).`);
+  let rulesCreated = 0;
+  for (const rule of DEFAULT_REDACTION_RULES) {
+    const patternOrCheck = JSON.stringify({ pattern: rule.pattern, flags: rule.flags, replacement: rule.replacement });
+    const existing = await db.complianceRule.findFirst({ where: { ruleType: "DPDP_REDACTION", patternOrCheck, organizationId: null } });
+    if (existing) continue;
+    await db.complianceRule.create({ data: { ruleType: "DPDP_REDACTION", severity: "BLOCKER", patternOrCheck, description: rule.description, organizationId: null, isActive: true } });
+    rulesCreated++;
+  }
+  console.log(`Seeded ${created} new default channel definitions and ${rulesCreated} redaction rules.`);
 }
 
 main()

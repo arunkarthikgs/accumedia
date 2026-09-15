@@ -67,7 +67,15 @@ export async function POST(req: Request) {
     const organizationPrompt = organization?.customSystemPrompt?.trim() || "";
 
     // 2. Synthesize Master Clinical Record & Redacted PHI Audit via GPT-4o
-    const sanitizedInput = redactClinicalText(rawText.trim());
+    const redactionRules = await db.complianceRule.findMany({
+      where: {
+        ruleType: "DPDP_REDACTION",
+        isActive: true,
+        OR: [{ organizationId: null }, { organizationId }],
+      },
+      select: { patternOrCheck: true },
+    });
+    const sanitizedInput = redactClinicalText(rawText.trim(), redactionRules);
     await assertTokenQuota(organizationId, Math.ceil(sanitizedInput.length / 4) + 6000);
     const synthesisResponse = await openai.chat.completions.create({
       model: "gpt-4o",
@@ -317,8 +325,15 @@ Return ONLY a valid JSON object matching this exact schema:
     const phiCheck = safetyAudit?.phiRedactionCheck || {};
     const ethicsCheck = safetyAudit?.nmcComplianceCheck || {};
     const findings: Array<{ flagType: string; detail: string; confidence: string }> = [];
+    const dateOfBirthRedacted = (rawText.match(/\[REDACTED_DOB\]/g) || []).length;
 
-    if (sanitizedInput !== rawText.trim() || phiCheck.directIdentifiersDetected || Number(phiCheck.redactedTokensCount || 0) > 0) {
+    if (dateOfBirthRedacted > 0) {
+      findings.push({
+        flagType: "pii",
+        detail: `${dateOfBirthRedacted} date of birth identifier${dateOfBirthRedacted === 1 ? " was" : "s were"} removed during refinement. Confirm no patient-identifying context remains before approval.`,
+        confidence: "high",
+      });
+    } else if (phiCheck.directIdentifiersDetected || Number(phiCheck.redactedTokensCount || 0) > 0) {
       findings.push({
         flagType: "pii",
         detail: phiCheck.summary || "Personal or health identifiers were detected and redacted; confirm the sanitized record.",

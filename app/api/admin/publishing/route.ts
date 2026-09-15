@@ -20,7 +20,7 @@ export async function GET(req: Request) {
         asset: { select: { id: true, channelName: true, status: true } },
       },
       orderBy: { createdAt: "desc" },
-      take: 200,
+      take: 50,
     });
     return NextResponse.json({ jobs });
   } catch (error: any) {

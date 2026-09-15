@@ -39,16 +39,25 @@ export default function PublishingPage() {
   const [connectionMessage, setConnectionMessage] = useState<string | null>(null);
 
   useEffect(() => {
+    async function loadOrganization() {
+      try {
+        const organizationsResponse = await fetch("/api/admin/organizations");
+        const organizationsData = await organizationsResponse.json();
+        const firstOrganization = organizationsData.organizations?.[0];
+        if (firstOrganization) setOrganizationId(firstOrganization.id);
+      } catch (loadError: any) {
+        setError(loadError.message || "Unable to load organizations.");
+      }
+    }
+    loadOrganization();
+  }, []);
+
+  useEffect(() => {
+    if (!organizationId) return;
     async function loadJobs() {
       setIsLoading(true);
       try {
-        if (!organizationId) {
-          const organizationsResponse = await fetch("/api/admin/organizations");
-          const organizationsData = await organizationsResponse.json();
-          const firstOrganization = organizationsData.organizations?.[0];
-          if (firstOrganization) setOrganizationId(firstOrganization.id);
-        }
-        const response = await fetch(`/api/admin/publishing?status=${status}`);
+        const response = await fetch(`/api/admin/publishing?orgId=${encodeURIComponent(organizationId)}&status=${status}`);
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || "Unable to load publishing jobs.");
         setJobs(data.jobs || []);
@@ -59,7 +68,7 @@ export default function PublishingPage() {
       }
     }
     loadJobs();
-  }, [status]);
+  }, [status, organizationId]);
 
   useEffect(() => {
     if (!organizationId) return;

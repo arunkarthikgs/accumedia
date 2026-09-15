@@ -39,8 +39,8 @@ interface CaseItem {
   reviewedAt: string | null;
   createdAt: string;
   rawInput: string;
-  masterRecord: any;
-  safetyAudit: any;
+  masterRecord?: any;
+  safetyAudit?: any;
   physician: {
     id: string;
     name: string;
@@ -63,6 +63,7 @@ interface CaseItem {
     channelName: string;
     content: any;
   }[];
+  _count?: { assets: number };
   safetyFlags: {
     id: string;
     flagType: string;
@@ -98,6 +99,7 @@ export default function AdminCasesPage() {
   const [rejectionInputReason, setRejectionInputReason] = useState("");
   const [isSubmittingAction, setIsSubmittingAction] = useState(false);
   const [approveError, setApproveError] = useState<string | null>(null);
+  const [isLoadingAuditCase, setIsLoadingAuditCase] = useState(false);
   const [playingRecordingId, setPlayingRecordingId] = useState<string | null>(null);
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
   const [isLoadingPlayback, setIsLoadingPlayback] = useState(false);
@@ -118,7 +120,22 @@ export default function AdminCasesPage() {
   }, []);
 
   const loadCases = async () => {
-    setIsLoading(true);
+    const cacheKey = `macula:case-list:${selectedOrgId}:${selectedStatus}`;
+    let servedCache = false;
+    try {
+      const cached = sessionStorage.getItem(cacheKey);
+      if (cached) {
+        const parsed = JSON.parse(cached) as { cases: CaseItem[]; cachedAt: number };
+        if (Date.now() - parsed.cachedAt < 60_000) {
+          setCases(parsed.cases || []);
+          setSelectedCaseIds(new Set());
+          servedCache = true;
+        }
+      }
+    } catch {
+      // Ignore unavailable or invalid browser cache.
+    }
+    setIsLoading(!servedCache);
     try {
       let url = `/api/admin/cases?status=${selectedStatus}`;
       if (selectedOrgId !== "ALL") url += `&orgId=${selectedOrgId}`;
@@ -126,6 +143,7 @@ export default function AdminCasesPage() {
       if (res.ok) {
         const data = await res.json();
         setCases(data.cases || []);
+        try { sessionStorage.setItem(cacheKey, JSON.stringify({ cases: data.cases || [], cachedAt: Date.now() })); } catch { /* Ignore storage limits. */ }
         setSelectedCaseIds(new Set());
       }
     } catch (err) {
@@ -158,6 +176,21 @@ export default function AdminCasesPage() {
       else next.add(id);
       return next;
     });
+  };
+
+  const openAuditCase = async (caseItem: CaseItem) => {
+    setActiveAuditCase(caseItem);
+    if (caseItem.safetyAudit) return;
+    setIsLoadingAuditCase(true);
+    try {
+      const response = await fetch(`/api/cases/${caseItem.id}/review`);
+      const data = await response.json();
+      if (response.ok) setActiveAuditCase((current) => current?.id === caseItem.id ? { ...current, safetyAudit: data.case.safetyAudit } : current);
+    } catch (error) {
+      console.error("Failed to load case audit details:", error);
+    } finally {
+      setIsLoadingAuditCase(false);
+    }
   };
 
   const toggleSelectAll = () => {
@@ -304,7 +337,7 @@ export default function AdminCasesPage() {
         return <StatusTag tone="sage" icon={<CheckCircle2 className="h-3 w-3" />}>Approved</StatusTag>;
       case "REJECTED":
         return (
-          <button type="button" onClick={() => setActiveAuditCase(c)} className="hover:opacity-80">
+          <button type="button" onClick={() => openAuditCase(c)} className="hover:opacity-80">
             <StatusTag tone="brick" icon={<XCircle className="h-3 w-3" />}>Rejected · view</StatusTag>
           </button>
         );
@@ -499,7 +532,7 @@ export default function AdminCasesPage() {
                               <FileText className="h-3 w-3" /> Manual text
                             </span>
                           )}
-                          <span className="text-[11px] text-muted">· {c.assets.length} asset{c.assets.length === 1 ? "" : "s"}</span>
+                          <span className="text-[11px] text-muted">· {c._count?.assets ?? c.assets.length} asset{(c._count?.assets ?? c.assets.length) === 1 ? "" : "s"}</span>
                         </div>
                       </td>
                       <td className="px-5 py-4">
@@ -559,7 +592,7 @@ export default function AdminCasesPage() {
                           )}
                           <button
                             type="button"
-                            onClick={() => setActiveAuditCase(c)}
+                            onClick={() => openAuditCase(c)}
                             title="Inspect audit trail"
                             className="rounded border border-line bg-surface p-1 text-muted hover:border-pine hover:text-pine transition"
                           >
@@ -660,7 +693,7 @@ export default function AdminCasesPage() {
               <div>
                 <h4 className="font-medium text-ink mb-2">Automated safety & DPDP redaction audit</h4>
                 <pre className="rounded bg-ink p-4 font-mono text-[11px] text-pine-tint max-h-56 overflow-y-auto">
-                  {JSON.stringify(activeAuditCase.safetyAudit || {}, null, 2)}
+                  {isLoadingAuditCase ? "Loading audit details..." : JSON.stringify(activeAuditCase.safetyAudit || {}, null, 2)}
                 </pre>
               </div>
 

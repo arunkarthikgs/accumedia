@@ -17,14 +17,12 @@ export async function getOrganizationQuota(organizationId: string) {
 
   const periodStart = subscription.currentPeriodStart;
   const periodEnd = subscription.currentPeriodEnd;
-  const [caseCount, audioUsage, tokenUsage] = await Promise.all([
+  const [caseCount, audioUsage, tokenUsage, assetCount] = await Promise.all([
     db.case.count({ where: { organizationId, createdAt: { gte: periodStart, lte: periodEnd } } }),
     db.aIUsageLog.aggregate({ where: { organizationId, createdAt: { gte: periodStart, lte: periodEnd } }, _sum: { audioSeconds: true } }),
     db.aIUsageLog.aggregate({ where: { organizationId, createdAt: { gte: periodStart, lte: periodEnd } }, _sum: { inputTokens: true, outputTokens: true } }),
+    db.generatedAsset.count({ where: { case: { organizationId }, createdAt: { gte: periodStart, lte: periodEnd } } }),
   ]);
-  const assetCount = await db.generatedAsset.count({
-    where: { case: { organizationId }, createdAt: { gte: periodStart, lte: periodEnd } },
-  });
 
   return {
     subscription,

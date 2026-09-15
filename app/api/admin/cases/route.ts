@@ -26,8 +26,7 @@ export async function GET(req: Request) {
         reviewedBy: true,
         reviewedAt: true,
         createdAt: true,
-        masterRecord: true,
-        safetyAudit: true,
+        ...(includeContent ? { masterRecord: true, safetyAudit: true } : {}),
         physician: {
           select: {
             id: true,
@@ -51,20 +50,8 @@ export async function GET(req: Request) {
             ...(includeContent ? { r2Key: true, rawTranscript: true, transcribedText: true } : {}),
           },
         },
-        assets: {
-          select: {
-            id: true,
-            channelKey: true,
-            channelName: true,
-            outputType: true,
-            status: true,
-            content: includeContent,
-            validationWarnings: true,
-            validationWordCount: true,
-            validationCharacterCount: true,
-            validationDurationSeconds: true,
-          },
-        },
+        ...(includeContent ? { assets: { select: { id: true, channelKey: true, channelName: true, outputType: true, status: true, content: true, validationWarnings: true, validationWordCount: true, validationCharacterCount: true, validationDurationSeconds: true } } } : {}),
+        _count: { select: { assets: true } },
         // RFP §16 — surfaced so the admin list can show "N open flags" and
         // disable/redirect the approve action instead of letting it silently
         // fail against the gate in app/api/cases/[id]/approve.
@@ -74,7 +61,7 @@ export async function GET(req: Request) {
         },
       },
       orderBy: { createdAt: "desc" },
-      take: 100,
+      take: includeContent ? 100 : 25,
     });
 
     return NextResponse.json({ success: true, cases });

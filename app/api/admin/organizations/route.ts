@@ -4,7 +4,15 @@ import { db } from "@/lib/db";
 export async function GET() {
   try {
     const organizations = await db.organization.findMany({
-      include: {
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        brandingHex: true,
+        preferredAsrModel: true,
+        customSystemPrompt: true,
+        defaultDisclaimer: true,
+        createdAt: true,
         _count: {
           select: {
             users: true,

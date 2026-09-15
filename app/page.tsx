@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
+import { unstable_cache } from "next/cache";
 import {
   Activity,
   PlusCircle,
@@ -20,6 +21,34 @@ import type { CaseStatusVariant } from "@/components/ui/StatusBadge";
 
 export const dynamic = "force-dynamic";
 
+const getDashboardData = unstable_cache(async () => {
+  const [caseStatuses, openSafetyFlags, recentCases, orgCount] = await Promise.all([
+    db.case.groupBy({ by: ["status"], _count: { _all: true } }),
+    db.safetyFlag.count({ where: { status: "OPEN" } }),
+    db.case.findMany({
+      take: 6,
+      orderBy: { createdAt: "desc" },
+      include: {
+        organization: { select: { name: true } },
+        physician: { select: { name: true, specialty: true } },
+        recordings: { select: { id: true, durationSeconds: true } },
+        safetyFlags: { where: { status: "OPEN" }, select: { detail: true } },
+      },
+    }),
+    db.organization.count(),
+  ]);
+  const counts = Object.fromEntries(caseStatuses.map((entry) => [entry.status, entry._count._all]));
+  return {
+    totalCases: Object.values(counts).reduce((total, count) => total + count, 0),
+    pendingCases: counts.PENDING_REVIEW || 0,
+    approvedCases: counts.APPROVED || 0,
+    rejectedCases: counts.REJECTED || 0,
+    openSafetyFlags,
+    recentCases,
+    orgCount,
+  };
+}, ["macula-dashboard-summary"], { revalidate: 30 });
+
 function toDisplayVariant(
   status: string,
   openFlagCount: number
@@ -31,25 +60,7 @@ function toDisplayVariant(
 }
 
 export default async function DashboardPage() {
-  const [totalCases, pendingCases, approvedCases, rejectedCases, openSafetyFlags, recentCases, orgCount] =
-    await Promise.all([
-      db.case.count(),
-      db.case.count({ where: { status: "PENDING_REVIEW" } }),
-      db.case.count({ where: { status: "APPROVED" } }),
-      db.case.count({ where: { status: "REJECTED" } }),
-      db.safetyFlag.count({ where: { status: "OPEN" } }),
-      db.case.findMany({
-        take: 6,
-        orderBy: { createdAt: "desc" },
-        include: {
-          organization: { select: { name: true } },
-          physician: { select: { name: true, specialty: true } },
-          recordings: { select: { id: true, durationSeconds: true } },
-          safetyFlags: { where: { status: "OPEN" }, select: { detail: true } },
-        },
-      }),
-      db.organization.count(),
-    ]);
+  const { totalCases, pendingCases, approvedCases, rejectedCases, openSafetyFlags, recentCases, orgCount } = await getDashboardData();
 
   return (
     <main className="ml-0 mr-auto max-w-7xl p-6 md:p-8 space-y-8">

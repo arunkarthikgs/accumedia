@@ -73,13 +73,28 @@ export default function SafetyQueuePage() {
   }, []);
 
   const loadFlags = async () => {
-    setIsLoading(true);
+    const caseId = new URLSearchParams(window.location.search).get("caseId");
+    const cacheKey = `macula:safety-queue:${selectedOrgId}:${caseId || "all"}`;
+    let servedCache = false;
     try {
-      const caseId = new URLSearchParams(window.location.search).get("caseId");
+      const cached = sessionStorage.getItem(cacheKey);
+      if (cached) {
+        const parsed = JSON.parse(cached) as { flags: Flag[]; cachedAt: number };
+        if (Date.now() - parsed.cachedAt < 30_000) {
+          setFlags(parsed.flags || []);
+          servedCache = true;
+        }
+      }
+    } catch {
+      // Ignore unavailable or invalid browser cache.
+    }
+    setIsLoading(!servedCache);
+    try {
       const url = `/api/safety-flags?status=OPEN${selectedOrgId !== "ALL" ? `&orgId=${selectedOrgId}` : ""}${caseId ? `&caseId=${caseId}` : ""}`;
       const res = await fetch(url);
       const data = await res.json();
       setFlags(data.flags || []);
+      try { sessionStorage.setItem(cacheKey, JSON.stringify({ flags: data.flags || [], cachedAt: Date.now() })); } catch { /* Ignore storage limits. */ }
     } catch (err) {
       console.error("Failed to load safety flags:", err);
     } finally {

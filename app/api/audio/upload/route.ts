@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
 import { uploadAudioToR2 } from "@/lib/r2";
 import { assertAudioQuota, assertCaseQuota } from "@/lib/quotas";
 import { requireOrganizationAccess } from "@/lib/tenant-auth";
+import { query } from "@/lib/worker-db";
+import crypto from "node:crypto";
 
 export async function POST(req: Request) {
   try {
@@ -36,9 +37,7 @@ export async function POST(req: Request) {
     // Resolve attending physician
     let physicianId = userId;
     if (!physicianId) {
-      const defaultUser = await db.user.findFirst({
-        where: { organizationId: orgId },
-      });
+      const defaultUser = (await query<{ id: string }>(`SELECT id FROM macula.macula_users WHERE "organizationId" = $1 ORDER BY name ASC LIMIT 1`, [orgId])).rows[0];
       physicianId = defaultUser?.id || null;
     }
 
@@ -67,36 +66,14 @@ export async function POST(req: Request) {
       timeStyle: "short",
     });
 
-    const newCase = await db.case.create({
-      data: {
-        title: `Dictated Case - ${timestampStr}`,
-        rawInput: "",
-        status: "PENDING_REVIEW",
-        organizationId: orgId,
-        physicianId: physicianId,
-        masterRecord: {},
-        safetyAudit: {
-          auditLoggedAt: new Date().toISOString(),
-          source: "AUDIO_DICTATION",
-          status: "AWAITING_TRANSCRIPTION",
-        },
-      },
-    });
+    const caseId = crypto.randomUUID();
+    const safetyAudit = { auditLoggedAt: new Date().toISOString(), source: "AUDIO_DICTATION", status: "AWAITING_TRANSCRIPTION" };
+    const { rows: caseRows } = await query(`INSERT INTO macula.macula_cases (id, title, raw_input, status, "organizationId", "physicianId", "masterRecord", "safetyAudit") VALUES ($1, $2, '', 'PENDING_REVIEW', $3, $4, '{}'::jsonb, $5::jsonb) RETURNING id`, [caseId, `Dictated Case - ${timestampStr}`, orgId, physicianId, JSON.stringify(safetyAudit)]);
+    const newCase = caseRows[0];
 
     // 3. Create Audio Recording linked to the new Case
-    const recording = await db.audioRecording.create({
-      data: {
-        r2Key,
-        storageUrl,
-        fileName: audioFile.name || "dictation.webm",
-        durationSeconds,
-        transcriptionStatus: "UPLOADED",
-        organizationId: orgId,
-        userId: physicianId,
-        caseId: newCase.id,
-        mimeType,
-      },
-    });
+    const { rows: recordingRows } = await query(`INSERT INTO macula.macula_audio_recordings (id, "r2Key", "storageUrl", "fileName", "durationSeconds", "transcriptionStatus", "organizationId", "userId", "caseId", "mimeType") VALUES ($1, $2, $3, $4, $5, 'UPLOADED', $6, $7, $8, $9) RETURNING id, "r2Key", "storageUrl", "durationSeconds"`, [crypto.randomUUID(), r2Key, storageUrl, audioFile.name || "dictation.webm", durationSeconds, orgId, physicianId, newCase.id, mimeType]);
+    const recording = recordingRows[0];
 
     return NextResponse.json({
       success: true,

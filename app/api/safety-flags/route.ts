@@ -7,6 +7,7 @@ export const dynamic = "force-dynamic";
 
 const getSafetyOrganizations = () => query(`SELECT id, name, slug FROM macula.macula_organizations ORDER BY name ASC`);
 let safetyOrganizationCache: { expiresAt: number; rows: unknown[] } | null = null;
+const safetyFlagsCache = new Map<string, { expiresAt: number; body: { flags: unknown[]; organizations: unknown[] } }>();
 
 /**
  * RFP §16 — "Potentially problematic content should be flagged for human
@@ -24,6 +25,11 @@ export async function GET(req: Request) {
     const user = await requireAuthenticatedUser();
     const scopedOrgId = user?.isSuperAdmin ? orgId : user?.organizationId;
     if (scopedOrgId) await requireOrganizationAccess(scopedOrgId);
+    const cacheKey = `${scopedOrgId || "all"}:${caseId || "all"}:${flagId || "all"}:${status}`;
+    const cachedFlags = safetyFlagsCache.get(cacheKey);
+    if (cachedFlags && cachedFlags.expiresAt > Date.now()) {
+      return NextResponse.json(cachedFlags.body, { headers: { "Cache-Control": "private, max-age=15" } });
+    }
 
     const organizationQuery = user?.isSuperAdmin
       ? safetyOrganizationCache && safetyOrganizationCache.expiresAt > Date.now()
@@ -52,7 +58,9 @@ export async function GET(req: Request) {
       ORDER BY sf."createdAt" DESC LIMIT ${flagId ? 1 : 25}`, values);
     const organizations = (await organizationQuery).rows;
 
-    return NextResponse.json({ flags, organizations }, { headers: { "Cache-Control": "no-store" } });
+    const body = { flags, organizations };
+    safetyFlagsCache.set(cacheKey, { body, expiresAt: Date.now() + 15_000 });
+    return NextResponse.json(body, { headers: { "Cache-Control": "private, max-age=15" } });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
@@ -76,6 +84,7 @@ export async function PATCH(req: Request) {
     if (!organizationId) return NextResponse.json({ error: "Safety flag has no organization." }, { status: 400 });
     await requireOrganizationAccess(organizationId);
     const { rows: updatedRows } = await query(`UPDATE macula.macula_safety_flags SET status = $1, "reviewedBy" = $2, "reviewedAt" = NOW() WHERE id = $3 RETURNING *`, [decision, reviewedBy || "Compliance officer", flagId]);
+    safetyFlagsCache.clear();
     const updated = updatedRows[0];
     if (existing.imageAssetId) {
       await query(`UPDATE macula.macula_image_assets SET "phiReviewStatus" = $1, "updatedAt" = NOW() WHERE id = $2`, [decision === "REVIEWED_OK" ? "CLEAR" : "FLAGGED", existing.imageAssetId]);

@@ -66,7 +66,7 @@ export default function SafetyQueuePage() {
   const [refinedText, setRefinedText] = useState<string | null>(null);
   const [isLoadingRefinedText, setIsLoadingRefinedText] = useState(false);
 
-  const loadFlags = async () => {
+  const loadFlags = async (force = false) => {
     const caseId = new URLSearchParams(window.location.search).get("caseId");
     const cacheKey = `macula:safety-queue:${selectedOrgId}:${caseId || "all"}`;
     let servedCache = false;
@@ -74,7 +74,7 @@ export default function SafetyQueuePage() {
       const cached = sessionStorage.getItem(cacheKey);
       if (cached) {
         const parsed = JSON.parse(cached) as { flags: Flag[]; organizations?: Organization[]; cachedAt: number };
-        if (Date.now() - parsed.cachedAt < 30_000) {
+        if (!force && Date.now() - parsed.cachedAt < 30_000) {
           setFlags(parsed.flags || []);
           setOrganizations(parsed.organizations || []);
           servedCache = true;
@@ -84,6 +84,7 @@ export default function SafetyQueuePage() {
       // Ignore unavailable or invalid browser cache.
     }
     setIsLoading(!servedCache);
+    if (servedCache && !force) return;
     try {
       const url = `/api/safety-flags?status=OPEN${selectedOrgId !== "ALL" ? `&orgId=${selectedOrgId}` : ""}${caseId ? `&caseId=${caseId}` : ""}`;
       const data = await fetchJsonOnce<{ flags: Flag[]; organizations: Organization[] }>(url);
@@ -170,7 +171,7 @@ export default function SafetyQueuePage() {
               <p className="mt-0.5 text-xs text-muted">Flagged content is never silently altered or published — every item needs an explicit decision.</p>
             </div>
             <button
-              onClick={loadFlags}
+              onClick={() => loadFlags(true)}
               className="flex items-center gap-1.5 self-start rounded-lg border border-line bg-surface px-3 py-2 text-xs font-semibold text-ink hover:border-pine transition sm:self-auto"
             >
               <RefreshCw className="h-3.5 w-3.5" /> Refresh

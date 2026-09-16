@@ -26,6 +26,8 @@ function getPool() {
   const connectionString = parsedConnectionString.toString();
   pool = new Pool({
     connectionString,
+    max: 1,
+    idleTimeoutMillis: 10_000,
     connectionTimeoutMillis: 10_000,
     query_timeout: 10_000,
     statement_timeout: 10_000,
@@ -35,5 +37,13 @@ function getPool() {
 }
 
 export function query<T extends QueryResultRow>(text: string, values: unknown[] = []) {
-  return getPool().query<T>(text, values);
+  return getPool().query<T>(text, values).catch(async (error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!/timeout|connection terminated|connection reset|ECONNRESET/i.test(message)) throw error;
+
+    const stalePool = pool;
+    pool = undefined;
+    await stalePool?.end().catch(() => undefined);
+    return getPool().query<T>(text, values);
+  });
 }

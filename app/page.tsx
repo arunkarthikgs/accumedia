@@ -1,7 +1,6 @@
 import Link from "next/link";
-import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
-import { unstable_cache } from "next/cache";
+import { getDashboardSummary } from "@/lib/dashboard-data";
 import {
   Activity,
   PlusCircle,
@@ -22,36 +21,6 @@ import type { CaseStatusVariant } from "@/components/ui/StatusBadge";
 
 export const dynamic = "force-dynamic";
 
-const getDashboardData = unstable_cache(async (organizationId: string | null) => {
-  const caseWhere = organizationId ? { organizationId } : undefined;
-  const [caseStatuses, openSafetyFlags, recentCases, orgCount] = await Promise.all([
-    db.case.groupBy({ by: ["status"], where: caseWhere, _count: { _all: true } }),
-    db.safetyFlag.count({ where: { status: "OPEN", ...(organizationId ? { case: { organizationId } } : {}) } }),
-    db.case.findMany({
-      where: caseWhere,
-      take: 6,
-      orderBy: { createdAt: "desc" },
-      include: {
-        organization: { select: { name: true } },
-        physician: { select: { name: true, specialty: true } },
-        recordings: { select: { id: true, durationSeconds: true } },
-        safetyFlags: { where: { status: "OPEN" }, select: { detail: true } },
-      },
-    }),
-    organizationId ? Promise.resolve(1) : db.organization.count(),
-  ]);
-  const counts = Object.fromEntries(caseStatuses.map((entry) => [entry.status, entry._count._all]));
-  return {
-    totalCases: Object.values(counts).reduce((total, count) => total + count, 0),
-    pendingCases: counts.PENDING_REVIEW || 0,
-    approvedCases: counts.APPROVED || 0,
-    rejectedCases: counts.REJECTED || 0,
-    openSafetyFlags,
-    recentCases,
-    orgCount,
-  };
-}, ["macula-dashboard-summary"], { revalidate: 30 });
-
 function toDisplayVariant(
   status: string,
   openFlagCount: number
@@ -67,7 +36,7 @@ export default async function DashboardPage() {
   const organizationId = user?.isSuperAdmin ? null : user?.organizationId || null;
   let dashboardData;
   try {
-    dashboardData = await getDashboardData(organizationId);
+    dashboardData = await getDashboardSummary(organizationId);
   } catch (error) {
     console.error("Dashboard summary unavailable:", error);
     dashboardData = {

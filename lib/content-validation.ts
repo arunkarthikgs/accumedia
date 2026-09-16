@@ -1,4 +1,9 @@
-import type { ChannelDefinition } from "@prisma/client";
+type ChannelValidationConfig = {
+  wordCountMin?: number | null;
+  wordCountMax?: number | null;
+  durationLabel?: string | null;
+  outputType?: string | null;
+};
 
 export type ContentValidation = {
   valid: boolean;
@@ -17,7 +22,7 @@ function contentText(content: unknown): string {
 
 export function validateGeneratedContent(
   content: unknown,
-  channel: Pick<ChannelDefinition, "wordCountMin" | "wordCountMax" | "durationLabel" | "outputType">,
+  channel: ChannelValidationConfig,
 ): ContentValidation {
   const text = contentText(content).trim();
   const wordCount = text ? text.split(/\s+/).length : 0;

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { db } from "@/lib/db";
+import { query } from "@/lib/worker-db";
 import PublishingContentTabs from "@/components/PublishingContentTabs";
 import {
   ArrowLeft,
@@ -24,17 +24,9 @@ export default async function CaseAssetsPage(props: {
   let dbError: string | null = null;
 
   try {
-    if (id === "active") {
-      caseData = await db.case.findFirst({
-        orderBy: { createdAt: "desc" },
-        include: { physician: true, organization: true, assets: true },
-      });
-    } else {
-      caseData = await db.case.findUnique({
-        where: { id },
-        include: { physician: true, organization: true, assets: true },
-      });
-    }
+    const caseIdFilter = id === "active" ? "ORDER BY c.\"createdAt\" DESC LIMIT 1" : "WHERE c.id = $1 LIMIT 1";
+    const { rows } = await query<any>(`SELECT c.*, row_to_json(u) AS physician, row_to_json(o) AS organization, COALESCE((SELECT json_agg(ga ORDER BY ga."createdAt" DESC) FROM macula.macula_generated_assets ga WHERE ga."caseId"=c.id), '[]') AS assets FROM macula.macula_cases c JOIN macula.macula_users u ON u.id=c."physicianId" JOIN macula.macula_organizations o ON o.id=c."organizationId" ${caseIdFilter}`, id === "active" ? [] : [id]);
+    caseData = rows[0] || null;
   } catch (err: any) {
     console.error("Failed to load case data:", err);
     dbError = err.message || "Failed to retrieve case records.";

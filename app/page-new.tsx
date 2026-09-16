@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { db } from "@/lib/db";
+import { getDashboardSummary } from "@/lib/dashboard-data";
 import {
   Activity,
   PlusCircle,
@@ -34,24 +34,7 @@ function toDisplayVariant(
 }
 
 export default async function DashboardPage() {
-  const [totalCases, pendingCases, approvedCases, rejectedCases, recentCases, orgCount] =
-    await Promise.all([
-      db.case.count(),
-      db.case.count({ where: { status: "PENDING_REVIEW" } }),
-      db.case.count({ where: { status: "APPROVED" } }),
-      db.case.count({ where: { status: "REJECTED" } }),
-      db.case.findMany({
-        take: 6,
-        orderBy: { createdAt: "desc" },
-        include: {
-          organization: { select: { name: true } },
-          physician: { select: { name: true, specialty: true } },
-          recordings: { select: { id: true, durationSeconds: true } },
-          safetyFlags: { where: { status: "OPEN" }, select: { detail: true } },
-        },
-      }),
-      db.organization.count(),
-    ]);
+  const { totalCases, pendingCases, approvedCases, rejectedCases, recentCases, orgCount } = await getDashboardSummary(null);
 
   return (
     <main className="mx-auto max-w-7xl p-8 space-y-8">

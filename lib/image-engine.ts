@@ -1,5 +1,4 @@
 import OpenAI from "openai";
-import { db } from "@/lib/db";
 import { uploadImageToR2 } from "@/lib/r2";
 import { screenImage } from "@/lib/image-safety";
 import { recordAudit } from "@/lib/audit";
@@ -33,6 +32,8 @@ const CHANNEL_SPECS: Record<string, { size: "1024x1024" | "1536x1024" | "1024x15
 };
 
 export async function generateCaseImage(caseId: string, channel: keyof typeof CHANNEL_SPECS, conceptBrief?: string) {
+  throw new Error("Image generation requires an external image-processing worker; it is not available in the Cloudflare Worker.");
+  /*
   const spec = CHANNEL_SPECS[channel];
   if (!spec) {
     throw new Error(`Unknown image channel "${channel}". Expected one of: ${Object.keys(CHANNEL_SPECS).join(", ")}`);
@@ -114,6 +115,7 @@ export async function generateCaseImage(caseId: string, channel: keyof typeof CH
   }
   await recordAudit({ organizationId: kase.organizationId, caseId, targetType: "IMAGE_ASSET", targetId: image.id, action: "IMAGE_GENERATED_AND_SCREENED", metadata: { generationPromptVersion: generationVersion, safetyPromptVersion: safetyVersion } });
   return image;
+  */
 }
 
 export const IMAGE_CHANNELS = Object.keys(CHANNEL_SPECS);

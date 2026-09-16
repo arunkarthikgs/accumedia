@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
 import OpenAI from "openai";
 import { MANDATORY_CLINICAL_SYNTHESIS_PROMPT } from "@/lib/prompts/clinical-synthesis";
 import { getResolvedAiPrompts } from "@/lib/ai-prompts";
@@ -8,6 +7,8 @@ import { logAIUsage } from "@/lib/ai-usage";
 import { requireAuthenticatedUser, requireOrganizationAccess } from "@/lib/tenant-auth";
 import { assertTokenQuota } from "@/lib/quotas";
 import { generateSeoKeywordSet } from "@/lib/seo-keyword-engine";
+import { query } from "@/lib/worker-db";
+import crypto from "node:crypto";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -66,10 +67,7 @@ export async function POST(req: Request) {
     // Resolve Attending Physician / RMP
     let resolvedPhysicianId = physicianId;
     if (!resolvedPhysicianId) {
-      const fallbackUser = await db.user.findFirst({
-        where: { organizationId },
-      });
-      resolvedPhysicianId = fallbackUser?.id || null;
+      resolvedPhysicianId = (await query<{ id: string }>(`SELECT id FROM macula.macula_users WHERE "organizationId" = $1 ORDER BY name ASC LIMIT 1`, [organizationId])).rows[0]?.id || null;
     }
 
     if (!resolvedPhysicianId) {
@@ -79,22 +77,13 @@ export async function POST(req: Request) {
       );
     }
 
-    const physician = await db.user.findFirst({
-      where: { id: resolvedPhysicianId, organizationId },
-      select: { id: true },
-    });
+    const physician = (await query(`SELECT id FROM macula.macula_users WHERE id = $1 AND "organizationId" = $2 LIMIT 1`, [resolvedPhysicianId, organizationId])).rows[0];
     if (!physician) {
       return NextResponse.json({ error: "Physician does not belong to the requested organization." }, { status: 403 });
     }
 
     // 1. Fetch organization custom system prompts, compliance rules, and active channel definitions
-    const organization = await db.organization.findUnique({
-      where: { id: organizationId },
-      include: {
-        channelDefinitions: { where: { isActive: true } },
-        complianceRules: { where: { isActive: true } },
-      },
-    });
+    const organization = (await query<any>(`SELECT * FROM macula.macula_organizations WHERE id = $1 LIMIT 1`, [organizationId])).rows[0];
 
     const organizationPrompt = organization?.customSystemPrompt?.trim() || "";
     const promptTemplates = await getResolvedAiPrompts(organizationId, ["MASTER_SYNTHESIS", "SEO_KEYWORDS"]);
@@ -102,28 +91,12 @@ export async function POST(req: Request) {
     const synthesisPrompt = synthesisPromptTemplate?.content || MANDATORY_CLINICAL_SYNTHESIS_PROMPT;
 
     // 2. Synthesize Master Clinical Record & Redacted PHI Audit via GPT-4o
-    const redactionRules = await db.complianceRule.findMany({
-      where: {
-        ruleType: "DPDP_REDACTION",
-        isActive: true,
-        OR: [{ organizationId: null }, { organizationId }],
-      },
-      select: { patternOrCheck: true, description: true },
-    });
+    const redactionRules = (await query<{ patternOrCheck: string; description: string }>(`SELECT "patternOrCheck", description FROM macula.macula_compliance_rules WHERE "ruleType"='DPDP_REDACTION' AND "isActive"=TRUE AND ("organizationId" IS NULL OR "organizationId"=$1)`, [organizationId])).rows;
     const sanitizedInput = redactClinicalText(rawText.trim(), redactionRules);
     const unresolvedRules = findUnredactedRuleMatches(sanitizedInput, redactionRules);
     if (unresolvedRules.length > 0) {
       if (caseId) {
-        await db.safetyFlag.create({
-          data: {
-            targetType: "CASE",
-            caseId,
-            flagType: "pii",
-            detail: `LLM synthesis blocked: ${unresolvedRules.join("; ")}. Update the database redaction rule before continuing.`,
-            confidence: "high",
-            status: "OPEN",
-          },
-        });
+        await query(`INSERT INTO macula.macula_safety_flags (id, "targetType", "caseId", "flagType", detail, confidence, status) VALUES ($1,'CASE',$2,'pii',$3,'high','OPEN')`, [crypto.randomUUID(), caseId, `LLM synthesis blocked: ${unresolvedRules.join("; ")}. Update the database redaction rule before continuing.`]);
       }
       return NextResponse.json({ error: "Synthesis was blocked because possible identifying information remains after redaction.", safetyReviewRequired: true, unresolvedRules }, { status: 422 });
     }
@@ -246,19 +219,14 @@ Return ONLY a valid JSON object matching this exact schema:
 
     // If caseId was not passed directly, look for an unfinalized case linked to the audio recording
     if (!targetCaseId && audioRecordingId) {
-      const recording = await db.audioRecording.findUnique({
-        where: { id: audioRecordingId },
-        select: { caseId: true },
-      });
+      const recording = (await query<{ caseId: string | null }>(`SELECT "caseId" FROM macula.macula_audio_recordings WHERE id = $1 LIMIT 1`, [audioRecordingId])).rows[0];
       if (recording?.caseId) {
         targetCaseId = recording.caseId;
       }
     }
 
     let finalizedCase;
-    const previousCase = targetCaseId
-      ? await db.case.findUnique({ where: { id: targetCaseId } })
-      : null;
+    const previousCase = targetCaseId ? (await query<any>(`SELECT * FROM macula.macula_cases WHERE id = $1 LIMIT 1`, [targetCaseId])).rows[0] : null;
     if (previousCase && previousCase.organizationId !== organizationId) {
       return NextResponse.json({ error: "Case belongs to another organization." }, { status: 403 });
     }
@@ -270,114 +238,31 @@ Return ONLY a valid JSON object matching this exact schema:
     const seoQuality = seoKeywordResult.quality;
 
     if (previousCase) {
-      const versionCount = await db.caseVersion.count({ where: { caseId: previousCase.id } });
-      await db.caseVersion.create({
-        data: {
-          caseId: previousCase.id,
-          version: versionCount + 1,
-          changeType: "pre_synthesis_snapshot",
-          rawInput: previousCase.rawInput,
-          guidedSubmission: previousCase.guidedSubmission,
-          masterRecord: previousCase.masterRecord,
-          safetyAudit: previousCase.safetyAudit,
-          status: previousCase.status,
-        },
-      });
+      const versionCount = Number((await query<{ count: number }>(`SELECT COUNT(*)::int AS count FROM macula.macula_case_versions WHERE "caseId"=$1`, [previousCase.id])).rows[0]?.count || 0);
+      await query(`INSERT INTO macula.macula_case_versions (id, version, "changeType", raw_input, "guidedSubmission", "masterRecord", "safetyAudit", status, "caseId") VALUES ($1,$2,'pre_synthesis_snapshot',$3,$4::jsonb,$5::jsonb,$6::jsonb,$7,$8)`, [crypto.randomUUID(), versionCount + 1, previousCase.raw_input, JSON.stringify(previousCase.guidedSubmission), JSON.stringify(previousCase.masterRecord), JSON.stringify(previousCase.safetyAudit), previousCase.status, previousCase.id]);
     }
 
     // 3. Update existing Case (if initiated during audio upload) OR create new Case
     if (targetCaseId) {
-      finalizedCase = await db.case.update({
-        where: { id: targetCaseId },
-        data: {
-          title: generatedTitle,
-          rawInput: sanitizedInput,
-          guidedSubmission: guidedSubmission && typeof guidedSubmission === "object" ? guidedSubmission : null,
-          masterRecord,
-          safetyAudit,
-          synthesisPromptTemplateId: synthesisPromptTemplate?.id || null,
-          synthesisPromptVersion: synthesisPromptTemplate?.version || null,
-          status: "PENDING_REVIEW",
-          physicianId: resolvedPhysicianId,
-          organizationId,
-        },
-      });
+      finalizedCase = (await query<any>(`UPDATE macula.macula_cases SET title=$1, raw_input=$2, "guidedSubmission"=$3::jsonb, "masterRecord"=$4::jsonb, "safetyAudit"=$5::jsonb, "synthesisPromptTemplateId"=$6, "synthesisPromptVersion"=$7, status='PENDING_REVIEW', "physicianId"=$8, "organizationId"=$9, "updatedAt"=NOW() WHERE id=$10 RETURNING *`, [generatedTitle, sanitizedInput, JSON.stringify(guidedSubmission && typeof guidedSubmission === "object" ? guidedSubmission : null), JSON.stringify(masterRecord), JSON.stringify(safetyAudit), synthesisPromptTemplate?.id || null, synthesisPromptTemplate?.version || null, resolvedPhysicianId, organizationId, targetCaseId])).rows[0];
     } else {
-      finalizedCase = await db.case.create({
-        data: {
-          title: generatedTitle,
-          rawInput: sanitizedInput,
-          guidedSubmission: guidedSubmission && typeof guidedSubmission === "object" ? guidedSubmission : null,
-          masterRecord,
-          safetyAudit,
-          synthesisPromptTemplateId: synthesisPromptTemplate?.id || null,
-          synthesisPromptVersion: synthesisPromptTemplate?.version || null,
-          status: "PENDING_REVIEW",
-          physicianId: resolvedPhysicianId,
-          organizationId,
-        },
-      });
+      finalizedCase = (await query<any>(`INSERT INTO macula.macula_cases (id,title,raw_input,"guidedSubmission","masterRecord","safetyAudit","synthesisPromptTemplateId","synthesisPromptVersion",status,"physicianId","organizationId") VALUES ($1,$2,$3,$4::jsonb,$5::jsonb,$6::jsonb,$7,$8,'PENDING_REVIEW',$9,$10) RETURNING *`, [crypto.randomUUID(), generatedTitle, sanitizedInput, JSON.stringify(guidedSubmission && typeof guidedSubmission === "object" ? guidedSubmission : null), JSON.stringify(masterRecord), JSON.stringify(safetyAudit), synthesisPromptTemplate?.id || null, synthesisPromptTemplate?.version || null, resolvedPhysicianId, organizationId])).rows[0];
     }
 
     if (!previousCase) {
-      await db.caseVersion.create({
-        data: {
-          caseId: finalizedCase.id,
-          version: 1,
-          changeType: "initial_synthesis",
-          rawInput: finalizedCase.rawInput,
-          guidedSubmission: finalizedCase.guidedSubmission,
-          masterRecord: finalizedCase.masterRecord,
-          safetyAudit: finalizedCase.safetyAudit,
-          status: finalizedCase.status,
-        },
-      });
+      await query(`INSERT INTO macula.macula_case_versions (id,version,"changeType",raw_input,"guidedSubmission","masterRecord","safetyAudit",status,"caseId") VALUES ($1,1,'initial_synthesis',$2,$3::jsonb,$4::jsonb,$5::jsonb,$6,$7)`, [crypto.randomUUID(), finalizedCase.raw_input, JSON.stringify(finalizedCase.guidedSubmission), JSON.stringify(finalizedCase.masterRecord), JSON.stringify(finalizedCase.safetyAudit), finalizedCase.status, finalizedCase.id]);
     }
 
-    await db.seoKeywordSet.upsert({
-      where: { caseId: finalizedCase.id },
-      create: {
-        caseId: finalizedCase.id,
-        primaryKeyword: seoKeywords.primaryKeyword || null,
-        secondaryKeywords: seoKeywords.secondaryKeywords || [],
-        longTailKeywords: seoKeywords.longTailKeywords || [],
-        localKeywords: seoKeywords.localKeywords || [],
-        questionKeywords: seoKeywords.questionKeywords || [],
-        semanticKeywords: seoKeywords.semanticKeywords || [],
-        searchIntent: seoKeywords.searchIntent || null,
-        qualityScore: seoQuality.score,
-        validationIssues: seoQuality.issues,
-        contentHash: seoQuality.contentHash,
-      },
-      update: {
-        primaryKeyword: seoKeywords.primaryKeyword || null,
-        secondaryKeywords: seoKeywords.secondaryKeywords || [],
-        longTailKeywords: seoKeywords.longTailKeywords || [],
-        localKeywords: seoKeywords.localKeywords || [],
-        questionKeywords: seoKeywords.questionKeywords || [],
-        semanticKeywords: seoKeywords.semanticKeywords || [],
-        searchIntent: seoKeywords.searchIntent || null,
-        qualityScore: seoQuality.score,
-        validationIssues: seoQuality.issues,
-        contentHash: seoQuality.contentHash,
-      },
-    });
+    await query(`INSERT INTO macula.macula_seo_keyword_sets (id, "caseId", "primaryKeyword", "secondaryKeywords", "longTailKeywords", "localKeywords", "questionKeywords", "semanticKeywords", "searchIntent", "qualityScore", "validationIssues", "contentHash") VALUES ($1,$2,$3,$4::jsonb,$5::jsonb,$6::jsonb,$7::jsonb,$8::jsonb,$9,$10,$11::jsonb,$12) ON CONFLICT ("caseId") DO UPDATE SET "primaryKeyword"=EXCLUDED."primaryKeyword", "secondaryKeywords"=EXCLUDED."secondaryKeywords", "longTailKeywords"=EXCLUDED."longTailKeywords", "localKeywords"=EXCLUDED."localKeywords", "questionKeywords"=EXCLUDED."questionKeywords", "semanticKeywords"=EXCLUDED."semanticKeywords", "searchIntent"=EXCLUDED."searchIntent", "qualityScore"=EXCLUDED."qualityScore", "validationIssues"=EXCLUDED."validationIssues", "contentHash"=EXCLUDED."contentHash", "updatedAt"=NOW()`, [crypto.randomUUID(), finalizedCase.id, seoKeywords.primaryKeyword || null, JSON.stringify(seoKeywords.secondaryKeywords || []), JSON.stringify(seoKeywords.longTailKeywords || []), JSON.stringify(seoKeywords.localKeywords || []), JSON.stringify(seoKeywords.questionKeywords || []), JSON.stringify(seoKeywords.semanticKeywords || []), seoKeywords.searchIntent || null, seoQuality.score, JSON.stringify(seoQuality.issues), seoQuality.contentHash]);
 
     // 4. Ensure Audio Recording is linked if supplied
     if (audioRecordingId) {
-      await db.audioRecording.update({
-        where: { id: audioRecordingId },
-        data: {
-          caseId: finalizedCase.id,
-        },
-      });
+      await query(`UPDATE macula.macula_audio_recordings SET "caseId"=$1, "updatedAt"=NOW() WHERE id=$2`, [finalizedCase.id, audioRecordingId]);
     }
 
     // Materialize compliance findings into the human-review queue. The case
     // JSON remains the audit record; SafetyFlag rows drive queue decisions.
-    await db.safetyFlag.deleteMany({
-      where: { caseId: finalizedCase.id, status: "OPEN" },
-    });
+    await query(`DELETE FROM macula.macula_safety_flags WHERE "caseId"=$1 AND status='OPEN'`, [finalizedCase.id]);
 
     const phiCheck = safetyAudit?.phiRedactionCheck || {};
     const ethicsCheck = safetyAudit?.nmcComplianceCheck || {};
@@ -413,16 +298,7 @@ Return ONLY a valid JSON object matching this exact schema:
     }
 
     if (findings.length > 0) {
-      await db.safetyFlag.createMany({
-        data: findings.map((finding) => ({
-          targetType: "CASE",
-          caseId: finalizedCase.id,
-          flagType: finding.flagType,
-          detail: finding.detail,
-          confidence: finding.confidence,
-          status: "OPEN",
-        })),
-      });
+      for (const finding of findings) await query(`INSERT INTO macula.macula_safety_flags (id, "targetType", "caseId", "flagType", detail, confidence, status) VALUES ($1,'CASE',$2,$3,$4,$5,'OPEN')`, [crypto.randomUUID(), finalizedCase.id, finding.flagType, finding.detail, finding.confidence]);
     }
 
     return NextResponse.json({

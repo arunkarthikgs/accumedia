@@ -137,7 +137,7 @@ export default function AdminCasesPage() {
     }
     setIsLoading(!servedCache);
     try {
-      let url = `/api/admin/cases?status=${selectedStatus}`;
+      let url = `/api/admin/cases?status=${selectedStatus}&pageSize=10`;
       if (selectedOrgId !== "ALL") url += `&orgId=${selectedOrgId}`;
       if (fromDate) url += `&fromDate=${fromDate}`;
       if (toDate) url += `&toDate=${toDate}`;

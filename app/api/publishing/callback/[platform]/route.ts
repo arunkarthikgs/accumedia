@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
 import { encryptedOAuthConnection, exchangeOAuthCode, readOAuthState, type OAuthPlatform } from "@/lib/publishing-oauth";
 import { requireOrganizationAccess } from "@/lib/tenant-auth";
+import { query } from "@/lib/worker-db";
+import crypto from "node:crypto";
 
 export async function GET(req: Request, props: { params: Promise<{ platform: string }> }) {
   const { platform } = await props.params;
@@ -17,11 +18,7 @@ export async function GET(req: Request, props: { params: Promise<{ platform: str
     const code = url.searchParams.get("code");
     if (!code) throw new Error("OAuth authorization code is missing.");
     const connection = encryptedOAuthConnection(await exchangeOAuthCode(platform as OAuthPlatform, code, state, req));
-    await db.publicationConnection.upsert({
-      where: { organizationId_platform_externalAccountId: { organizationId: connection.organizationId, platform: connection.platform, externalAccountId: connection.externalAccountId } },
-      create: { organizationId: connection.organizationId, platform: connection.platform, externalAccountId: connection.externalAccountId, accountLabel: connection.accountLabel, accessTokenEncrypted: connection.accessTokenEncrypted, refreshTokenEncrypted: connection.refreshTokenEncrypted, expiresAt: connection.expiresAt },
-      update: { accountLabel: connection.accountLabel, accessTokenEncrypted: connection.accessTokenEncrypted, refreshTokenEncrypted: connection.refreshTokenEncrypted, expiresAt: connection.expiresAt, isActive: true },
-    });
+    await query(`INSERT INTO macula.macula_publication_connections (id, "organizationId", platform, "externalAccountId", "accountLabel", "accessTokenEncrypted", "refreshTokenEncrypted", "expiresAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT ("organizationId", platform, "externalAccountId") DO UPDATE SET "accountLabel"=EXCLUDED."accountLabel", "accessTokenEncrypted"=EXCLUDED."accessTokenEncrypted", "refreshTokenEncrypted"=EXCLUDED."refreshTokenEncrypted", "expiresAt"=EXCLUDED."expiresAt", "isActive"=TRUE, "updatedAt"=NOW()`, [crypto.randomUUID(), connection.organizationId, connection.platform, connection.externalAccountId, connection.accountLabel, connection.accessTokenEncrypted, connection.refreshTokenEncrypted, connection.expiresAt]);
     const response = NextResponse.redirect(`${appUrl}/admin/publishing?connected=${encodeURIComponent(platform)}`);
     response.cookies.delete("macula_oauth_state");
     return response;

@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 import { getASRPromptProfile } from "@/lib/asr/prompts";
 import { MANDATORY_CLINICAL_SYNTHESIS_PROMPT } from "@/lib/prompts/clinical-synthesis";
 import { DEFAULT_CLINICAL_REFINER_PROMPT } from "@/lib/clinical-refiner";
 import { requireAuthenticatedUser, requireOrganizationAccess } from "@/lib/tenant-auth";
+import { query } from "@/lib/worker-db";
 
 export async function GET(req: Request) {
   try {
@@ -20,26 +20,10 @@ export async function GET(req: Request) {
     }
 
     // 1. Fetch organization & channel definitions from DB
-    const organization = orgId
-      ? await db.organization.findUnique({
-          where: { id: orgId },
-          include: {
-            channelDefinitions: { where: { isActive: true } },
-            complianceRules: { where: { isActive: true } },
-          },
-        })
-      : null;
+    const organization = orgId ? (await query<any>(`SELECT o.*, COALESCE((SELECT json_agg(cd) FROM macula.macula_channel_definitions cd WHERE cd."organizationId"=o.id AND cd."isActive"=TRUE), '[]') AS "channelDefinitions", COALESCE((SELECT json_agg(cr) FROM macula.macula_compliance_rules cr WHERE cr."organizationId"=o.id AND cr."isActive"=TRUE), '[]') AS "complianceRules" FROM macula.macula_organizations o WHERE o.id=$1 LIMIT 1`, [orgId])).rows[0] : null;
 
     // 2. Fetch recording DB record if available
-    const recording = recordingId
-      ? await db.audioRecording.findUnique({
-          where: { id: recordingId },
-          include: {
-            user: { select: { id: true, name: true, email: true, registrationNo: true } },
-            organization: { select: { id: true } },
-          },
-        })
-      : null;
+    const recording = recordingId ? (await query<any>(`SELECT ar.*, json_build_object('id', u.id, 'name', u.name, 'email', u.email, 'registrationNo', u."registrationNo") AS user, json_build_object('id', o.id) AS organization FROM macula.macula_audio_recordings ar LEFT JOIN macula.macula_users u ON u.id=ar."userId" JOIN macula.macula_organizations o ON o.id=ar."organizationId" WHERE ar.id=$1 LIMIT 1`, [recordingId])).rows[0] : null;
       if (recording?.organization?.id) await requireOrganizationAccess(recording.organization.id);
 
     // 3. Static & dynamic AI prompts used across the ingestion pipeline

@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { db } from "@/lib/db";
 import { requireAuthenticatedUser } from "@/lib/tenant-auth";
 import { timeDbOperation } from "@/lib/perf";
 import { query } from "@/lib/worker-db";
+import crypto from "node:crypto";
 
 export async function GET(req: Request) {
   try {
@@ -82,25 +82,12 @@ export async function POST(req: Request) {
     if (!targetOrganizationId || !name || !email || password.length < 8) {
       return NextResponse.json({ error: "Organization, physician name, email, and a password of at least 8 characters are required." }, { status: 400 });
     }
-    const existingUser = await db.user.findUnique({ where: { email }, select: { id: true } });
+    const existingUser = (await query(`SELECT id FROM macula.macula_users WHERE email = $1 LIMIT 1`, [email])).rows[0];
     if (existingUser) return NextResponse.json({ error: "A user with this email already exists." }, { status: 409 });
     if (currentUser?.isSuperAdmin || currentUser?.organizationId === targetOrganizationId) {
-      const defaultRole = await db.role.findFirst({ where: { slug: "attending-rmp", organizationId: targetOrganizationId }, select: { id: true } });
-      const user = await db.user.create({
-        data: {
-          name,
-          email,
-          organizationId: targetOrganizationId,
-          registrationNo: body.registrationNo?.trim() || null,
-          specialty: body.specialty?.trim() || null,
-          qualifications: body.qualifications?.trim() || null,
-          designation: body.designation?.trim() || null,
-          profilePhotoUrl: body.profilePhotoUrl?.trim() || null,
-          passwordHash: await bcrypt.hash(password, 12),
-          roleId: defaultRole?.id || null,
-        },
-        select: { id: true, name: true, email: true, registrationNo: true, specialty: true, qualifications: true, designation: true, profilePhotoUrl: true, organizationId: true },
-      });
+      const defaultRole = (await query<{ id: string }>(`SELECT id FROM macula.macula_roles WHERE slug = 'attending-rmp' AND "organizationId" = $1 LIMIT 1`, [targetOrganizationId])).rows[0];
+      const { rows } = await query(`INSERT INTO macula.macula_users (id, name, email, password_hash, "organizationId", "registrationNo", specialty, qualifications, designation, "profilePhotoUrl", "roleId") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id, name, email, "registrationNo", specialty, qualifications, designation, "profilePhotoUrl", "organizationId"`, [crypto.randomUUID(), name, email, await bcrypt.hash(password, 12), targetOrganizationId, body.registrationNo?.trim() || null, body.specialty?.trim() || null, body.qualifications?.trim() || null, body.designation?.trim() || null, body.profilePhotoUrl?.trim() || null, defaultRole?.id || null]);
+      const user = rows[0];
       return NextResponse.json({ success: true, user }, { status: 201 });
     }
     return NextResponse.json({ error: "Forbidden: organization access denied." }, { status: 403 });
@@ -117,30 +104,18 @@ export async function PATCH(req: Request) {
     }
     const body = await req.json();
     const userId = typeof body.userId === "string" ? body.userId : "";
-    const existing = await db.user.findUnique({ where: { id: userId }, select: { id: true, organizationId: true, email: true } });
+    const existing = (await query<any>(`SELECT id, name, "organizationId", email FROM macula.macula_users WHERE id = $1 LIMIT 1`, [userId])).rows[0];
     if (!existing) return NextResponse.json({ error: "User not found." }, { status: 404 });
     if (!currentUser.isSuperAdmin && currentUser.organizationId !== existing.organizationId) {
       return NextResponse.json({ error: "Forbidden: organization access denied." }, { status: 403 });
     }
     const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : existing.email;
-    const duplicate = await db.user.findFirst({ where: { email, NOT: { id: userId } }, select: { id: true } });
+    const duplicate = (await query(`SELECT id FROM macula.macula_users WHERE email = $1 AND id <> $2 LIMIT 1`, [email, userId])).rows[0];
     if (duplicate) return NextResponse.json({ error: "A user with this email already exists." }, { status: 409 });
     const password = typeof body.password === "string" ? body.password : "";
     if (password && password.length < 8) return NextResponse.json({ error: "Password must be at least 8 characters." }, { status: 400 });
-    const updated = await db.user.update({
-      where: { id: userId },
-      data: {
-        name: typeof body.name === "string" ? body.name.trim() : undefined,
-        email,
-        registrationNo: body.registrationNo?.trim() || null,
-        specialty: body.specialty?.trim() || null,
-        qualifications: body.qualifications?.trim() || null,
-        designation: body.designation?.trim() || null,
-        profilePhotoUrl: body.profilePhotoUrl?.trim() || null,
-        ...(password ? { passwordHash: await bcrypt.hash(password, 12) } : {}),
-      },
-      select: { id: true, name: true, email: true, registrationNo: true, specialty: true, qualifications: true, designation: true, profilePhotoUrl: true, organizationId: true },
-    });
+    const { rows } = await query(`UPDATE macula.macula_users SET name=$1, email=$2, "registrationNo"=$3, specialty=$4, qualifications=$5, designation=$6, "profilePhotoUrl"=$7, "passwordHash"=COALESCE($8, "passwordHash"), "updatedAt"=NOW() WHERE id=$9 RETURNING id, name, email, "registrationNo", specialty, qualifications, designation, "profilePhotoUrl", "organizationId"`, [typeof body.name === "string" ? body.name.trim() : existing.name, email, body.registrationNo?.trim() || null, body.specialty?.trim() || null, body.qualifications?.trim() || null, body.designation?.trim() || null, body.profilePhotoUrl?.trim() || null, password ? await bcrypt.hash(password, 12) : null, userId]);
+    const updated = rows[0];
     return NextResponse.json({ success: true, user: updated });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || "Failed to update physician." }, { status: 500 });

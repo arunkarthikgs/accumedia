@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { ArrowLeft, Building2, CheckCircle2, Loader2 } from "lucide-react";
 
 const ASR_MODELS = [
@@ -41,9 +41,18 @@ const initialForm = {
 export default function NewOrganizationPage() {
   const router = useRouter();
   const [form, setForm] = useState(initialForm);
-  const [activeTab, setActiveTab] = useState<"details" | "brand" | "content" | "advanced">("details");
+  const [activeTab, setActiveTab] = useState<"details" | "brand" | "content" | "advanced" | "commercial">("details");
+  const [plans, setPlans] = useState<any[]>([]);
+  const [selectedPlanId, setSelectedPlanId] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/admin/subscription?catalog=true", { credentials: "same-origin" })
+      .then((response) => response.json())
+      .then((data) => { setPlans(data.plans || []); setSelectedPlanId(data.plans?.[0]?.id || ""); })
+      .catch(() => undefined);
+  }, []);
 
   const update = (field: keyof typeof initialForm, value: string) => setForm((current) => ({ ...current, [field]: value }));
 
@@ -58,6 +67,7 @@ export default function NewOrganizationPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
+          planId: selectedPlanId,
           hospitalPhotoUrls: form.hospitalPhotoUrls.split("\n").map((url) => url.trim()).filter(Boolean),
         }),
       });
@@ -94,7 +104,7 @@ export default function NewOrganizationPage() {
 
         <form onSubmit={submit} className="space-y-6">
           <div className="card flex gap-1 overflow-x-auto p-2" role="tablist" aria-label="Organisation profile sections">
-            {([ ["details", "Organisation details"], ["brand", "Brand identity"], ["content", "Content preferences"], ["advanced", "Advanced configuration"] ] as const).map(([tab, label]) => <button key={tab} type="button" role="tab" aria-selected={activeTab === tab} onClick={() => setActiveTab(tab)} className={`whitespace-nowrap rounded px-3 py-2 text-xs font-semibold transition ${activeTab === tab ? "bg-pine text-white" : "text-muted hover:bg-pine-tint hover:text-pine"}`}>{label}</button>)}
+            {([ ["details", "Organisation details"], ["brand", "Brand identity"], ["content", "Content preferences"], ["advanced", "Advanced configuration"], ["commercial", "Commercial plan"] ] as const).map(([tab, label]) => <button key={tab} type="button" role="tab" aria-selected={activeTab === tab} onClick={() => setActiveTab(tab as typeof activeTab)} className={`whitespace-nowrap rounded px-3 py-2 text-xs font-semibold transition ${activeTab === tab ? "bg-pine text-white" : "text-muted hover:bg-pine-tint hover:text-pine"}`}>{label}</button>)}
           </div>
 
           <section className={activeTab === "details" ? "card space-y-4 p-6" : "hidden"}>
@@ -112,7 +122,7 @@ export default function NewOrganizationPage() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Administrator name" required value={form.adminUserName} onChange={(value) => update("adminUserName", value)} placeholder="Hospital administrator name" />
                 <Field label="Administrator email / User ID" required type="email" value={form.adminUserEmail} onChange={(value) => update("adminUserEmail", value)} placeholder="admin@hospital.example" />
-                <Field label="Initial password" required type="password" value={form.adminUserPassword} onChange={(value) => update("adminUserPassword", value)} placeholder="At least 12 characters" />
+                <Field label="Initial password" required type="password" value={form.adminUserPassword} onChange={(value) => update("adminUserPassword", value)} placeholder="At least 8 characters" />
               </div>
               <p className="mt-2 text-[11px] text-muted">This account is created as the first Organization Administrator and can create additional hospital users.</p>
             </div>
@@ -159,6 +169,12 @@ export default function NewOrganizationPage() {
             <label className="block text-xs font-semibold text-ink">Custom clinical prompt
               <textarea rows={4} value={form.customSystemPrompt} onChange={(event) => update("customSystemPrompt", event.target.value)} placeholder="Optional organisation-specific clinical instructions" className="mt-1 w-full rounded border border-line bg-paper p-3 font-mono text-xs text-ink" />
             </label>
+          </section>
+
+          <section className={activeTab === "commercial" ? "card space-y-4 p-6" : "hidden"}>
+            <h2 className="border-b border-line pb-3 text-[11px] font-bold uppercase tracking-wider text-muted">Commercial plan</h2>
+            <p className="text-xs text-muted">Select the database-defined RFP plan. The subscription is created with the hospital.</p>
+            <select required value={selectedPlanId} onChange={(event) => setSelectedPlanId(event.target.value)} className="w-full rounded border border-line bg-paper p-3 text-xs text-ink"><option value="">Select commercial plan</option>{plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name} · {plan.isCustom ? "Custom pricing" : `${plan.currency} ${Number(plan.monthlyPrice || 0).toLocaleString()} / ${plan.billingInterval}`} · {plan.monthlyCaseLimit ?? "Custom"} cases/month</option>)}</select>
           </section>
 
           <div className="flex justify-end gap-3 border-t border-line pt-5">

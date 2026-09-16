@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAuthenticatedUser, requireOrganizationAccess } from "@/lib/tenant-auth";
+import { timeDbOperation } from "@/lib/perf";
 
 export async function GET(req: Request) {
   try {
@@ -10,7 +11,7 @@ export async function GET(req: Request) {
     const scopedOrgId = organizationId || user?.organizationId;
     if (scopedOrgId) await requireOrganizationAccess(scopedOrgId);
     const status = searchParams.get("status");
-    const jobs = await db.publicationJob.findMany({
+    const jobs = await timeDbOperation("admin publishing jobs", () => db.publicationJob.findMany({
       where: {
         ...(scopedOrgId ? { organizationId: scopedOrgId } : {}),
         ...(status && status !== "ALL" ? { status: status as any } : {}),
@@ -21,7 +22,7 @@ export async function GET(req: Request) {
       },
       orderBy: { createdAt: "desc" },
       take: 50,
-    });
+    }));
     return NextResponse.json({ jobs });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || "Failed to load publishing jobs." }, { status: 500 });

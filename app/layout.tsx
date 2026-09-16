@@ -4,7 +4,7 @@ import { FileCheck } from "lucide-react";
 import SidebarNav from "@/components/SidebarNav";
 import BrandTheme from "@/components/BrandTheme";
 import UserAccountMenu from "@/components/UserAccountMenu";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, type SessionUser } from "@/lib/auth";
 import "./globals.css";
 
 /**
@@ -55,12 +55,16 @@ export default async function RootLayout({
         className="min-h-full font-sans text-ink flex flex-col"
         style={{ background: "var(--paper)" }}
       >
-        <BrandTheme />
+        <BrandTheme initialBrandingHex={currentUser?.organizationBrandingHex || null} />
         {/* Sidebar + Content */}
         <div className="flex flex-1 min-h-0 flex-col md:flex-row">
-          <SidebarNav />
+          <SidebarNav currentUser={currentUser} />
           <div className="flex-1 min-w-0 overflow-y-auto">
-            <div className="flex justify-end border-b border-line bg-paper px-6 py-3 md:px-8">
+            <div className="flex min-h-14 items-center justify-between gap-4 border-b border-line bg-surface px-4 py-2.5 md:px-6">
+              <div className="min-w-0 text-xs text-muted">
+                <span className="font-semibold text-ink">Clinical workspace</span>
+                {currentUser?.organizationName && <span className="ml-2 truncate">/ {currentUser.organizationName}</span>}
+              </div>
               <UserAccountMenu initialUser={currentUser} />
             </div>
             {children}

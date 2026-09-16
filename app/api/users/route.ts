@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { requireAuthenticatedUser } from "@/lib/tenant-auth";
+import { timeDbOperation } from "@/lib/perf";
 
 export async function GET(req: Request) {
   try {
@@ -10,27 +11,17 @@ export async function GET(req: Request) {
     const organizationScope = user?.isSuperAdmin
       ? requestedOrganizationId ? { organizationId: requestedOrganizationId } : undefined
       : { organizationId: user?.organizationId || "__no_organization__" };
-    const users = await db.user.findMany({
+    const users = await timeDbOperation("user list", () => db.user.findMany({
       where: organizationScope,
-      include: {
-        organization: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-        assignedRole: { select: { name: true, slug: true } },
-      },
+      select: { id: true, name: true, email: true, registrationNo: true, specialty: true, qualifications: true, designation: true, profilePhotoUrl: true, organization: { select: { id: true, name: true } }, assignedRole: { select: { name: true, slug: true } } },
       orderBy: {
         name: "asc",
       },
-    });
+    }));
     const organizations = user?.isSuperAdmin
       ? await db.organization.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } })
       : [];
-    const specialties = [...new Set(users.map((item) => item.specialty).filter((value): value is string => Boolean(value)))].sort();
-
-    return NextResponse.json({ success: true, users, organizations, specialties, isSuperAdmin: Boolean(user?.isSuperAdmin), canManageUsers: Boolean(user?.isSuperAdmin || user?.permissions.includes("USER_MANAGE")) });
+    return NextResponse.json({ success: true, users, organizations, isSuperAdmin: Boolean(user?.isSuperAdmin), canManageUsers: Boolean(user?.isSuperAdmin || user?.permissions.includes("USER_MANAGE")) });
   } catch (error: any) {
     console.error("Failed to fetch users:", error);
     return NextResponse.json(
@@ -51,8 +42,8 @@ export async function POST(req: Request) {
     const name = typeof body.name === "string" ? body.name.trim() : "";
     const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
     const password = typeof body.password === "string" ? body.password : "";
-    if (!targetOrganizationId || !name || !email || password.length < 12) {
-      return NextResponse.json({ error: "Organization, physician name, email, and a password of at least 12 characters are required." }, { status: 400 });
+    if (!targetOrganizationId || !name || !email || password.length < 8) {
+      return NextResponse.json({ error: "Organization, physician name, email, and a password of at least 8 characters are required." }, { status: 400 });
     }
     const existingUser = await db.user.findUnique({ where: { email }, select: { id: true } });
     if (existingUser) return NextResponse.json({ error: "A user with this email already exists." }, { status: 409 });
@@ -98,7 +89,7 @@ export async function PATCH(req: Request) {
     const duplicate = await db.user.findFirst({ where: { email, NOT: { id: userId } }, select: { id: true } });
     if (duplicate) return NextResponse.json({ error: "A user with this email already exists." }, { status: 409 });
     const password = typeof body.password === "string" ? body.password : "";
-    if (password && password.length < 12) return NextResponse.json({ error: "Password must be at least 12 characters." }, { status: 400 });
+    if (password && password.length < 8) return NextResponse.json({ error: "Password must be at least 8 characters." }, { status: 400 });
     const updated = await db.user.update({
       where: { id: userId },
       data: {

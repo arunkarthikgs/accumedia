@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
 import {
   Activity,
   PlusCircle,
@@ -15,6 +14,7 @@ import {
   Send,
 } from "lucide-react";
 import BrandLogo from "@/components/BrandLogo";
+import type { SessionUser } from "@/lib/auth";
 
 const NAV_ITEMS = [
   { href: "/", label: "Home", icon: Activity },
@@ -33,16 +33,8 @@ const NAV_ITEMS = [
  * brand indigo #3547d1, active nav bg #3547d1 with white text (matching
  * .department-list button.active), inactive text #4a4e82, hover bg #eef0ff.
  */
-export default function SidebarNav() {
+export default function SidebarNav({ currentUser }: { currentUser: SessionUser | null }) {
   const pathname = usePathname();
-  const [currentUser, setCurrentUser] = useState<{ name: string; specialty?: string | null; designation?: string | null; qualifications?: string | null; isSuperAdmin?: boolean; permissions?: string[] } | null>(null);
-
-  useEffect(() => {
-    fetch("/api/auth/me", { credentials: "same-origin" })
-      .then((response) => response.ok ? response.json() : null)
-      .then((data) => setCurrentUser(data?.user || null))
-      .catch(() => setCurrentUser(null));
-  }, []);
 
   if (pathname === "/login") return null;
 

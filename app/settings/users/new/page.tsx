@@ -6,13 +6,14 @@ import { FormEvent, useEffect, useState } from "react";
 import { ArrowLeft, CheckCircle2, Loader2, Stethoscope } from "lucide-react";
 
 type Organization = { id: string; name: string };
+type SpecialtyOption = { name: string; category: string };
 
 export default function NewPhysicianPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const selectedOrganizationId = searchParams.get("organizationId") || "";
   const [organizations, setOrganizations] = useState<Organization[]>([]);
-  const [specialties, setSpecialties] = useState<string[]>([]);
+  const [specialties, setSpecialties] = useState<SpecialtyOption[]>([]);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [form, setForm] = useState({ organizationId: selectedOrganizationId, name: "", email: "", password: "", registrationNo: "", specialty: "", qualifications: "", designation: "", profilePhotoUrl: "" });
   const [isSaving, setIsSaving] = useState(false);
@@ -27,7 +28,7 @@ export default function NewPhysicianPage() {
         setIsSuperAdmin(Boolean(data.isSuperAdmin));
       })
       .catch((requestError: Error) => setError(requestError.message));
-    fetch("/api/specialties", { credentials: "same-origin" }).then((response) => response.json()).then((data) => setSpecialties((data.specialties || []).map((item: { name: string }) => item.name))).catch(() => undefined);
+    fetch("/api/specialties", { credentials: "same-origin" }).then((response) => response.json()).then((data) => setSpecialties(data.specialties || [])).catch(() => undefined);
   }, [selectedOrganizationId]);
 
   const update = (field: keyof typeof form, value: string) => setForm((current) => ({ ...current, [field]: value }));
@@ -55,9 +56,9 @@ export default function NewPhysicianPage() {
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Physician name" required value={form.name} onChange={(value) => update("name", value)} placeholder="Dr. A. Sharma" />
         <Field label="Hospital email / User ID" required type="email" value={form.email} onChange={(value) => update("email", value)} placeholder="physician@hospital.org" />
-        <Field label="Initial password" required type="password" value={form.password} onChange={(value) => update("password", value)} placeholder="At least 12 characters" />
+        <Field label="Initial password" required type="password" value={form.password} onChange={(value) => update("password", value)} placeholder="At least 8 characters" />
         <Field label="Medical council registration number" value={form.registrationNo} onChange={(value) => update("registrationNo", value)} placeholder="State council / national registration number" />
-        <label className="block text-xs font-semibold text-ink">Clinical specialty<select required value={form.specialty} onChange={(event) => update("specialty", event.target.value)} className="mt-1 w-full rounded border border-line bg-paper px-3 py-2.5 text-xs outline-none focus:border-pine focus:ring-2 focus:ring-pine/20"><option value="">Select specialty</option>{specialties.map((specialty) => <option key={specialty} value={specialty}>{specialty}</option>)}</select></label>
+        <SpecialtySelect value={form.specialty} options={specialties} onChange={(value) => update("specialty", value)} />
         <Field label="Qualifications" value={form.qualifications} onChange={(value) => update("qualifications", value)} placeholder="MBBS, MD, FRCS" />
         <Field label="Designation" value={form.designation} onChange={(value) => update("designation", value)} placeholder="Consultant Cardiologist" />
         <Field label="Profile photo URL" type="url" value={form.profilePhotoUrl} onChange={(value) => update("profilePhotoUrl", value)} placeholder="https://.../doctor.jpg" />
@@ -68,5 +69,10 @@ export default function NewPhysicianPage() {
 }
 
 function Field({ label, value, onChange, placeholder, type = "text", required = false }: { label: string; value: string; onChange: (value: string) => void; placeholder: string; type?: string; required?: boolean }) {
-  return <label className="block text-xs font-semibold text-ink">{label}{required ? " *" : ""}<input required={required} minLength={type === "password" ? 12 : undefined} type={type} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="mt-1 w-full rounded border border-line bg-paper px-3 py-2.5 text-xs outline-none focus:border-pine focus:ring-2 focus:ring-pine/20" /></label>;
+  return <label className="block text-xs font-semibold text-ink">{label}{required ? " *" : ""}<input required={required} minLength={type === "password" ? 8 : undefined} type={type} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="mt-1 w-full rounded border border-line bg-paper px-3 py-2.5 text-xs outline-none focus:border-pine focus:ring-2 focus:ring-pine/20" /></label>;
+}
+
+function SpecialtySelect({ value, options, onChange }: { value: string; options: SpecialtyOption[]; onChange: (value: string) => void }) {
+  const groups = options.reduce<Record<string, SpecialtyOption[]>>((result, option) => { (result[option.category] ||= []).push(option); return result; }, {});
+  return <label className="block text-xs font-semibold text-ink">Clinical specialty<select required value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 w-full rounded border border-line bg-paper px-3 py-2.5 text-xs outline-none focus:border-pine focus:ring-2 focus:ring-pine/20"><option value="">Select specialty</option>{Object.entries(groups).map(([category, categoryOptions]) => <optgroup key={category} label={category}>{categoryOptions.map((option) => <option key={option.name} value={option.name}>{option.name}</option>)}</optgroup>)}</select></label>;
 }

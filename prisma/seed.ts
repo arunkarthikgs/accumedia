@@ -105,6 +105,24 @@ const DEFAULT_SPECIALTIES = [
   "Physiotherapy", "Occupational Therapy (OT)", "Speech-Language Pathology & Audiology", "Clinical Nutrition & Dietetics", "Medical Social Work & Patient Counselling", "Respiratory Therapy", "Dialysis Technology & Renal Support", "Perfusion Technology", "Optometry & Contact Lens Services", "Medical Physics & Radiation Safety", "Infection Prevention & Hospital Epidemiology", "Other Clinical Specialty",
 ] as const;
 
+function specialtyCategory(name: string) {
+  if (name === "Other Clinical Specialty") return "Other / Not listed";
+  if (/paediatric|neonat|developmental|PICU|NICU/i.test(name)) return "Paediatrics and Neonatal Care";
+  if (/obstetric|gynaec|maternal|reproductive|urogynaec|IVF/i.test(name)) return "Women's Health";
+  if (/oncology|haematology|bone marrow|stem cell|nuclear medicine/i.test(name)) return "Oncology and Haematology";
+  if (/cardio|cardiac|vascular|heart|thoracic surgery|CTVS/i.test(name)) return "Cardiology and Vascular Care";
+  if (/neurolog|neurosurg|neuro-|neuro /i.test(name)) return "Neurology and Neurosurgery";
+  if (/ophthalm|vitreo|retina|glaucoma|cataract|cornea|oculoplasty|uvea/i.test(name)) return "Ophthalmology and Vitreo-Retinal Surgery";
+  if (/dent|oral and maxillofacial|orthodont|periodont|prosthodont|pedodont/i.test(name)) return "Dental Specialties";
+  if (/radiolog|radiodiagn|laboratory|patholog|microbiology|biochemistry|cytogenetic|transfusion/i.test(name)) return "Diagnostic Specialties";
+  if (/emergency|critical care|intensive care|ICU|trauma|disaster|anaesth|pain medicine/i.test(name)) return "Emergency and Critical Care";
+  if (/psychiat|psycholog|neuropsychiat|addiction/i.test(name)) return "Mental Health";
+  if (/rehabil|prosthetic|orthotic/i.test(name)) return "Rehabilitation";
+  if (/physiotherap|occupational therapy|speech-language|audiolog|nutrition|dietetic|social work|respiratory therapy|dialysis technology|perfusion|optometry|medical physics|infection prevention/i.test(name)) return "Allied Health";
+  if (/surgery|surgical|orthopaed|urolog|plastic|burns|otorhinolaryng|ENT|colorectal|proctology|bariatric|endocrine surgery/i.test(name)) return "Surgical Specialties";
+  return "Medical Specialties";
+}
+
 const ROLE_PERMISSIONS = [
   ["CASE_VIEW", "View clinical cases", "Clinical", "View cases and case status."],
   ["CASE_CREATE", "Create clinical cases", "Clinical", "Create new case submissions."],
@@ -121,6 +139,7 @@ const ROLE_PERMISSIONS = [
   ["ROLE_MATRIX_MANAGE", "Manage role matrix", "Administration", "Assign task permissions to roles."],
   ["ORGANIZATION_MANAGE", "Manage organizations", "Administration", "Create and configure hospital and clinic organizations."],
   ["USER_MANAGE", "Manage users", "Administration", "Create and edit users within an organization."],
+  ["SUBSCRIPTION_MANAGE", "Manage subscriptions", "Administration", "Assign plans and manage subscription lifecycle."],
 ] as const;
 
 const ROLE_DEFINITIONS = [
@@ -135,7 +154,8 @@ const ROLE_DEFINITIONS = [
 async function main() {
   console.log("Starting Macula seed...");
   for (const [sortOrder, name] of DEFAULT_SPECIALTIES.entries()) {
-    await db.specialty.upsert({ where: { name }, update: { isActive: true, sortOrder }, create: { name, sortOrder } });
+    const category = specialtyCategory(name);
+    await db.specialty.upsert({ where: { name }, update: { category, isActive: true, sortOrder }, create: { name, category, sortOrder } });
   }
   console.log(`Specialty master list complete (${DEFAULT_SPECIALTIES.length} entries).`);
   let created = 0;

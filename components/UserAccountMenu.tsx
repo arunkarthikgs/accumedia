@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { LogOut, UserCircle } from "lucide-react";
 
 type CurrentUser = {
@@ -13,13 +13,6 @@ type CurrentUser = {
 
 export default function UserAccountMenu({ initialUser }: { initialUser: CurrentUser | null }) {
   const [user, setUser] = useState<CurrentUser | null>(initialUser);
-
-  useEffect(() => {
-    fetch("/api/auth/me", { credentials: "same-origin" })
-      .then((response) => response.ok ? response.json() : null)
-      .then((data) => setUser(data?.user || null))
-      .catch(() => setUser(null));
-  }, []);
 
   const logout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });

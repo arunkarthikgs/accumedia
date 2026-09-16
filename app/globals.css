@@ -96,6 +96,18 @@ input[type="range"]::-moz-range-thumb {
   border-left-style: solid;
 }
 
+/* Keep constrained settings/profile content aligned with the navigation edge. */
+.readable-route > .mx-auto {
+  margin-left: 0 !important;
+  margin-right: auto !important;
+}
+
+/* Apply the same alignment to dashboard and other top-level route containers. */
+.flex-1 > .mx-auto {
+  margin-left: 0 !important;
+  margin-right: auto !important;
+}
+
 /* Organization branding overrides the default pine token after the session loads. */
 .bg-pine { background-color: var(--pine) !important; }
 .text-pine { color: var(--pine) !important; }

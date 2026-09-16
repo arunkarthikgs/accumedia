@@ -301,7 +301,7 @@ export default function UsersSettingsPage() {
                 </div>
                 <div>
                   <label className="mb-1 block text-xs font-semibold text-slate-700">Initial password</label>
-                  <input type="password" required={!editingUserId} minLength={12} autoComplete="new-password" placeholder={editingUserId ? "Leave blank to keep current password" : "At least 12 characters"} value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-teal-600 focus:outline-none" />
+                  <input type="password" required={!editingUserId} minLength={8} autoComplete="new-password" placeholder={editingUserId ? "Leave blank to keep current password" : "At least 8 characters"} value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-teal-600 focus:outline-none" />
                   <p className="mt-1 text-[11px] text-muted">Passwords are stored securely as hashes.</p>
                 </div>
 

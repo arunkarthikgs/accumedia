@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireOrganizationAccess } from "@/lib/tenant-auth";
 import { getOrganizationQuota } from "@/lib/quotas";
+import { requirePermission } from "@/lib/auth";
 
 export async function GET(req: Request) {
   try {
@@ -19,6 +20,7 @@ export async function GET(req: Request) {
     };
     const where = { organizationId, ...(operation && operation !== "ALL" ? { operation } : {}), ...(caseSearch ? { case: { title: { contains: caseSearch, mode: "insensitive" as const } } } : {}), ...(Object.keys(createdAt).length ? { createdAt } : {}) };
     if (!organizationId) return NextResponse.json({ error: "orgId is required." }, { status: 400 });
+    await requirePermission("USAGE_VIEW");
     await requireOrganizationAccess(organizationId);
 
     const [logs, count, summary, quota] = await Promise.all([

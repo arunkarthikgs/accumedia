@@ -1,28 +1,30 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { getCurrentUser } from "@/lib/auth";
 import { requireOrganizationAccess } from "@/lib/tenant-auth";
 import { getOrganizationQuota } from "@/lib/quotas";
+import { requirePermission } from "@/lib/auth";
 
 async function requireSubscriptionManager() {
-  const user = await getCurrentUser();
-  const roleSlug = user?.role?.slug?.toLowerCase();
-  if (!user || (!user.isSuperAdmin && !["platform-admin", "organization-admin", "admin"].includes(roleSlug || ""))) {
-    throw new Error("Forbidden: subscription management permission required.");
-  }
+  const user = await requirePermission("SUBSCRIPTION_MANAGE");
+  if (!user.isSuperAdmin) throw new Error("Forbidden: only super administrators can manage commercial plans.");
   return user;
 }
 
 export async function GET(req: Request) {
   try {
-    const organizationId = new URL(req.url).searchParams.get("orgId");
-    if (!organizationId) return NextResponse.json({ error: "orgId is required." }, { status: 400 });
+    const searchParams = new URL(req.url).searchParams;
+    const organizationId = searchParams.get("orgId");
     await requireSubscriptionManager();
+    if (!organizationId && searchParams.get("catalog") === "true") {
+      const plans = await db.plan.findMany({ orderBy: { sortOrder: "asc" } });
+      return NextResponse.json({ plans });
+    }
+    if (!organizationId) return NextResponse.json({ error: "orgId is required." }, { status: 400 });
     await requireOrganizationAccess(organizationId);
 
     const [subscription, plans, quota] = await Promise.all([
       db.subscription.findUnique({ where: { organizationId }, include: { plan: true } }),
-      db.plan.findMany({ orderBy: { monthlyCaseLimit: "asc" } }),
+      db.plan.findMany({ orderBy: { sortOrder: "asc" } }),
       getOrganizationQuota(organizationId),
     ]);
     return NextResponse.json({ subscription, plans, quota });

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAuthenticatedUser, requireOrganizationAccess } from "@/lib/tenant-auth";
 import { recordAudit } from "@/lib/audit";
+import { timeDbOperation } from "@/lib/perf";
 
 export async function GET(req: Request) {
   try {
@@ -27,7 +28,7 @@ export async function GET(req: Request) {
       : user?.organizationId
         ? db.organization.findMany({ where: { id: user.organizationId }, select: { id: true, name: true, slug: true } })
         : Promise.resolve([]);
-    const [cases, organizations] = await Promise.all([db.case.findMany({
+    const [cases, organizations] = await Promise.all([timeDbOperation("admin cases", () => db.case.findMany({
       where,
       select: {
         id: true,
@@ -73,7 +74,7 @@ export async function GET(req: Request) {
       },
       orderBy: { createdAt: "desc" },
       take: includeContent ? 100 : 25,
-    }), organizationQuery]);
+    })), organizationQuery]);
 
     return NextResponse.json({ success: true, cases, organizations });
   } catch (error: any) {

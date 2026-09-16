@@ -84,6 +84,7 @@ export async function POST(req: Request) {
       adminUserName,
       adminUserEmail,
       adminUserPassword,
+      planId,
     } = body;
 
     if (!name || !name.trim()) {
@@ -95,8 +96,8 @@ export async function POST(req: Request) {
     if (brandingHex && !isBrandColor(brandingHex)) {
       return NextResponse.json({ error: "Primary brand colour must be a valid hex value, such as #0f766e." }, { status: 400 });
     }
-    if (!adminUserName?.trim() || !adminUserEmail?.trim() || typeof adminUserPassword !== "string" || adminUserPassword.length < 12) {
-      return NextResponse.json({ error: "Hospital administrator name, email/User ID, and a password of at least 12 characters are required." }, { status: 400 });
+    if (!adminUserName?.trim() || !adminUserEmail?.trim() || typeof adminUserPassword !== "string" || adminUserPassword.length < 8) {
+      return NextResponse.json({ error: "Hospital administrator name, email/User ID, and a password of at least 8 characters are required." }, { status: 400 });
     }
     const normalizedAdminEmail = adminUserEmail.trim().toLowerCase();
     const existingAdmin = await db.user.findUnique({ where: { email: normalizedAdminEmail }, select: { id: true } });
@@ -147,6 +148,8 @@ export async function POST(req: Request) {
           "This clinical summary is generated under NMC registered medical practitioner supervision.",
         },
       });
+      const selectedPlan = planId ? await tx.plan.findUnique({ where: { id: planId }, select: { id: true } }) : null;
+      if (planId && !selectedPlan) throw new Error("Selected subscription plan was not found.");
       const roleDefinition = await tx.roleDefinition.findUnique({
         where: { slug: "organization-admin" },
         select: { id: true, defaultPermissions: { select: { permissionId: true } } },
@@ -168,6 +171,9 @@ export async function POST(req: Request) {
         },
         select: { id: true, name: true, email: true, organizationId: true },
       });
+      if (selectedPlan) {
+        await tx.subscription.create({ data: { organizationId: org.id, planId: selectedPlan.id, status: "ACTIVE", currentPeriodEnd: new Date(Date.now() + 30 * 86400000) } });
+      }
       return { org, adminUser };
     });
 

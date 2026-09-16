@@ -26,7 +26,7 @@ export async function POST(req: Request) {
 
     const token = crypto.randomBytes(32).toString("hex");
     await query(
-      `INSERT INTO macula.macula_sessions (token_hash, user_id, expires_at)
+      `INSERT INTO macula.macula_sessions ("tokenHash", "userId", "expiresAt")
        VALUES ($1, $2, $3)`,
       [hashToken(token), user.id, new Date(Date.now() + 8 * 60 * 60 * 1000)]
     );

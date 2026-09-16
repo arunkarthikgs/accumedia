@@ -21,8 +21,8 @@ export async function GET(req: Request) {
     const caseIds = jobRows.map((job) => job.caseId).filter(Boolean);
     const assetIds = jobRows.map((job) => job.assetId).filter(Boolean);
     const [{ rows: cases }, { rows: assets }] = await Promise.all([
-      caseIds.length ? query<{ id: string; title: string }>(`SELECT id, title FROM macula.macula_cases WHERE id = ANY($1::uuid[])`, [caseIds]) : Promise.resolve({ rows: [] }),
-      assetIds.length ? query<{ id: string; channelName: string; status: string }>(`SELECT id, "channelName", status FROM macula.macula_generated_assets WHERE id = ANY($1::uuid[])`, [assetIds]) : Promise.resolve({ rows: [] }),
+      caseIds.length ? query<{ id: string; title: string }>(`SELECT id, title FROM macula.macula_cases WHERE id = ANY($1::text[])`, [caseIds]) : Promise.resolve({ rows: [] }),
+      assetIds.length ? query<{ id: string; channelName: string; status: string }>(`SELECT id, "channelName", status FROM macula.macula_generated_assets WHERE id = ANY($1::text[])`, [assetIds]) : Promise.resolve({ rows: [] }),
     ]);
     const caseById = new Map(cases.map((item) => [item.id, item]));
     const assetById = new Map(assets.map((item) => [item.id, item]));

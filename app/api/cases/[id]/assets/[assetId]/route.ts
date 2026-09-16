@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
 import { generateChannelAsset } from "@/lib/content-engine";
 import { requireOrganizationAccess } from "@/lib/tenant-auth";
 import { query } from "@/lib/worker-db";
@@ -53,6 +52,8 @@ export async function PATCH(
     }
 
     if (action === "regenerate") {
+      return NextResponse.json({ error: "Asset regeneration requires the external AI/content processor. It is not executed inside the Cloudflare Worker." }, { status: 501 });
+      /*
       // Find the ChannelDefinition this asset was generated from so the
       // regeneration uses the same prompt/output-type contract.
       const channel = asset.promptTemplateId
@@ -92,6 +93,7 @@ export async function PATCH(
       await db.generatedAsset.delete({ where: { id: regenerated.id } });
 
       return NextResponse.json({ success: true, asset: updated });
+      */
     }
 
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });

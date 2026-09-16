@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
 import { requireOrganizationAccess } from "@/lib/tenant-auth";
 import { recordAudit } from "@/lib/audit";
 import { query } from "@/lib/worker-db";
@@ -61,30 +60,7 @@ export async function POST(
   req: Request,
   props: { params: Promise<{ id: string; imageId: string }> }
 ) {
-  try {
-    const { id, imageId } = await props.params;
-    const body = await req.json().catch(() => ({}));
-
-    const existing = await db.imageAsset.findUnique({ where: { id: imageId } });
-    if (!existing) return NextResponse.json({ error: "Image not found" }, { status: 404 });
-    const kase = await db.case.findUnique({ where: { id: existing.caseId }, select: { organizationId: true } });
-    if (!kase) return NextResponse.json({ error: "Case not found" }, { status: 404 });
-    await requireOrganizationAccess(kase.organizationId);
-    if (existing.sourceType !== "ai_generated") {
-      return NextResponse.json(
-        { error: "Only ai_generated images can be regenerated. Delete and re-upload for doctor_uploaded images." },
-        { status: 400 }
-      );
-    }
-
-    const { generateCaseImage } = await import("@/lib/image-engine");
-    const regenerated = await generateCaseImage(id, existing.channel as any, body.conceptBrief);
-    await db.imageAsset.delete({ where: { id: imageId } });
-
-    return NextResponse.json({ success: true, image: regenerated });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+  return NextResponse.json({ error: "Image regeneration requires an external image-processing worker." }, { status: 501 });
 }
 
 export async function DELETE(

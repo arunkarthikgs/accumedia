@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import {
   Activity,
   PlusCircle,
@@ -9,11 +10,9 @@ import {
   Building2,
   ShieldAlert,
   ShieldCheck,
-  LogOut,
   BarChart3,
   CreditCard,
   Send,
-  Palette,
 } from "lucide-react";
 import BrandLogo from "@/components/BrandLogo";
 
@@ -27,7 +26,6 @@ const NAV_ITEMS = [
   { href: "/admin/usage", label: "AI Usage", icon: BarChart3 },
   { href: "/admin/subscription", label: "Subscription", icon: CreditCard },
   { href: "/admin/publishing", label: "Publishing Jobs", icon: Send },
-  { href: "/settings/organization", label: "Brand & Disclaimers", icon: Palette },
 ];
 
 /**
@@ -37,36 +35,22 @@ const NAV_ITEMS = [
  */
 export default function SidebarNav() {
   const pathname = usePathname();
+  const [currentUser, setCurrentUser] = useState<{ name: string; specialty?: string | null; designation?: string | null; qualifications?: string | null; isSuperAdmin?: boolean; permissions?: string[] } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/auth/me", { credentials: "same-origin" })
+      .then((response) => response.ok ? response.json() : null)
+      .then((data) => setCurrentUser(data?.user || null))
+      .catch(() => setCurrentUser(null));
+  }, []);
 
   if (pathname === "/login") return null;
-
-  const signOut = async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
-    window.location.href = "/login";
-  };
 
   return (
     <aside className="w-full shrink-0 border-b border-line bg-surface flex flex-col md:w-64 md:border-b-0 md:border-r">
       <div className="p-4 border-b border-line md:p-6">
         <Link href="/" className="flex items-center gap-2">
           <BrandLogo compact />
-        </Link>
-      </div>
-
-      <div className="px-4 py-3 md:px-6 md:py-4">
-        <Link
-          href="/cases/new"
-          className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-pine px-3.5 py-2 text-sm font-semibold text-white shadow-xs hover:bg-pine-dark transition"
-        >
-          <PlusCircle className="h-4 w-4" />
-          <span>Dictate Case</span>
-        </Link>
-        <Link
-          href="/settings/organization"
-          className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-pine/30 bg-pine-tint px-3.5 py-2 text-xs font-semibold text-pine hover:border-pine transition"
-        >
-          <Palette className="h-4 w-4" />
-          <span>Brand &amp; Disclaimers</span>
         </Link>
       </div>
 
@@ -91,25 +75,6 @@ export default function SidebarNav() {
         })}
       </nav>
 
-      <div className="border-t border-line p-3 md:p-4">
-        <div className="flex items-center gap-3 rounded-lg border border-line bg-paper p-2">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-pine text-xs font-bold text-white">
-            PK
-          </div>
-          <div className="min-w-0">
-            <p className="truncate text-xs font-bold text-ink">Dr. Priya Karthikeyan</p>
-            <p className="truncate text-[10px] text-muted">Vitreo-Retinal Consultant</p>
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={signOut}
-          className="mt-2 flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-semibold text-muted transition hover:bg-brick-tint hover:text-brick md:mt-3 md:py-2"
-        >
-          <LogOut className="h-3.5 w-3.5" />
-          <span>Sign out</span>
-        </button>
-      </div>
     </aside>
   );
 }

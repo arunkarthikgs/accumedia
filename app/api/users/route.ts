@@ -30,7 +30,7 @@ export async function GET(req: Request) {
       : [];
     const specialties = [...new Set(users.map((item) => item.specialty).filter((value): value is string => Boolean(value)))].sort();
 
-    return NextResponse.json({ success: true, users, organizations, specialties, isSuperAdmin: Boolean(user?.isSuperAdmin) });
+    return NextResponse.json({ success: true, users, organizations, specialties, isSuperAdmin: Boolean(user?.isSuperAdmin), canManageUsers: Boolean(user?.isSuperAdmin || user?.permissions.includes("USER_MANAGE")) });
   } catch (error: any) {
     console.error("Failed to fetch users:", error);
     return NextResponse.json(
@@ -43,6 +43,9 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const currentUser = await requireAuthenticatedUser();
+    if (!currentUser?.isSuperAdmin && !currentUser?.permissions.includes("USER_MANAGE")) {
+      return NextResponse.json({ error: "Forbidden: user management permission required." }, { status: 403 });
+    }
     const body = await req.json();
     const targetOrganizationId = currentUser?.isSuperAdmin ? body.organizationId : currentUser?.organizationId;
     const name = typeof body.name === "string" ? body.name.trim() : "";
@@ -75,5 +78,43 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Forbidden: organization access denied." }, { status: 403 });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || "Failed to create physician." }, { status: 500 });
+  }
+}
+
+export async function PATCH(req: Request) {
+  try {
+    const currentUser = await requireAuthenticatedUser();
+    if (!currentUser?.isSuperAdmin && !currentUser?.permissions.includes("USER_MANAGE")) {
+      return NextResponse.json({ error: "Forbidden: user management permission required." }, { status: 403 });
+    }
+    const body = await req.json();
+    const userId = typeof body.userId === "string" ? body.userId : "";
+    const existing = await db.user.findUnique({ where: { id: userId }, select: { id: true, organizationId: true, email: true } });
+    if (!existing) return NextResponse.json({ error: "User not found." }, { status: 404 });
+    if (!currentUser.isSuperAdmin && currentUser.organizationId !== existing.organizationId) {
+      return NextResponse.json({ error: "Forbidden: organization access denied." }, { status: 403 });
+    }
+    const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : existing.email;
+    const duplicate = await db.user.findFirst({ where: { email, NOT: { id: userId } }, select: { id: true } });
+    if (duplicate) return NextResponse.json({ error: "A user with this email already exists." }, { status: 409 });
+    const password = typeof body.password === "string" ? body.password : "";
+    if (password && password.length < 12) return NextResponse.json({ error: "Password must be at least 12 characters." }, { status: 400 });
+    const updated = await db.user.update({
+      where: { id: userId },
+      data: {
+        name: typeof body.name === "string" ? body.name.trim() : undefined,
+        email,
+        registrationNo: body.registrationNo?.trim() || null,
+        specialty: body.specialty?.trim() || null,
+        qualifications: body.qualifications?.trim() || null,
+        designation: body.designation?.trim() || null,
+        profilePhotoUrl: body.profilePhotoUrl?.trim() || null,
+        ...(password ? { passwordHash: await bcrypt.hash(password, 12) } : {}),
+      },
+      select: { id: true, name: true, email: true, registrationNo: true, specialty: true, qualifications: true, designation: true, profilePhotoUrl: true, organizationId: true },
+    });
+    return NextResponse.json({ success: true, user: updated });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message || "Failed to update physician." }, { status: 500 });
   }
 }

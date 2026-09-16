@@ -1,5 +1,6 @@
 import sharp from "sharp";
 import type { OverlayOptions } from "sharp";
+import { normalizeBrandColor } from "@/lib/brand";
 
 function escapeXml(value: string) {
   return value.replace(/[<>&'\"]/g, (character) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&apos;", '\"': "&quot;" })[character] || character);
@@ -16,7 +17,8 @@ export async function applyBrandOverlay(input: Buffer, options: { accent: string
   const title = escapeXml(options.title.slice(0, 120));
   const tagline = escapeXml((options.tagline || "").slice(0, 120));
   const disclaimer = escapeXml((options.disclaimer || "").slice(0, 180));
-  const svg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg"><rect x="0" y="${Math.max(0, height - 170)}" width="${width}" height="170" fill="#ffffff" fill-opacity="0.9"/><rect x="0" y="${Math.max(0, height - 170)}" width="12" height="170" fill="${escapeXml(options.accent)}"/><text x="36" y="${Math.max(40, height - 112)}" font-family="${font}" font-size="${Math.max(24, Math.round(width / 32))}" font-weight="700" fill="#13211f">${title}</text><text x="36" y="${Math.max(72, height - 78)}" font-family="${font}" font-size="${Math.max(14, Math.round(width / 80))}" fill="${escapeXml(options.accent)}">${tagline}</text><text x="36" y="${Math.max(96, height - 38)}" font-family="${font}" font-size="${Math.max(12, Math.round(width / 90))}" fill="#52615d">${disclaimer}</text></svg>`;
+  const accent = normalizeBrandColor(options.accent);
+  const svg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg"><rect x="0" y="${Math.max(0, height - 170)}" width="${width}" height="170" fill="#ffffff" fill-opacity="0.9"/><rect x="0" y="${Math.max(0, height - 170)}" width="12" height="170" fill="${accent}"/><text x="36" y="${Math.max(40, height - 112)}" font-family="${font}" font-size="${Math.max(24, Math.round(width / 32))}" font-weight="700" fill="#13211f">${title}</text><text x="36" y="${Math.max(72, height - 78)}" font-family="${font}" font-size="${Math.max(14, Math.round(width / 80))}" fill="${accent}">${tagline}</text><text x="36" y="${Math.max(96, height - 38)}" font-family="${font}" font-size="${Math.max(12, Math.round(width / 90))}" fill="#52615d">${disclaimer}</text></svg>`;
   overlays.push({ input: Buffer.from(svg) });
   if (logo) overlays.push({ input: await sharp(logo).resize(Math.round(width * 0.16), Math.round(height * 0.16), { fit: "inside" }).png().toBuffer(), gravity: "northeast", top: 28, left: 28 });
   return image.composite(overlays).png().toBuffer();

@@ -6,6 +6,13 @@ export interface SessionUser {
   id: string;
   name: string;
   email: string;
+  registrationNo: string | null;
+  specialty: string | null;
+  designation: string | null;
+  qualifications: string | null;
+  profilePhotoUrl: string | null;
+  organizationName: string | null;
+  organizationBrandingHex: string | null;
   isSuperAdmin: boolean;
   organizationId: string | null;
   permissions: string[];
@@ -23,19 +30,22 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
     const session = await db.session.findFirst({
       where: { tokenHash, expiresAt: { gt: new Date() } },
-      include: { user: {
       include: {
-        assignedRole: {
+        user: {
           include: {
-            rolePermissions: {
+            assignedRole: {
               include: {
-                permission: true,
+                rolePermissions: {
+                  include: {
+                    permission: true,
+                  },
+                },
               },
             },
+            organization: { select: { name: true, brandingHex: true } },
           },
         },
       },
-      } },
     });
 
     if (!session?.user) return null;
@@ -49,6 +59,13 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
       id: user.id,
       name: user.name,
       email: user.email,
+      registrationNo: user.registrationNo,
+      specialty: user.specialty,
+      designation: user.designation,
+      qualifications: user.qualifications,
+      profilePhotoUrl: user.profilePhotoUrl,
+      organizationName: user.organization?.name ?? null,
+      organizationBrandingHex: user.organization?.brandingHex ?? null,
       isSuperAdmin: Boolean(user.isSuperAdmin),
       organizationId: user.organizationId ?? null,
       permissions,

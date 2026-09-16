@@ -96,6 +96,16 @@ input[type="range"]::-moz-range-thumb {
   border-left-style: solid;
 }
 
+/* Organization branding overrides the default pine token after the session loads. */
+.bg-pine { background-color: var(--pine) !important; }
+.text-pine { color: var(--pine) !important; }
+.border-pine { border-color: var(--pine) !important; }
+.ring-pine { --tw-ring-color: var(--pine) !important; }
+.hover\:bg-pine:hover { background-color: var(--pine) !important; }
+.hover\:bg-pine-dark:hover { background-color: var(--pine-dark) !important; }
+.hover\:text-pine:hover { color: var(--pine) !important; }
+.hover\:border-pine:hover { border-color: var(--pine) !important; }
+
 /* Keep older route-level utility classes in the same visual language. */
 .bg-slate-50 { background-color: var(--paper) !important; }
 .bg-white { background-color: var(--surface) !important; }

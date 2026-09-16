@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import BrandLogo from "@/components/BrandLogo";
@@ -15,6 +15,14 @@ interface NavItem {
 export default function AppNavigation({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState<{ name: string; specialty?: string | null; designation?: string | null; qualifications?: string | null; isSuperAdmin?: boolean; permissions?: string[] } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/auth/me", { credentials: "same-origin" })
+      .then((response) => response.ok ? response.json() : null)
+      .then((data) => setCurrentUser(data?.user || null))
+      .catch(() => setCurrentUser(null));
+  }, []);
 
   const mainNav: NavItem[] = [
     {
@@ -59,15 +67,6 @@ export default function AppNavigation({ children }: { children: React.ReactNode 
   ];
 
   const adminNav: NavItem[] = [
-    {
-      name: "Brand & Disclaimers",
-      href: "/settings/organization",
-      icon: (active) => (
-        <svg className={`w-5 h-5 ${active ? "text-pine" : "text-muted"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-        </svg>
-      ),
-    },
     {
       name: "Clinicians & Team",
       href: "/settings/users",
@@ -162,18 +161,6 @@ export default function AppNavigation({ children }: { children: React.ReactNode 
           </div>
         </div>
 
-        {/* Doctor Identity Badge */}
-        <div className="p-4 border-t border-line bg-paper">
-          <div className="flex items-center gap-3 p-2 rounded-lg bg-surface border border-line">
-            <div className="h-9 w-9 rounded-lg bg-pine text-white flex items-center justify-center font-bold text-xs shrink-0">
-              PK
-            </div>
-            <div className="overflow-hidden">
-              <p className="text-xs font-bold text-ink truncate">Dr. Priya Karthikeyan</p>
-              <p className="text-[10px] text-muted truncate">Vitreo-Retinal Consultant</p>
-            </div>
-          </div>
-        </div>
       </aside>
 
       {/* Main Content Area */}

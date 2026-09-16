@@ -33,11 +33,15 @@ const initialForm = {
   preferredAsrModel: "whisper-1",
   customSystemPrompt: "",
   defaultDisclaimer: "This clinical summary is generated under NMC registered medical practitioner supervision.",
+  adminUserName: "",
+  adminUserEmail: "",
+  adminUserPassword: "",
 };
 
 export default function NewOrganizationPage() {
   const router = useRouter();
   const [form, setForm] = useState(initialForm);
+  const [activeTab, setActiveTab] = useState<"details" | "brand" | "content" | "advanced">("details");
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -89,15 +93,28 @@ export default function NewOrganizationPage() {
         {error && <div className="mb-6 rounded border border-brick/30 bg-brick-tint px-4 py-3 text-xs font-medium text-brick">{error}</div>}
 
         <form onSubmit={submit} className="space-y-6">
-          <section className="card space-y-4 p-6">
+          <div className="card flex gap-1 overflow-x-auto p-2" role="tablist" aria-label="Organisation profile sections">
+            {([ ["details", "Organisation details"], ["brand", "Brand identity"], ["content", "Content preferences"], ["advanced", "Advanced configuration"] ] as const).map(([tab, label]) => <button key={tab} type="button" role="tab" aria-selected={activeTab === tab} onClick={() => setActiveTab(tab)} className={`whitespace-nowrap rounded px-3 py-2 text-xs font-semibold transition ${activeTab === tab ? "bg-pine text-white" : "text-muted hover:bg-pine-tint hover:text-pine"}`}>{label}</button>)}
+          </div>
+
+          <section className={activeTab === "details" ? "card space-y-4 p-6" : "hidden"}>
             <h2 className="border-b border-line pb-3 text-[11px] font-bold uppercase tracking-wider text-muted">Organisation details</h2>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Organisation / Hospital name" required value={form.name} onChange={(value) => update("name", value)} placeholder="Apollo Hospitals - Bangalore" />
               <Field label="Organisation slug" value={form.slug} onChange={(value) => update("slug", value)} placeholder="apollo-bangalore (optional)" />
-              <Field label="Location" value={form.location} onChange={(value) => update("location", value)} placeholder="City, state, country" />
+              <Field label="Address" value={form.location} onChange={(value) => update("location", value)} placeholder="Street, city, state, country" />
               <Field label="Website URL" type="url" value={form.websiteUrl} onChange={(value) => update("websiteUrl", value)} placeholder="https://hospital.example" />
               <Field label="Contact email" type="email" value={form.contactEmail} onChange={(value) => update("contactEmail", value)} placeholder="communications@hospital.example" />
               <Field label="Contact phone" type="tel" value={form.contactPhone} onChange={(value) => update("contactPhone", value)} placeholder="+91 ..." />
+            </div>
+            <div className="border-t border-line pt-4">
+              <h3 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-muted">Default Hospital Administrator</h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Administrator name" required value={form.adminUserName} onChange={(value) => update("adminUserName", value)} placeholder="Hospital administrator name" />
+                <Field label="Administrator email / User ID" required type="email" value={form.adminUserEmail} onChange={(value) => update("adminUserEmail", value)} placeholder="admin@hospital.example" />
+                <Field label="Initial password" required type="password" value={form.adminUserPassword} onChange={(value) => update("adminUserPassword", value)} placeholder="At least 12 characters" />
+              </div>
+              <p className="mt-2 text-[11px] text-muted">This account is created as the first Organization Administrator and can create additional hospital users.</p>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="LinkedIn profile URL" type="url" value={form.linkedinUrl} onChange={(value) => update("linkedinUrl", value)} placeholder="https://linkedin.com/company/..." />
@@ -108,7 +125,7 @@ export default function NewOrganizationPage() {
             </div>
           </section>
 
-          <section className="card space-y-4 p-6">
+          <section className={activeTab === "brand" ? "card space-y-4 p-6" : "hidden"}>
             <h2 className="border-b border-line pb-3 text-[11px] font-bold uppercase tracking-wider text-muted">Brand identity</h2>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Logo URL" type="url" value={form.logoUrl} onChange={(value) => update("logoUrl", value)} placeholder="https://.../logo.png" />
@@ -124,7 +141,7 @@ export default function NewOrganizationPage() {
             </label>
           </section>
 
-          <section className="card space-y-4 p-6">
+          <section className={activeTab === "content" ? "card space-y-4 p-6" : "hidden"}>
             <h2 className="border-b border-line pb-3 text-[11px] font-bold uppercase tracking-wider text-muted">Content preferences</h2>
             <label className="block text-xs font-semibold text-ink">Default call to action
               <textarea rows={2} value={form.callToAction} onChange={(event) => update("callToAction", event.target.value)} placeholder="Book an appointment through the hospital reception." className="mt-1 w-full rounded border border-line bg-paper p-3 text-xs text-ink" />
@@ -134,7 +151,7 @@ export default function NewOrganizationPage() {
             </label>
           </section>
 
-          <section className="card space-y-4 p-6">
+          <section className={activeTab === "advanced" ? "card space-y-4 p-6" : "hidden"}>
             <div><h2 className="text-[11px] font-bold uppercase tracking-wider text-muted">Advanced configuration</h2><p className="mt-1 text-xs text-muted">These settings control ingestion and clinical synthesis defaults.</p></div>
             <div className="grid gap-2">
               {ASR_MODELS.map((model) => <label key={model.id} className={`flex cursor-pointer gap-3 rounded border p-3 ${form.preferredAsrModel === model.id ? "border-pine bg-pine-tint" : "border-line bg-surface"}`}><input type="radio" name="preferredAsrModel" value={model.id} checked={form.preferredAsrModel === model.id} onChange={(event) => update("preferredAsrModel", event.target.value)} /><span><span className="block text-xs font-semibold text-ink">{model.name}</span><span className="block text-[11px] text-muted">{model.description}</span></span></label>)}

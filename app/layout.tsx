@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { Poppins, Libre_Baskerville, Manrope } from "next/font/google";
 import { FileCheck } from "lucide-react";
 import SidebarNav from "@/components/SidebarNav";
+import BrandTheme from "@/components/BrandTheme";
+import UserAccountMenu from "@/components/UserAccountMenu";
+import { getCurrentUser } from "@/lib/auth";
 import "./globals.css";
 
 /**
@@ -36,11 +39,13 @@ export const metadata: Metadata = {
     "Enterprise clinical transcription, master synthesis, and DPDP/NMC compliance supervision platform.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const currentUser = await getCurrentUser();
+
   return (
     <html
       lang="en"
@@ -50,10 +55,16 @@ export default function RootLayout({
         className="min-h-full font-sans text-ink flex flex-col"
         style={{ background: "var(--paper)" }}
       >
+        <BrandTheme />
         {/* Sidebar + Content */}
         <div className="flex flex-1 min-h-0 flex-col md:flex-row">
           <SidebarNav />
-          <div className="flex-1 min-w-0 overflow-y-auto">{children}</div>
+          <div className="flex-1 min-w-0 overflow-y-auto">
+            <div className="flex justify-end border-b border-line bg-paper px-6 py-3 md:px-8">
+              <UserAccountMenu initialUser={currentUser} />
+            </div>
+            {children}
+          </div>
         </div>
 
         {/* Global Regulatory Footer — text unchanged */}

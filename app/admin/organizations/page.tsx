@@ -93,6 +93,7 @@ const ORGANIZATION_PROFILE_FIELDS = [
 export default function AdminOrganizationsPage() {
   const [organizations, setOrganizations] = useState<OrganizationItem[]>([]);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [canManageOrganizations, setCanManageOrganizations] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -152,6 +153,7 @@ export default function AdminOrganizationsPage() {
       if (!res.ok) throw new Error(data.error || "Failed to load hospitals.");
       setOrganizations(data.organizations || []);
       setIsSuperAdmin(Boolean(data.isSuperAdmin));
+      setCanManageOrganizations(Boolean(data.canManageOrganizations));
       try { sessionStorage.setItem(cacheKey, JSON.stringify({ organizations: data.organizations || [], cachedAt: Date.now() })); } catch { /* Ignore storage limits. */ }
     } catch (err: any) {
       setErrorMessage(err.message);
@@ -252,13 +254,13 @@ export default function AdminOrganizationsPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
-            <Link
+            {canManageOrganizations && <Link
               href="/admin/organizations/new"
               className="flex items-center gap-1.5 rounded-lg bg-pine px-3.5 py-2 text-xs font-semibold text-white hover:bg-pine-dark transition"
             >
               <Plus className="h-3.5 w-3.5" />
               <span>Add Hospital</span>
-            </Link>
+            </Link>}
 
             <button
               type="button"
@@ -336,7 +338,7 @@ export default function AdminOrganizationsPage() {
 
                   return (
                     <tr key={org.id} className="hover:bg-slate-50/70 transition">
-                      {isSuperAdmin && <td className="px-6 py-4">
+                      <td className="px-6 py-4">
                         <div className="flex items-center gap-2.5">
                           <div
                             className="h-3 w-3 rounded-full border border-slate-300 shrink-0"
@@ -349,9 +351,9 @@ export default function AdminOrganizationsPage() {
                             </div>
                           </div>
                         </div>
-                      </td>}
+                      </td>
 
-                      <td className="px-6 py-4">
+                      {isSuperAdmin && <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
                           <span
                             className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold border ${modelInfo.color}`}
@@ -364,7 +366,7 @@ export default function AdminOrganizationsPage() {
                             {modelInfo.name}
                           </span>
                         </div>
-                      </td>
+                      </td>}
 
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3 text-slate-500">
@@ -386,24 +388,17 @@ export default function AdminOrganizationsPage() {
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <Link
-                            href={`/settings/organization?orgId=${org.id}`}
-                            className="inline-flex items-center gap-1 rounded-lg border border-pine/30 bg-pine-tint px-2.5 py-1 text-[11px] font-semibold text-pine hover:border-pine transition"
-                          >
-                            <Palette className="h-3 w-3" /> Brand &amp; Disclaimers
-                          </Link>
-                          <Link
                             href={`/settings/users?organizationId=${org.id}`}
                             className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 transition shadow-2xs"
                           >
                             <Users className="h-3 w-3 text-slate-500" /> Users
                           </Link>
-                          <button
-                            type="button"
-                            onClick={() => openEditModal(org)}
+                          <Link
+                            href={`/settings/organization?orgId=${org.id}`}
                             className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 transition shadow-2xs"
                           >
                             <Edit2 className="h-3 w-3 text-slate-500" /> Edit
-                          </button>
+                          </Link>
                         </div>
                       </td>
                     </tr>

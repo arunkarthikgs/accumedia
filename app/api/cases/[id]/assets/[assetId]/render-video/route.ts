@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { requireOrganizationAccess } from "@/lib/tenant-auth";
 import { renderClinicalVideo } from "@/lib/video-renderer";
 import { uploadVideoToR2 } from "@/lib/r2";
+import { normalizeBrandColor } from "@/lib/brand";
 
 export async function POST(req: Request, props: { params: Promise<{ id: string; assetId: string }> }) {
   try {
@@ -21,7 +22,7 @@ export async function POST(req: Request, props: { params: Promise<{ id: string; 
         ? content.draft_text
         : String(content.raw_text || "");
     if (!script.trim()) return NextResponse.json({ error: "The video script is empty." }, { status: 400 });
-    const rendered = await renderClinicalVideo({ script, title: asset.case.title, accent: asset.case.organization.brandingHex || "#0f766e", disclaimer: asset.case.organization.defaultDisclaimer, logoUrl: asset.case.organization.logoUrl, voiceFile: voice instanceof File ? Buffer.from(await voice.arrayBuffer()) : undefined });
+    const rendered = await renderClinicalVideo({ script, title: asset.case.title, accent: normalizeBrandColor(asset.case.organization.brandingHex), disclaimer: asset.case.organization.defaultDisclaimer, logoUrl: asset.case.organization.logoUrl, voiceFile: voice instanceof File ? Buffer.from(await voice.arrayBuffer()) : undefined });
     const stored = await uploadVideoToR2(rendered.buffer, `${asset.channelKey}-${Date.now()}.mp4`, rendered.mimeType, asset.case.organizationId);
     const updated = await db.generatedAsset.update({ where: { id: assetId }, data: { videoR2Key: stored.r2Key, videoStorageUrl: stored.storageUrl, videoDurationSeconds: rendered.durationSeconds, videoStatus: "READY", content: { ...content, videoUrl: stored.storageUrl, videoDurationSeconds: rendered.durationSeconds } } });
     return NextResponse.json({ success: true, asset: updated });

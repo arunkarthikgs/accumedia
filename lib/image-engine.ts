@@ -6,6 +6,7 @@ import { recordAudit } from "@/lib/audit";
 import { applyBrandOverlay } from "@/lib/brand-compositor";
 import { DEFAULT_IMAGE_GENERATION_PROMPT, DEFAULT_IMAGE_SAFETY_PROMPT } from "@/lib/image-prompts";
 import { getResolvedAiPrompts } from "@/lib/ai-prompts";
+import { normalizeBrandColor } from "@/lib/brand";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -43,6 +44,7 @@ export async function generateCaseImage(caseId: string, channel: keyof typeof CH
   });
 
   const org = kase.organization;
+  const brandAccent = normalizeBrandColor(org.brandingHex);
   const promptTemplates = await getResolvedAiPrompts(org.id, ["IMAGE_GENERATION", "IMAGE_SAFETY"]);
   const masterRecord = kase.masterRecord as Record<string, any>;
   const brief =
@@ -65,7 +67,7 @@ export async function generateCaseImage(caseId: string, channel: keyof typeof CH
   const prompt = generationTemplate
     .replaceAll("{channelLabel}", spec.label)
     .replaceAll("{brief}", brief)
-    .replaceAll("{accent}", org.brandingHex || "#0f766e");
+    .replaceAll("{accent}", brandAccent);
 
   const result = await openai.images.generate({
     model: "gpt-image-1",
@@ -79,7 +81,7 @@ export async function generateCaseImage(caseId: string, channel: keyof typeof CH
     throw new Error("Image generation returned no image data.");
   }
   const baseBuffer = Buffer.from(b64, "base64");
-  const buffer = await applyBrandOverlay(baseBuffer, { accent: org.brandingHex || "#0f766e", logoUrl: org.logoUrl, title: kase.title, tagline: org.brandTagline, disclaimer: org.defaultDisclaimer, font: org.brandFont });
+  const buffer = await applyBrandOverlay(baseBuffer, { accent: brandAccent, logoUrl: org.logoUrl, title: kase.title, tagline: org.brandTagline, disclaimer: org.defaultDisclaimer, font: org.brandFont });
   const screening = await screenImage(buffer, "image/png", safetyTemplate);
   const fileName = `${channel}-${Date.now()}.png`;
 

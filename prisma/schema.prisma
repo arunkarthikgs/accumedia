@@ -156,6 +156,19 @@ model Department {
   @@map("macula_departments")
 }
 
+model Specialty {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@index([isActive, sortOrder, name])
+  @@schema("macula")
+  @@map("macula_specialties")
+}
+
 model Role {
   id              String           @id @default(uuid())
   name            String

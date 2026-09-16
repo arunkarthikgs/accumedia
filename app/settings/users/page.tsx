@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { UserPlus, Shield, Stethoscope, Mail, Hash, X, ArrowLeft, AlertCircle } from "lucide-react";
+import { UserPlus, Shield, Stethoscope, Mail, Hash, X, ArrowLeft, AlertCircle, Pencil } from "lucide-react";
 
 interface Organization {
   id: string;
@@ -26,6 +26,7 @@ export default function UsersSettingsPage() {
   const [physicians, setPhysicians] = useState<Physician[]>([]);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [canManageUsers, setCanManageUsers] = useState(false);
   const [availableSpecialties, setAvailableSpecialties] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -33,6 +34,7 @@ export default function UsersSettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedOrganizationId, setSelectedOrganizationId] = useState("");
   const [scopeReady, setScopeReady] = useState(false);
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -63,6 +65,7 @@ export default function UsersSettingsPage() {
           setPhysicians(scopedUsers);
           setOrganizations(data.organizations || []);
           setIsSuperAdmin(Boolean(data.isSuperAdmin));
+          setCanManageUsers(Boolean(data.canManageUsers));
           setAvailableSpecialties(data.specialties || []);
         } else {
           setError(data.error || "Failed to load physicians");
@@ -97,9 +100,9 @@ export default function UsersSettingsPage() {
 
     try {
       const res = await fetch("/api/users", {
-        method: "POST",
+        method: editingUserId ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(editingUserId ? { ...formData, userId: editingUserId } : formData),
       });
 
       const data = await res.json();
@@ -119,12 +122,27 @@ export default function UsersSettingsPage() {
         password: "",
       });
       setModalOpen(false);
+      setEditingUserId(null);
       fetchUsers();
     } catch (err: any) {
       setError(err.message);
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const openCreate = () => {
+    setEditingUserId(null);
+    setFormData({ name: "", email: "", registrationNo: "", specialty: "", qualifications: "", designation: "", profilePhotoUrl: "", organizationId: selectedOrganizationId, password: "" });
+    setError(null);
+    setModalOpen(true);
+  };
+
+  const openEdit = (physician: Physician) => {
+    setEditingUserId(physician.id);
+    setFormData({ name: physician.name, email: physician.email, registrationNo: physician.registrationNo || "", specialty: physician.specialty || "", qualifications: physician.qualifications || "", designation: physician.designation || "", profilePhotoUrl: physician.profilePhotoUrl || "", organizationId: physician.organization?.id || selectedOrganizationId, password: "" });
+    setError(null);
+    setModalOpen(true);
   };
 
   return (
@@ -146,16 +164,15 @@ export default function UsersSettingsPage() {
               Registered Medical Practitioners (RMPs) across all clinical disciplines authorized for DPDP &amp; NMC sign-offs.
             </p>
           </div>
-          <button
-            onClick={() => {
-              setError(null);
-              setModalOpen(true);
-            }}
-            className="flex items-center justify-center gap-2 rounded-lg bg-pine px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-pine-dark"
+          <Link
+            href={`/settings/users/new${selectedOrganizationId ? `?organizationId=${encodeURIComponent(selectedOrganizationId)}` : ""}`}
+            aria-disabled={!canManageUsers}
+            tabIndex={canManageUsers ? 0 : -1}
+            className={`flex items-center justify-center gap-2 rounded-lg bg-pine px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-pine-dark ${!canManageUsers ? "pointer-events-none opacity-50" : ""}`}
           >
             <UserPlus className="h-4 w-4" />
             Add Physician
-          </button>
+          </Link>
         </div>
 
         {error && !modalOpen && (
@@ -230,6 +247,7 @@ export default function UsersSettingsPage() {
                       </div>
                     </div>
                   </div>
+                  {canManageUsers && <Link href={`/settings/users/${doc.id}/edit?organizationId=${encodeURIComponent(selectedOrganizationId || doc.organization?.id || "")}`} className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-pine hover:underline"><Pencil className="h-3.5 w-3.5" /> Edit user</Link>}
                 </div>
               );
             })}
@@ -242,7 +260,7 @@ export default function UsersSettingsPage() {
               <div className="mb-4 flex items-center justify-between border-b border-line pb-4">
                 <div className="flex items-center gap-2">
                   <Stethoscope className="h-5 w-5 text-pine" />
-                  <h3 className="text-base font-bold text-ink">Add Attending Physician</h3>
+                  <h3 className="text-base font-bold text-ink">{editingUserId ? "Edit User Profile" : "Add Attending Physician"}</h3>
                 </div>
                 <button
                   type="button"
@@ -283,8 +301,8 @@ export default function UsersSettingsPage() {
                 </div>
                 <div>
                   <label className="mb-1 block text-xs font-semibold text-slate-700">Initial password</label>
-                  <input type="password" required minLength={12} autoComplete="new-password" placeholder="At least 12 characters" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-teal-600 focus:outline-none" />
-                  <p className="mt-1 text-[11px] text-muted">Share this securely with the physician. It is stored as a hash.</p>
+                  <input type="password" required={!editingUserId} minLength={12} autoComplete="new-password" placeholder={editingUserId ? "Leave blank to keep current password" : "At least 12 characters"} value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-teal-600 focus:outline-none" />
+                  <p className="mt-1 text-[11px] text-muted">Passwords are stored securely as hashes.</p>
                 </div>
 
                 <div>
@@ -359,7 +377,7 @@ export default function UsersSettingsPage() {
                     disabled={submitting}
                     className="rounded-lg bg-teal-600 px-4 py-2 text-xs font-semibold text-white hover:bg-teal-700 disabled:opacity-50"
                   >
-                    {submitting ? "Saving..." : "Save Physician"}
+                    {submitting ? "Saving..." : editingUserId ? "Save Changes" : "Save Physician"}
                   </button>
                 </div>
               </form>

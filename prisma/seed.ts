@@ -88,6 +88,23 @@ const DEFAULT_REDACTION_RULES = [
   { pattern: "\\b(?:patient|pt|name|attendant|relative|address|phone|mobile|email)\\s*[:=-]\\s*[^,;\\n]+", flags: "gi", replacement: "[REDACTED_PERSONAL_INFORMATION]", description: "Redact labeled personal information." },
 ];
 
+const DEFAULT_SPECIALTIES = [
+  "General Medicine / Internal Medicine", "Endocrinology, Diabetology & Metabolism", "Medical Gastroenterology & Hepatology", "Nephrology", "Pulmonology / Respiratory & Chest Medicine", "Rheumatology & Clinical Immunology", "Dermatology, Venereology & Leprosy (DVL)", "Infectious Diseases", "Geriatric Medicine", "Medical Genetics & Genomics", "Family Medicine", "Clinical Pharmacology & Toxicology",
+  "General Surgery & Minimal Access / Laparoscopic Surgery", "Surgical Gastroenterology & Hepato-Pancreato-Biliary (HPB) Surgery", "Urology, Andrology & Renal Transplant Surgery", "Plastic, Reconstructive & Micro-Vascular Surgery", "Burns Surgery", "Orthopaedics & Joint Replacement Surgery", "Spine Surgery", "Arthroscopy & Sports Medicine", "Orthopaedic Trauma & Limb Reconstruction", "Hand & Microvascular Surgery", "Otorhinolaryngology (ENT) & Head-Neck Surgery", "Rhinology & Anterior Skull Base Surgery", "Otology, Neurotology & Cochlear Implants", "Laryngology & Voice Surgery", "Colorectal / Proctology Surgery", "Bariatric & Metabolic Surgery", "Endocrine Surgery",
+  "General Paediatrics", "Neonatology & Neonatal Intensive Care (NICU)", "Paediatric Intensive Care (PICU)", "Paediatric Surgery & Paediatric Urology", "Paediatric Cardiology & Paediatric Cardiac Surgery", "Paediatric Neurology & Neurodevelopmental Disorders", "Paediatric Nephrology", "Paediatric Gastroenterology & Hepatology", "Paediatric Pulmonology & Allergy", "Paediatric Haematology-Oncology & Bone Marrow Transplant", "Paediatric Endocrinology", "Paediatric Orthopaedics", "Developmental & Behavioural Paediatrics",
+  "Obstetrics & Antenatal Care", "Maternal-Fetal Medicine (High-Risk Pregnancy & Perinatology)", "General Gynaecology", "Gynaecological Oncology", "Reproductive Medicine, Infertility & IVF", "Urogynaecology & Pelvic Floor Reconstructive Surgery", "Minimally Invasive Gynaecological Endoscopy / Laparoscopy",
+  "Medical Oncology", "Surgical Oncology", "Radiation Oncology", "Clinical Haematology", "Stem Cell / Bone Marrow Transplantation (BMT)", "Palliative & Supportive Oncology Care", "Nuclear Medicine & Theranostics",
+  "Non-Invasive / Clinical Cardiology", "Interventional Cardiology", "Cardiac Electrophysiology & Pacing", "Cardiothoracic & Vascular Surgery (CTVS)", "Adult Cardiac Surgery", "Minimally Invasive Cardiac Surgery (MICS)", "Thoracic Surgery", "Peripheral Vascular & Endovascular Surgery", "Heart Failure & Heart-Lung Transplant Care",
+  "Neurology", "Stroke & Interventional Neurology", "Epilepsy & Clinical Neurophysiology", "Movement Disorders & Parkinson’s Care", "Neuro-Immunology & Multiple Sclerosis", "Headache & Neuromuscular Medicine", "Neurosurgery", "Neurotrauma & Critical Care", "Cranial & Skull Base Neurosurgery", "Neuro-Oncology Surgery", "Minimally Invasive Spine Neurosurgery", "Paediatric Neurosurgery", "Functional & Stereotactic Neurosurgery", "Endovascular Interventional Neurosurgery",
+  "Comprehensive Ophthalmology", "Vitreo-Retinal Surgery & Medical Retina", "Cataract, Cornea, Anterior Segment & Refractive Surgery", "Glaucoma Services", "Oculoplasty, Orbit & Reconstructive Facial Surgery", "Paediatric Ophthalmology & Strabismus (Squint)", "Neuro-Ophthalmology", "Uvea, Ocular Immunology & Ocular Pathology",
+  "Oral and Maxillofacial Surgery", "Conservative Dentistry & Endodontics", "Orthodontics & Dentofacial Orthopaedics", "Periodontology & Implantology", "Prosthodontics & Crown-Bridge", "Pedodontics & Preventive Dentistry", "Oral Medicine & Radiology", "Oral & Maxillofacial Pathology",
+  "Radiodiagnosis & Medical Imaging", "Vascular & Interventional Radiology", "Laboratory Medicine & Pathology", "Histopathology & Cytopathology", "Haematology & Clinical Pathology", "Medical Microbiology & Serology", "Biochemistry & Molecular Diagnostics", "Cytogenetics & Molecular Genetics", "Transfusion Medicine & Blood Banking",
+  "Emergency Medicine & Casualty", "Critical Care Medicine / Intensive Care Unit (ICU)", "Medical ICU (MICU)", "Surgical ICU (SICU)", "Cardiac Care Unit (CCU / ICCU)", "Neuro ICU (NICU)", "Burns ICU", "Trauma Surgery & Acute Care Surgery", "Disaster Medicine & Pre-Hospital Care", "Anaesthesiology & Perioperative Medicine", "Neuro-anaesthesia", "Cardiac anaesthesia", "Paediatric anaesthesia", "Regional & Obstetric anaesthesia", "Pain Medicine & Interventional Algology",
+  "Psychiatry", "Child and Adolescent Psychiatry", "Addiction Medicine / De-addiction Psychiatry", "Geriatric Psychiatry", "Consultation-Liaison Psychiatry", "Clinical Psychology & Psychotherapy", "Neuropsychiatry",
+  "Physical Medicine & Rehabilitation (PMR / Physiatry)", "Neuro-Rehabilitation", "Cardiac & Pulmonary Rehabilitation", "Orthopaedic & Musculoskeletal Rehabilitation", "Vestibular & Balance Rehabilitation", "Prosthetics & Orthotics Services",
+  "Physiotherapy", "Occupational Therapy (OT)", "Speech-Language Pathology & Audiology", "Clinical Nutrition & Dietetics", "Medical Social Work & Patient Counselling", "Respiratory Therapy", "Dialysis Technology & Renal Support", "Perfusion Technology", "Optometry & Contact Lens Services", "Medical Physics & Radiation Safety", "Infection Prevention & Hospital Epidemiology", "Other Clinical Specialty",
+] as const;
+
 const ROLE_PERMISSIONS = [
   ["CASE_VIEW", "View clinical cases", "Clinical", "View cases and case status."],
   ["CASE_CREATE", "Create clinical cases", "Clinical", "Create new case submissions."],
@@ -102,6 +119,8 @@ const ROLE_PERMISSIONS = [
   ["SEO_MANAGE", "Manage SEO keywords", "SEO", "Review keyword sets and SEO quality."],
   ["USAGE_VIEW", "View AI usage and quotas", "Administration", "View usage, costs, and quota consumption."],
   ["ROLE_MATRIX_MANAGE", "Manage role matrix", "Administration", "Assign task permissions to roles."],
+  ["ORGANIZATION_MANAGE", "Manage organizations", "Administration", "Create and configure hospital and clinic organizations."],
+  ["USER_MANAGE", "Manage users", "Administration", "Create and edit users within an organization."],
 ] as const;
 
 const ROLE_DEFINITIONS = [
@@ -114,6 +133,11 @@ const ROLE_DEFINITIONS = [
 ] as const;
 
 async function main() {
+  console.log("Starting Macula seed...");
+  for (const [sortOrder, name] of DEFAULT_SPECIALTIES.entries()) {
+    await db.specialty.upsert({ where: { name }, update: { isActive: true, sortOrder }, create: { name, sortOrder } });
+  }
+  console.log(`Specialty master list complete (${DEFAULT_SPECIALTIES.length} entries).`);
   let created = 0;
   for (const channel of DEFAULT_CHANNELS) {
     const existing = await db.channelDefinition.findFirst({
@@ -135,6 +159,7 @@ async function main() {
     });
     created++;
   }
+  console.log(`Channel definitions complete (${created} created).`);
   let rulesCreated = 0;
   for (const rule of DEFAULT_REDACTION_RULES) {
     const patternOrCheck = JSON.stringify({ pattern: rule.pattern, flags: rule.flags, replacement: rule.replacement });
@@ -143,6 +168,7 @@ async function main() {
     await db.complianceRule.create({ data: { ruleType: "DPDP_REDACTION", severity: "BLOCKER", patternOrCheck, description: rule.description, organizationId: null, isActive: true } });
     rulesCreated++;
   }
+  console.log(`Redaction rules complete (${rulesCreated} created).`);
   const permissions = new Map<string, string>();
   for (const [slug, name, module, description] of ROLE_PERMISSIONS) {
     const taskDefinition = await db.taskDefinition.upsert({
@@ -153,6 +179,7 @@ async function main() {
     const permission = await db.permission.upsert({ where: { slug }, update: { name, module, description, taskDefinitionId: taskDefinition.id }, create: { slug, name, module, description, taskDefinitionId: taskDefinition.id } });
     permissions.set(slug, permission.id);
   }
+  console.log("Permission catalog complete.");
   const organizationsForRoles = await db.organization.findMany({ select: { id: true } });
   for (const definition of ROLE_DEFINITIONS) {
     const masterDefinition = await db.roleDefinition.upsert({
@@ -174,6 +201,7 @@ async function main() {
       }
     }
   }
+  console.log(`Role matrix complete for ${organizationsForRoles.length} organizations.`);
   const masterPrompts = [
     ["MASTER_SYNTHESIS", MANDATORY_CLINICAL_SYNTHESIS_PROMPT],
     ["SEO_KEYWORDS", DEFAULT_SEO_KEYWORD_PROMPT],
@@ -232,6 +260,7 @@ async function main() {
       await db.aiPromptTemplate.create({ data: { organizationId: organization.id, promptKey, definitionId: promptDefinitions.get(promptKey), content: preferredContent, version: (current?.version || master.version) + 1, isActive: true } });
     }
   }
+  console.log(`Organization prompt synchronization complete for ${organizations.length} organizations.`);
   console.log(`Seeded ${created} channels, ${rulesCreated} redaction rules, and ${masterPromptsCreated} master AI prompt templates.`);
 }
 

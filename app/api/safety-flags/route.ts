@@ -6,6 +6,7 @@ import { query } from "@/lib/worker-db";
 export const dynamic = "force-dynamic";
 
 const getSafetyOrganizations = () => query(`SELECT id, name, slug FROM macula.macula_organizations ORDER BY name ASC`);
+let safetyOrganizationCache: { expiresAt: number; rows: unknown[] } | null = null;
 
 /**
  * RFP §16 — "Potentially problematic content should be flagged for human
@@ -25,7 +26,12 @@ export async function GET(req: Request) {
     if (scopedOrgId) await requireOrganizationAccess(scopedOrgId);
 
     const organizationQuery = user?.isSuperAdmin
-      ? getSafetyOrganizations()
+      ? safetyOrganizationCache && safetyOrganizationCache.expiresAt > Date.now()
+        ? Promise.resolve({ rows: safetyOrganizationCache.rows })
+        : getSafetyOrganizations().then((result) => {
+          safetyOrganizationCache = { expiresAt: Date.now() + 30_000, rows: result.rows };
+          return result;
+        })
       : user?.organizationId
         ? query(`SELECT id, name, slug FROM macula.macula_organizations WHERE id = $1`, [user.organizationId])
         : Promise.resolve({ rows: [] });
@@ -43,7 +49,7 @@ export async function GET(req: Request) {
       LEFT JOIN macula.macula_users u ON u.id = c."physicianId"
       LEFT JOIN macula.macula_image_assets ia ON ia.id = sf."imageAssetId"
       ${filters.length ? `WHERE ${filters.join(" AND ")}` : ""}
-      ORDER BY sf."createdAt" DESC LIMIT ${flagId ? 1 : 50}`, values);
+      ORDER BY sf."createdAt" DESC LIMIT ${flagId ? 1 : 25}`, values);
     const organizations = (await organizationQuery).rows;
 
     return NextResponse.json({ flags, organizations }, { headers: { "Cache-Control": "no-store" } });

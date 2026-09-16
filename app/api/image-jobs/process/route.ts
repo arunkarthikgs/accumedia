@@ -4,6 +4,8 @@ import { generateCaseImage } from "@/lib/image-engine";
 import { requireAuthenticatedUser, requireOrganizationAccess } from "@/lib/tenant-auth";
 
 export async function POST(req: Request) {
+  return NextResponse.json({ error: "Image generation jobs require an external image-processing worker. The Cloudflare Worker cannot run the current image engine safely." }, { status: 501 });
+  /*
   try {
     const cronAuthorized = Boolean(process.env.PUBLISHING_CRON_SECRET && req.headers.get("x-publishing-cron-secret") === process.env.PUBLISHING_CRON_SECRET);
     const user = cronAuthorized ? null : await requireAuthenticatedUser();
@@ -37,4 +39,5 @@ export async function POST(req: Request) {
   } catch (error: any) {
     return NextResponse.json({ error: error.message || "Failed to process image generation jobs." }, { status: 500 });
   }
+  */
 }

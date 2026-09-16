@@ -21,6 +21,8 @@ export async function POST(
   req: Request,
   props: { params: Promise<{ id: string }> }
 ) {
+  return NextResponse.json({ error: "Image PII screening is not available in the Cloudflare Worker. Configure an external image-safety processor with Tesseract or Cloudflare AI before accepting clinical image uploads." }, { status: 501 });
+  /*
   try {
     const { id } = await props.params;
     const formData = await req.formData();
@@ -101,4 +103,5 @@ export async function POST(
     console.error("Image upload error:", error);
     return NextResponse.json({ error: error.message || "Image upload failed." }, { status: 500 });
   }
+  */
 }

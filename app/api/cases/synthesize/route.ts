@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import OpenAI from "openai";
 import { MANDATORY_CLINICAL_SYNTHESIS_PROMPT } from "@/lib/prompts/clinical-synthesis";
+import { createOpenAIChatCompletion } from "@/lib/openai-fetch";
 import { getResolvedAiPrompts } from "@/lib/ai-prompts";
 import { findUnredactedRuleMatches, redactClinicalText, redactClinicalValue } from "@/lib/prompts/clinical-redaction";
 import { logAIUsage } from "@/lib/ai-usage";
@@ -9,10 +9,6 @@ import { assertTokenQuota } from "@/lib/quotas";
 import { generateSeoKeywordSet } from "@/lib/seo-keyword-engine";
 import { query } from "@/lib/worker-db";
 import crypto from "node:crypto";
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
 
 const REDACTION_MARKERS = [
   { marker: "[REDACTED_DOB]", label: "date of birth" },
@@ -101,10 +97,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Synthesis was blocked because possible identifying information remains after redaction.", safetyReviewRequired: true, unresolvedRules }, { status: 422 });
     }
     await assertTokenQuota(organizationId, Math.ceil(sanitizedInput.length / 4) + 6000);
-    const synthesisResponse = await openai.chat.completions.create({
+    const synthesisResponse = await createOpenAIChatCompletion({
       model: "gpt-4o",
       temperature: 0.1,
-      response_format: { type: "json_object" },
+      jsonMode: true,
       messages: [
         {
           role: "system",
@@ -239,7 +235,7 @@ Return ONLY a valid JSON object matching this exact schema:
 
     if (previousCase) {
       const versionCount = Number((await query<{ count: number }>(`SELECT COUNT(*)::int AS count FROM macula.macula_case_versions WHERE "caseId"=$1`, [previousCase.id])).rows[0]?.count || 0);
-      await query(`INSERT INTO macula.macula_case_versions (id, version, "changeType", raw_input, "guidedSubmission", "masterRecord", "safetyAudit", status, "caseId") VALUES ($1,$2,'pre_synthesis_snapshot',$3,$4::jsonb,$5::jsonb,$6::jsonb,$7,$8)`, [crypto.randomUUID(), versionCount + 1, previousCase.raw_input, JSON.stringify(previousCase.guidedSubmission), JSON.stringify(previousCase.masterRecord), JSON.stringify(previousCase.safetyAudit), previousCase.status, previousCase.id]);
+      await query(`INSERT INTO macula.macula_case_versions (id, version, "changeType", "rawInput", "guidedSubmission", "masterRecord", "safetyAudit", status, "caseId") VALUES ($1,$2,'pre_synthesis_snapshot',$3,$4::jsonb,$5::jsonb,$6::jsonb,$7,$8)`, [crypto.randomUUID(), versionCount + 1, previousCase.raw_input, JSON.stringify(previousCase.guidedSubmission), JSON.stringify(previousCase.masterRecord), JSON.stringify(previousCase.safetyAudit), previousCase.status, previousCase.id]);
     }
 
     // 3. Update existing Case (if initiated during audio upload) OR create new Case
@@ -250,7 +246,7 @@ Return ONLY a valid JSON object matching this exact schema:
     }
 
     if (!previousCase) {
-      await query(`INSERT INTO macula.macula_case_versions (id,version,"changeType",raw_input,"guidedSubmission","masterRecord","safetyAudit",status,"caseId") VALUES ($1,1,'initial_synthesis',$2,$3::jsonb,$4::jsonb,$5::jsonb,$6,$7)`, [crypto.randomUUID(), finalizedCase.raw_input, JSON.stringify(finalizedCase.guidedSubmission), JSON.stringify(finalizedCase.masterRecord), JSON.stringify(finalizedCase.safetyAudit), finalizedCase.status, finalizedCase.id]);
+      await query(`INSERT INTO macula.macula_case_versions (id,version,"changeType","rawInput","guidedSubmission","masterRecord","safetyAudit",status,"caseId") VALUES ($1,1,'initial_synthesis',$2,$3::jsonb,$4::jsonb,$5::jsonb,$6,$7)`, [crypto.randomUUID(), finalizedCase.raw_input, JSON.stringify(finalizedCase.guidedSubmission), JSON.stringify(finalizedCase.masterRecord), JSON.stringify(finalizedCase.safetyAudit), finalizedCase.status, finalizedCase.id]);
     }
 
     await query(`INSERT INTO macula.macula_seo_keyword_sets (id, "caseId", "primaryKeyword", "secondaryKeywords", "longTailKeywords", "localKeywords", "questionKeywords", "semanticKeywords", "searchIntent", "qualityScore", "validationIssues", "contentHash") VALUES ($1,$2,$3,$4::jsonb,$5::jsonb,$6::jsonb,$7::jsonb,$8::jsonb,$9,$10,$11::jsonb,$12) ON CONFLICT ("caseId") DO UPDATE SET "primaryKeyword"=EXCLUDED."primaryKeyword", "secondaryKeywords"=EXCLUDED."secondaryKeywords", "longTailKeywords"=EXCLUDED."longTailKeywords", "localKeywords"=EXCLUDED."localKeywords", "questionKeywords"=EXCLUDED."questionKeywords", "semanticKeywords"=EXCLUDED."semanticKeywords", "searchIntent"=EXCLUDED."searchIntent", "qualityScore"=EXCLUDED."qualityScore", "validationIssues"=EXCLUDED."validationIssues", "contentHash"=EXCLUDED."contentHash", "updatedAt"=NOW()`, [crypto.randomUUID(), finalizedCase.id, seoKeywords.primaryKeyword || null, JSON.stringify(seoKeywords.secondaryKeywords || []), JSON.stringify(seoKeywords.longTailKeywords || []), JSON.stringify(seoKeywords.localKeywords || []), JSON.stringify(seoKeywords.questionKeywords || []), JSON.stringify(seoKeywords.semanticKeywords || []), seoKeywords.searchIntent || null, seoQuality.score, JSON.stringify(seoQuality.issues), seoQuality.contentHash]);

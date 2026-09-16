@@ -44,7 +44,15 @@ export async function GET(req: Request) {
     const organizationQuery = user?.isSuperAdmin
       ? query(`SELECT id, name, slug FROM macula.macula_organizations ORDER BY name ASC`)
       : user?.organizationId
-        ? query(`SELECT id, name, slug FROM macula.macula_organizations WHERE id = $1`, [user.organizationId])
+        ? Promise.resolve({
+            rows: [
+              {
+                id: user.organizationId,
+                name: user.organizationName || "Current organization",
+                slug: null,
+              },
+            ],
+          })
         : Promise.resolve({ rows: [] });
     const [{ rows: cases }, { rows: organizations }] = await Promise.all([
       query(adminCaseQuery, listValues), organizationQuery,

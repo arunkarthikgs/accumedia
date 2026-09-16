@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -94,6 +94,8 @@ function countWords(value: string) {
 
 export default function NewCasePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const resumeCaseId = searchParams.get("resumeCaseId");
 
   // Organizations & Physicians
   const [organizations, setOrganizations] = useState<Organization[]>([]);
@@ -104,6 +106,9 @@ export default function NewCasePage() {
   // Pluggable ASR Model Selection
   const [selectedAsrModel, setSelectedAsrModel] = useState<string>("whisper-1");
   const selectedWorkflow = ASR_MODELS.find((model) => model.id === selectedAsrModel) || ASR_MODELS[0];
+  const scopedPhysicians = selectedOrgId
+    ? physicians.filter((physician) => physician.organization?.id === selectedOrgId)
+    : physicians;
 
   // Audio Recording States
   const [isRecording, setIsRecording] = useState(false);
@@ -194,6 +199,55 @@ export default function NewCasePage() {
     }
     loadMetadata();
   }, []);
+
+  useEffect(() => {
+    if (scopedPhysicians.some((physician) => physician.id === selectedPhysicianId)) return;
+    setSelectedPhysicianId(scopedPhysicians[0]?.id || "");
+  }, [selectedOrgId, physicians, selectedPhysicianId, scopedPhysicians]);
+
+  useEffect(() => {
+    if (!resumeCaseId) return;
+    let cancelled = false;
+
+    async function resumeCase() {
+      try {
+        const response = await fetch(`/api/cases/${resumeCaseId}/review`);
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Unable to resume case.");
+        const resumedCase = data.case;
+        const recording = resumedCase.recordings?.[0];
+        if (cancelled || !recording) return;
+
+        setActiveCaseId(resumedCase.id);
+        setRecordingId(recording.id);
+        setSelectedOrgId(resumedCase.organization.id);
+        setSelectedPhysicianId(resumedCase.physician.id);
+        setRawTranscript(recording.rawTranscript || "");
+        setRefinedText(recording.transcribedText || "");
+        setActiveTranscriberAgent(recording.transcriptionAgent || null);
+        setCurrentDbStatus(resumedCase.status === "PENDING_REVIEW" ? "UPLOADED" : resumedCase.status);
+
+        const playbackResponse = await fetch(
+          `/api/audio/playback?recordingId=${encodeURIComponent(recording.id)}`,
+        );
+        const playbackData = await playbackResponse.json();
+        if (!playbackResponse.ok) throw new Error(playbackData.error || "Unable to restore audio.");
+        const audioResponse = await fetch(playbackData.url);
+        if (!audioResponse.ok) throw new Error("Unable to download the saved audio.");
+        const audioBlob = await audioResponse.blob();
+        if (cancelled) return;
+        setAudioFileName(recording.fileName || "dictation.webm");
+        setAudioBlob(audioBlob);
+      } catch (error: any) {
+        if (!cancelled) setErrorMessage(error.message || "Unable to resume case.");
+      }
+    }
+
+    resumeCase();
+    return () => {
+      cancelled = true;
+    };
+  }, [resumeCaseId]);
 
   useEffect(() => {
     if (audioBlob) {
@@ -656,7 +710,7 @@ export default function NewCasePage() {
               disabled={!!activeCaseId}
               className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800 focus:border-teal-500 focus:bg-white focus:outline-hidden disabled:opacity-60"
             >
-              {physicians.map((p) => (
+              {scopedPhysicians.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name} {p.specialty ? `(${p.specialty})` : ""}
                 </option>

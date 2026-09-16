@@ -131,15 +131,17 @@ export default async function DashboardPage() {
             icon={<ShieldAlert className="h-6 w-6" />}
           />
         </Link>
-        <Link href="/admin/organizations" className="block rounded-lg transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-pine/30" aria-label="Manage hospital networks">
-          <MetricCard
-            label="Hospital networks"
-            value={orgCount}
-            tone="pro"
-            description={`${rejectedCases} cases rejected${organizationId ? " in your hospital" : ""}`}
-            icon={<Building2 className="h-6 w-6" />}
-          />
-        </Link>
+        {!organizationId && (
+          <Link href="/admin/organizations" className="block rounded-lg transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-pine/30" aria-label="Manage hospital networks">
+            <MetricCard
+              label="Hospital networks"
+              value={orgCount}
+              tone="pro"
+              description={`${rejectedCases} cases rejected`}
+              icon={<Building2 className="h-6 w-6" />}
+            />
+          </Link>
+        )}
       </div>
 
       {/* Recent Cases Section */}

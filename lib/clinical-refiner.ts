@@ -1,8 +1,4 @@
-import OpenAI from "openai";
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import { createOpenAIChatCompletion } from "@/lib/openai-fetch";
 
 export const DEFAULT_CLINICAL_REFINER_PROMPT = `You are an expert clinical documentation and medical transcription refiner for healthcare practitioners.
 
@@ -23,7 +19,7 @@ export async function refineClinicalText(
     return "";
   }
 
-  const response = await openai.chat.completions.create({
+  const response = await createOpenAIChatCompletion({
     model: "gpt-4o",
     temperature: 0.1, // Low temperature to prevent medical hallucinations
     messages: [
@@ -49,5 +45,5 @@ Your task:
     ],
   });
 
-  return response.choices[0]?.message?.content?.trim() || rawAsrText;
+  return response.choices?.[0]?.message?.content?.trim() || rawAsrText;
 }

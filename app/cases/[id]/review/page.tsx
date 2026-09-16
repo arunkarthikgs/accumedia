@@ -279,32 +279,41 @@ export default function CaseReviewPage() {
   >("clinical");
 
   useEffect(() => {
+    let isCurrent = true;
+
     async function loadCase() {
       try {
-        const [data, versionsData, auditData] = await Promise.all([
-          fetchJsonOnce<{ case: ReviewCase }>(`/api/cases/${params.id}/review`),
-          fetchJsonOnce<{ versions: typeof versions }>(
-            `/api/cases/${params.id}/versions`,
-          ),
-          fetchJsonOnce<{
-            events: typeof auditEvents;
-            nextCursor?: string | null;
-          }>(`/api/cases/${params.id}/audit`),
-        ]);
+        const data = await fetchJsonOnce<{ case: ReviewCase }>(
+          `/api/cases/${params.id}/review`,
+        );
         const found = data.case as ReviewCase | undefined;
         if (!found) throw new Error("Case not found.");
+        if (!isCurrent) return;
         setReviewCase(found);
         setRecordDraft(JSON.stringify(found.masterRecord, null, 2));
+        setIsLoading(false);
+
+        const versionsData = await fetchJsonOnce<{ versions: typeof versions }>(
+          `/api/cases/${params.id}/versions`,
+        );
+        const auditData = await fetchJsonOnce<{
+          events: typeof auditEvents;
+          nextCursor?: string | null;
+        }>(`/api/cases/${params.id}/audit`);
+        if (!isCurrent) return;
         setVersions(versionsData.versions || []);
         setAuditEvents(auditData.events || []);
         setAuditCursor(auditData.nextCursor || null);
       } catch (requestError: any) {
+        if (!isCurrent) return;
         setError(requestError.message || "Unable to load case.");
-      } finally {
         setIsLoading(false);
       }
     }
     loadCase();
+    return () => {
+      isCurrent = false;
+    };
   }, [params.id]);
 
   const saveRecord = async () => {

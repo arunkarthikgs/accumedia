@@ -20,7 +20,7 @@ export async function getDashboardSummary(organizationId: string | null) {
       (SELECT COUNT(*)::int FROM scoped_cases WHERE status = 'APPROVED') AS approved_cases,
       (SELECT COUNT(*)::int FROM scoped_cases WHERE status = 'REJECTED') AS rejected_cases,
       (SELECT COUNT(*)::int FROM macula.macula_safety_flags sf JOIN scoped_cases c ON c.id = sf."caseId" WHERE sf.status = 'OPEN') AS open_safety_flags,
-      (SELECT COUNT(*)::int FROM macula.macula_organizations) AS org_count,
+      (SELECT COUNT(*)::int FROM macula.macula_organizations ${organizationId ? 'WHERE id = $1' : ''}) AS org_count,
       COALESCE((SELECT json_agg(recent) FROM recent), '[]') AS recent_cases`, params);
   const summary = rows[0] || {};
   return {

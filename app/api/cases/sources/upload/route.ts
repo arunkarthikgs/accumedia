@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
 import { uploadSourceToR2 } from "@/lib/r2";
 import { assertCaseQuota } from "@/lib/quotas";
 import { requireOrganizationAccess } from "@/lib/tenant-auth";
+import { query } from "@/lib/worker-db";
+import crypto from "node:crypto";
 
 const DOCUMENT_TYPES = new Set([
   "application/pdf",
@@ -44,31 +45,13 @@ export async function POST(req: Request) {
 
     const buffer = Buffer.from(await file.arrayBuffer());
     const { r2Key, storageUrl } = await uploadSourceToR2(buffer, file.name, file.type || "application/octet-stream", organizationId);
-    const createdCase = await db.case.create({
-      data: {
-        title: `${sourceType === "VIDEO" ? "Video" : "Document"} Case - ${new Date().toLocaleString("en-IN")}`,
-        rawInput: "",
-        masterRecord: {},
-        safetyAudit: { source: sourceType, status: "AWAITING_PROCESSING" },
-        status: "PENDING_REVIEW",
-        organizationId,
-        physicianId,
-      },
-    });
+    const caseId = crypto.randomUUID();
+    const safetyAudit = { source: sourceType, status: "AWAITING_PROCESSING" };
+    const { rows: caseRows } = await query(`INSERT INTO macula.macula_cases (id, title, raw_input, "masterRecord", "safetyAudit", status, "organizationId", "physicianId") VALUES ($1, $2, '', '{}'::jsonb, $3::jsonb, 'PENDING_REVIEW', $4, $5) RETURNING id`, [caseId, `${sourceType === "VIDEO" ? "Video" : "Document"} Case - ${new Date().toLocaleString("en-IN")}`, JSON.stringify(safetyAudit), organizationId, physicianId]);
+    const createdCase = caseRows[0];
 
-    const source = await db.caseSource.create({
-      data: {
-        sourceType,
-        status: "UPLOADED",
-        fileName: file.name,
-        mimeType: file.type || "application/octet-stream",
-        r2Key,
-        storageUrl,
-        organizationId,
-        userId: userId || null,
-        caseId: createdCase.id,
-      },
-    });
+    const { rows: sourceRows } = await query(`INSERT INTO macula.macula_case_sources (id, "sourceType", status, "fileName", "mimeType", "r2Key", "storageUrl", "organizationId", "userId", "caseId") VALUES ($1, $2, 'UPLOADED', $3, $4, $5, $6, $7, $8, $9) RETURNING *`, [crypto.randomUUID(), sourceType, file.name, file.type || "application/octet-stream", r2Key, storageUrl, organizationId, userId || null, createdCase.id]);
+    const source = sourceRows[0];
 
     if (sourceType) {
       try {

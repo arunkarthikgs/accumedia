@@ -270,35 +270,11 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: "Primary brand colour must be a valid hex value, such as #0f766e." }, { status: 400 });
     }
     await requireOrganizationAccess(id);
-    const existing = await db.organization.findUnique({ where: { id }, select: { preferredAsrModel: true } });
+    const existing = (await query<{ preferredAsrModel: string }>(`SELECT "preferredAsrModel" FROM macula.macula_organizations WHERE id = $1 LIMIT 1`, [id])).rows[0];
     if (!existing) return NextResponse.json({ error: "Organization not found." }, { status: 404 });
 
-    const updated = await db.organization.update({
-      where: { id },
-      data: {
-        name: name?.trim(),
-        slug: slug?.trim(),
-        brandingHex: normalizeBrandColor(brandingHex),
-        preferredAsrModel: user?.isSuperAdmin ? preferredAsrModel || "whisper-1" : existing.preferredAsrModel,
-        customSystemPrompt: customSystemPrompt?.trim() || null,
-        logoUrl: logoUrl?.trim() || null,
-        brandFont: brandFont?.trim() || "Arial",
-        brandTagline: brandTagline?.trim() || null,
-        location: location?.trim() || null,
-        websiteUrl: websiteUrl?.trim() || null,
-        linkedinUrl: linkedinUrl?.trim() || null,
-        facebookUrl: facebookUrl?.trim() || null,
-        instagramUrl: instagramUrl?.trim() || null,
-        xUrl: xUrl?.trim() || null,
-        youtubeUrl: youtubeUrl?.trim() || null,
-        contactEmail: contactEmail?.trim() || null,
-        contactPhone: contactPhone?.trim() || null,
-        preferredTone: preferredTone?.trim() || null,
-        callToAction: callToAction?.trim() || null,
-        hospitalPhotoUrls: Array.isArray(hospitalPhotoUrls) ? hospitalPhotoUrls : null,
-        defaultDisclaimer: defaultDisclaimer?.trim(),
-      },
-    });
+    const { rows } = await query(`UPDATE macula.macula_organizations SET name=$1, slug=$2, "brandingHex"=$3, "preferredAsrModel"=$4, "customSystemPrompt"=$5, "logoUrl"=$6, "brandFont"=$7, "brandTagline"=$8, location=$9, "websiteUrl"=$10, "linkedinUrl"=$11, "facebookUrl"=$12, "instagramUrl"=$13, "xUrl"=$14, "youtubeUrl"=$15, "contactEmail"=$16, "contactPhone"=$17, "preferredTone"=$18, "callToAction"=$19, "hospitalPhotoUrls"=$20::jsonb, "defaultDisclaimer"=$21, "updatedAt"=NOW() WHERE id=$22 RETURNING *`, [name?.trim(), slug?.trim(), normalizeBrandColor(brandingHex), user?.isSuperAdmin ? preferredAsrModel || "whisper-1" : existing.preferredAsrModel, customSystemPrompt?.trim() || null, logoUrl?.trim() || null, brandFont?.trim() || "Arial", brandTagline?.trim() || null, location?.trim() || null, websiteUrl?.trim() || null, linkedinUrl?.trim() || null, facebookUrl?.trim() || null, instagramUrl?.trim() || null, xUrl?.trim() || null, youtubeUrl?.trim() || null, contactEmail?.trim() || null, contactPhone?.trim() || null, preferredTone?.trim() || null, callToAction?.trim() || null, JSON.stringify(Array.isArray(hospitalPhotoUrls) ? hospitalPhotoUrls : null), defaultDisclaimer?.trim(), id]);
+    const updated = rows[0];
 
     return NextResponse.json({ success: true, organization: updated });
   } catch (error: any) {
@@ -319,31 +295,8 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: "Primary brand colour must be a valid hex value, such as #0f766e." }, { status: 400 });
     }
     await requireOrganizationAccess(body.organizationId);
-    const updated = await db.organization.update({
-      where: { id: body.organizationId },
-      data: {
-        name: body.name?.trim(),
-        brandingHex: normalizeBrandColor(body.brandingHex),
-        logoUrl: body.logoUrl?.trim() || null,
-        brandFont: body.brandFont?.trim() || "Arial",
-        brandTagline: body.brandTagline?.trim() || null,
-        location: body.location?.trim() || null,
-        websiteUrl: body.websiteUrl?.trim() || null,
-        linkedinUrl: body.linkedinUrl?.trim() || null,
-        facebookUrl: body.facebookUrl?.trim() || null,
-        instagramUrl: body.instagramUrl?.trim() || null,
-        xUrl: body.xUrl?.trim() || null,
-        youtubeUrl: body.youtubeUrl?.trim() || null,
-        contactEmail: body.contactEmail?.trim() || null,
-        contactPhone: body.contactPhone?.trim() || null,
-        preferredTone: body.preferredTone?.trim() || null,
-        callToAction: body.callToAction?.trim() || null,
-        hospitalPhotoUrls: Array.isArray(body.hospitalPhotoUrls) ? body.hospitalPhotoUrls : null,
-        preferredAsrModel: body.preferredAsrModel?.trim() || undefined,
-        customSystemPrompt: body.customSystemPrompt?.trim() || null,
-        defaultDisclaimer: body.defaultDisclaimer?.trim(),
-      },
-    });
+    const { rows } = await query(`UPDATE macula.macula_organizations SET name=$1, "brandingHex"=$2, "logoUrl"=$3, "brandFont"=$4, "brandTagline"=$5, location=$6, "websiteUrl"=$7, "linkedinUrl"=$8, "facebookUrl"=$9, "instagramUrl"=$10, "xUrl"=$11, "youtubeUrl"=$12, "contactEmail"=$13, "contactPhone"=$14, "preferredTone"=$15, "callToAction"=$16, "hospitalPhotoUrls"=$17::jsonb, "preferredAsrModel"=COALESCE($18, "preferredAsrModel"), "customSystemPrompt"=$19, "defaultDisclaimer"=$20, "updatedAt"=NOW() WHERE id=$21 RETURNING *`, [body.name?.trim(), normalizeBrandColor(body.brandingHex), body.logoUrl?.trim() || null, body.brandFont?.trim() || "Arial", body.brandTagline?.trim() || null, body.location?.trim() || null, body.websiteUrl?.trim() || null, body.linkedinUrl?.trim() || null, body.facebookUrl?.trim() || null, body.instagramUrl?.trim() || null, body.xUrl?.trim() || null, body.youtubeUrl?.trim() || null, body.contactEmail?.trim() || null, body.contactPhone?.trim() || null, body.preferredTone?.trim() || null, body.callToAction?.trim() || null, JSON.stringify(Array.isArray(body.hospitalPhotoUrls) ? body.hospitalPhotoUrls : null), body.preferredAsrModel?.trim() || null, body.customSystemPrompt?.trim() || null, body.defaultDisclaimer?.trim(), body.organizationId]);
+    const updated = rows[0];
     return NextResponse.json({ success: true, organization: updated });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || "Failed to update brand settings." }, { status: 500 });

@@ -13,18 +13,38 @@ async function requireRoleManager() {
   return user;
 }
 
+let roleCatalogCache: { expiresAt: number; permissions: unknown[]; taskDefinitions: unknown[] } | null = null;
+let roleOrganizationsCache: { expiresAt: number; organizations: { id: string; name: string; slug: string }[] } | null = null;
+
 export async function GET(req: Request) {
   try {
     const user = await requireRoleManager();
     const requestedOrganizationId = new URL(req.url).searchParams.get("organizationId");
-    const organizations = user.isSuperAdmin
-      ? (await query<{ id: string; name: string; slug: string }>(`SELECT id, name, slug FROM macula.macula_organizations ORDER BY name ASC`)).rows
+    const organizations: { id: string; name: string; slug: string }[] = user.isSuperAdmin
+      ? roleOrganizationsCache && roleOrganizationsCache.expiresAt > Date.now()
+        ? roleOrganizationsCache.organizations
+        : (await query<{ id: string; name: string; slug: string }>(`SELECT id, name, slug FROM macula.macula_organizations ORDER BY name ASC`)).rows
       : [];
+    if (user.isSuperAdmin && !roleOrganizationsCache) roleOrganizationsCache = { expiresAt: Date.now() + 30_000, organizations };
     const organizationId = user.isSuperAdmin ? requestedOrganizationId || organizations[0]?.id || null : user.organizationId;
     if (!organizationId && !user.isSuperAdmin) {
       return NextResponse.json({ error: "User is not assigned to an organization." }, { status: 400 });
     }
-    const [{ rows: roles }, { rows: permissions }, { rows: taskDefinitions }] = await Promise.all([
+    let permissions: any[];
+    let taskDefinitions: any[];
+    if (roleCatalogCache && roleCatalogCache.expiresAt > Date.now()) {
+      permissions = roleCatalogCache.permissions as any[];
+      taskDefinitions = roleCatalogCache.taskDefinitions as any[];
+    } else {
+      const catalog = await Promise.all([
+        query(`SELECT id, name, module, description, slug FROM macula.macula_permissions ORDER BY module ASC, slug ASC`),
+        query(`SELECT td.id, td.slug, td.name, td.module, td.description, COALESCE(jsonb_agg(jsonb_build_object('id', p.id)) FILTER (WHERE p.id IS NOT NULL), '[]') AS permissions FROM macula.macula_task_definitions td LEFT JOIN macula.macula_permissions p ON p."taskDefinitionId" = td.id GROUP BY td.id ORDER BY td.module ASC, td.slug ASC`),
+      ]);
+      permissions = catalog[0].rows;
+      taskDefinitions = catalog[1].rows;
+      roleCatalogCache = { expiresAt: Date.now() + 300_000, permissions, taskDefinitions };
+    }
+    const [{ rows: roles }] = await Promise.all([
       query(`SELECT r.id, r.name, r.slug, r."isSystem" AS "isSystem", r."organizationId" AS "organizationId",
                     jsonb_build_object('id', rd.id, 'slug', rd.slug, 'name', rd.name, 'isSystem', rd."isSystem") AS definition,
                     COALESCE(jsonb_agg(jsonb_build_object('permissionId', rp."permissionId")) FILTER (WHERE rp."permissionId" IS NOT NULL), '[]') AS "rolePermissions"
@@ -33,12 +53,6 @@ export async function GET(req: Request) {
              LEFT JOIN macula.macula_role_permissions rp ON rp."roleId" = r.id
              WHERE ($1::text IS NULL OR r."organizationId" IS NULL OR r."organizationId" = $1)
              GROUP BY r.id, rd.id ORDER BY r.slug ASC`, [organizationId]),
-      query(`SELECT id, name, module, description, slug FROM macula.macula_permissions ORDER BY module ASC, slug ASC`),
-      query(`SELECT td.id, td.slug, td.name, td.module, td.description,
-                    COALESCE(jsonb_agg(jsonb_build_object('id', p.id)) FILTER (WHERE p.id IS NOT NULL), '[]') AS permissions
-             FROM macula.macula_task_definitions td
-             LEFT JOIN macula.macula_permissions p ON p."taskDefinitionId" = td.id
-             GROUP BY td.id ORDER BY td.module ASC, td.slug ASC`),
     ]);
 
     const currentOrganization = organizationId
@@ -84,6 +98,7 @@ export async function POST(req: Request) {
       );
       const role = { ...createdRoles[0], definition: null, rolePermissions: [] };
       revalidateTag("role-matrix");
+      roleOrganizationsCache = null;
       return NextResponse.json({ role }, { status: 201 });
     }
 
@@ -114,6 +129,7 @@ export async function POST(req: Request) {
     }
 
     revalidateTag("role-matrix");
+    roleCatalogCache = null;
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error("Failed to toggle permission:", error);

@@ -1,7 +1,6 @@
 import OpenAI from "openai";
 import crypto from "node:crypto";
-import { db } from "@/lib/db";
-import type { ChannelDefinition, Organization } from "@prisma/client";
+import { query } from "@/lib/worker-db";
 import { validateGeneratedContent } from "./content-validation";
 import { logAIUsage } from "./ai-usage";
 import { assertAssetQuota, assertTokenQuota } from "./quotas";
@@ -68,8 +67,8 @@ Return JSON matching those fields.`,
 interface GenerateOptions {
   caseId: string;
   masterRecord: Record<string, any>;
-  organization: Organization;
-  channel: ChannelDefinition;
+  organization: any;
+  channel: any;
 }
 
 export async function generateChannelAsset({
@@ -81,9 +80,9 @@ export async function generateChannelAsset({
   await assertAssetQuota(organization.id);
   const outputType = channel.outputType || "SEO_BLOG";
   const basePrompt = channel.systemPrompt?.trim() || DEFAULT_PROMPTS[outputType];
-  const platformLimit = await db.platformLimit.findUnique({ where: { platform: "x" } });
+  const platformLimit = (await query<{ maxCharacters: number | null }>(`SELECT "maxCharacters" FROM macula.macula_platform_limits WHERE platform = 'x' LIMIT 1`)).rows[0];
   const seoKeywordSet = outputType === "SEO_BLOG"
-    ? await db.seoKeywordSet.findUnique({ where: { caseId }, select: { primaryKeyword: true, secondaryKeywords: true, longTailKeywords: true, localKeywords: true, questionKeywords: true, semanticKeywords: true, searchIntent: true } })
+    ? (await query(`SELECT "primaryKeyword", "secondaryKeywords", "longTailKeywords", "localKeywords", "questionKeywords", "semanticKeywords", "searchIntent" FROM macula.macula_seo_keyword_sets WHERE "caseId" = $1 LIMIT 1`, [caseId])).rows[0]
     : null;
 
   const systemPrompt = `${basePrompt}
@@ -128,25 +127,8 @@ Default call to action, where appropriate and non-promotional: ${organization.ca
   const content = outputType === "VIDEO_SCRIPT" ? { script: raw } : safeJsonParse(raw);
   const validation = validateGeneratedContent(content, channel);
 
-  return db.generatedAsset.create({
-    data: {
-      caseId,
-      channelKey: channel.channelKey,
-      channelName: channel.displayName,
-      outputType: outputType as any,
-      variant: channel.durationLabel || undefined,
-      content,
-      status: validation.valid ? "DRAFT" : "REVIEW",
-      validationWarnings: validation.warnings,
-      validationWordCount: validation.wordCount,
-      validationCharacterCount: validation.characterCount,
-      validationDurationSeconds: validation.estimatedDurationSeconds,
-      version: 1,
-      promptTemplateId: channel.id,
-      promptTemplateVersion,
-      modelUsed: "gpt-4o",
-    },
-  });
+  const { rows } = await query(`INSERT INTO macula.macula_generated_assets (id, "caseId", "channelKey", "channelName", "outputType", variant, content, status, "validationWarnings", "validationWordCount", "validationCharacterCount", "validationDurationSeconds", version, "promptTemplateId", "promptTemplateVersion", "modelUsed") VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9::jsonb, $10, $11, $12, 1, $13, $14, 'gpt-4o') RETURNING *`, [crypto.randomUUID(), caseId, channel.channelKey, channel.displayName, outputType, channel.durationLabel || null, JSON.stringify(content), validation.valid ? "DRAFT" : "REVIEW", JSON.stringify(validation.warnings || []), validation.wordCount, validation.characterCount, validation.estimatedDurationSeconds, channel.id, promptTemplateVersion]);
+  return rows[0];
 }
 
 function safeJsonParse(raw: string) {
@@ -164,23 +146,16 @@ function safeJsonParse(raw: string) {
  * ChannelDefinitions yet, so no org ships with zero required outputs.
  */
 export async function runAdaptationEngine(caseId: string) {
-  const kase = await db.case.findUniqueOrThrow({
-    where: { id: caseId },
-    include: { organization: true },
-  });
+  const kase = (await query<any>(`SELECT c.*, row_to_json(o) AS organization FROM macula.macula_cases c JOIN macula.macula_organizations o ON o.id = c."organizationId" WHERE c.id = $1 LIMIT 1`, [caseId])).rows[0];
+  if (!kase) throw new Error("Case not found.");
 
-  let channels = await db.channelDefinition.findMany({
-    where: { isActive: true, outputType: { not: null }, OR: [{ organizationId: kase.organizationId }, { organizationId: null }] },
-  });
+  let channels = (await query<any>(`SELECT * FROM macula.macula_channel_definitions WHERE "isActive" = TRUE AND "outputType" IS NOT NULL AND ("organizationId" = $1 OR "organizationId" IS NULL)`, [kase.organizationId])).rows;
 
   if (channels.length === 0) {
-    channels = await db.channelDefinition.findMany({ where: { organizationId: null, outputType: { not: null } } });
+    channels = (await query<any>(`SELECT * FROM macula.macula_channel_definitions WHERE "organizationId" IS NULL AND "outputType" IS NOT NULL`)).rows;
   }
 
-  const existingAssets = await db.generatedAsset.findMany({
-    where: { caseId },
-    select: { channelKey: true },
-  });
+  const existingAssets = (await query<{ channelKey: string }>(`SELECT "channelKey" FROM macula.macula_generated_assets WHERE "caseId" = $1`, [caseId])).rows;
   const existingChannelKeys = new Set(existingAssets.map((asset) => asset.channelKey));
   const created = [];
   for (const channel of channels) {

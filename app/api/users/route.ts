@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { requireAuthenticatedUser } from "@/lib/tenant-auth";
 import { timeDbOperation } from "@/lib/perf";
+import { query } from "@/lib/worker-db";
 
 export async function GET(req: Request) {
   try {
@@ -11,15 +12,51 @@ export async function GET(req: Request) {
     const organizationScope = user?.isSuperAdmin
       ? requestedOrganizationId ? { organizationId: requestedOrganizationId } : undefined
       : { organizationId: user?.organizationId || "__no_organization__" };
-    const users = await timeDbOperation("user list", () => db.user.findMany({
-      where: organizationScope,
-      select: { id: true, name: true, email: true, registrationNo: true, specialty: true, qualifications: true, designation: true, profilePhotoUrl: true, organization: { select: { id: true, name: true } }, assignedRole: { select: { name: true, slug: true } } },
-      orderBy: {
-        name: "asc",
-      },
+    const scopeId = user?.isSuperAdmin ? requestedOrganizationId : user?.organizationId;
+    const { rows: userRows } = await timeDbOperation("user list", () => query<{
+      id: string;
+      name: string;
+      email: string;
+      registration_no: string | null;
+      specialty: string | null;
+      qualifications: string | null;
+      designation: string | null;
+      profile_photo_url: string | null;
+      organization_id: string | null;
+      organization_name: string | null;
+      role_name: string | null;
+      role_slug: string | null;
+    }>(
+      `SELECT u.id, u.name, u.email,
+              u."registrationNo" AS registration_no, u.specialty, u.qualifications,
+              u.designation, u."profilePhotoUrl" AS profile_photo_url,
+              o.id AS organization_id, o.name AS organization_name,
+              r.name AS role_name, r.slug AS role_slug
+       FROM macula.macula_users u
+       LEFT JOIN macula.macula_organizations o ON o.id = u."organizationId"
+       LEFT JOIN macula.macula_roles r ON r.id = u."roleId"
+       WHERE ($1::text IS NULL OR u."organizationId" = $1)
+       ORDER BY u.name ASC`,
+      [scopeId || null]
+    ));
+    const users = userRows.map((item) => ({
+      id: item.id,
+      name: item.name,
+      email: item.email,
+      registrationNo: item.registration_no,
+      specialty: item.specialty,
+      qualifications: item.qualifications,
+      designation: item.designation,
+      profilePhotoUrl: item.profile_photo_url,
+      organization: item.organization_id && item.organization_name
+        ? { id: item.organization_id, name: item.organization_name }
+        : undefined,
+      assignedRole: item.role_name && item.role_slug ? { name: item.role_name, slug: item.role_slug } : undefined,
     }));
     const organizations = user?.isSuperAdmin
-      ? await db.organization.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } })
+      ? (await query<{ id: string; name: string }>(
+        `SELECT id, name FROM macula.macula_organizations ORDER BY name ASC`
+      )).rows
       : [];
     return NextResponse.json({ success: true, users, organizations, isSuperAdmin: Boolean(user?.isSuperAdmin), canManageUsers: Boolean(user?.isSuperAdmin || user?.permissions.includes("USER_MANAGE")) });
   } catch (error: any) {

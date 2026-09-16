@@ -1,4 +1,4 @@
-import { db } from "@/lib/db";
+import { query } from "@/lib/worker-db";
 
 export type AiPromptRecord = {
   id: string;
@@ -9,14 +9,16 @@ export type AiPromptRecord = {
 };
 
 export async function getResolvedAiPrompts(organizationId: string, promptKeys?: string[]) {
-  const prompts = await db.aiPromptTemplate.findMany({
-    where: {
-      isActive: true,
-      ...(promptKeys?.length ? { promptKey: { in: promptKeys } } : {}),
-      OR: [{ organizationId }, { organizationId: null }],
-    },
-    orderBy: [{ promptKey: "asc" }, { organizationId: "desc" }, { version: "desc" }],
-  });
+  const values: unknown[] = [organizationId];
+  const keyFilter = promptKeys?.length ? `AND "promptKey" = ANY($2::text[])` : "";
+  if (promptKeys?.length) values.push(promptKeys);
+  const { rows: prompts } = await query<AiPromptRecord>(
+    `SELECT id, "promptKey" AS "promptKey", content, version, "organizationId" AS "organizationId"
+     FROM macula.macula_ai_prompt_templates
+     WHERE "isActive" = TRUE AND ("organizationId" = $1 OR "organizationId" IS NULL) ${keyFilter}
+     ORDER BY "promptKey" ASC, "organizationId" DESC NULLS LAST, version DESC`,
+    values
+  );
 
   const resolved = new Map<string, AiPromptRecord>();
   for (const prompt of prompts) {

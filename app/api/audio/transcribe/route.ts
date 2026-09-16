@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
 import { getASRProvider } from "@/lib/asr/factory";
 import { getASRPromptProfile } from "@/lib/asr/prompts";
 import { redactClinicalText } from "@/lib/prompts/clinical-redaction";
 import { logAIUsage } from "@/lib/ai-usage";
 import { requireOrganizationAccess } from "@/lib/tenant-auth";
+import { query } from "@/lib/worker-db";
 
 export async function POST(req: Request) {
   try {
@@ -17,10 +17,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "recordingId is required." }, { status: 400 });
     }
 
-    const recording = await db.audioRecording.findUnique({
-      where: { id: recordingId },
-      include: { organization: true },
-    });
+    const recording = (await query<any>(`SELECT ar.*, o.id AS organization_id, o."preferredAsrModel" AS preferred_asr_model FROM macula.macula_audio_recordings ar JOIN macula.macula_organizations o ON o.id = ar."organizationId" WHERE ar.id = $1 LIMIT 1`, [recordingId])).rows[0];
     if (!recording) return NextResponse.json({ error: "Recording not found." }, { status: 404 });
     await requireOrganizationAccess(recording.organizationId);
 
@@ -32,7 +29,7 @@ export async function POST(req: Request) {
     let selectedModel = requestedModel;
     if (!selectedModel) {
       // Supports org-level model mapping if added to schema
-      selectedModel = (recording?.organization as any)?.preferredAsrModel || process.env.DEFAULT_ASR_MODEL || "whisper-1";
+      selectedModel = recording?.preferred_asr_model || process.env.DEFAULT_ASR_MODEL || "whisper-1";
     }
 
     const normalizedModel = selectedModel.trim().toLowerCase();
@@ -56,11 +53,7 @@ export async function POST(req: Request) {
     // Resolve provider via Factory
     const provider = getASRProvider(selectedModel);
     const promptProfile = getASRPromptProfile(selectedModel);
-    const recordingMeta = {
-      organizationId: recording.organizationId,
-      durationSeconds: recording.durationSeconds,
-      caseId: recording.caseId,
-    };
+    const recordingMeta = { organizationId: recording.organizationId, durationSeconds: recording.durationSeconds, caseId: recording.caseId };
 
     // Execute Transcription
     const result = await provider.transcribe({
@@ -71,14 +64,7 @@ export async function POST(req: Request) {
     });
 
     const redactionRules = recordingMeta
-      ? await db.complianceRule.findMany({
-          where: {
-            ruleType: "DPDP_REDACTION",
-            isActive: true,
-            OR: [{ organizationId: null }, { organizationId: recordingMeta.organizationId }],
-          },
-          select: { patternOrCheck: true, description: true },
-        })
+      ? (await query<{ patternOrCheck: string; description: string }>(`SELECT "patternOrCheck", description FROM macula.macula_compliance_rules WHERE "ruleType" = 'DPDP_REDACTION' AND "isActive" = TRUE AND ("organizationId" IS NULL OR "organizationId" = $1)`, [recordingMeta.organizationId])).rows
       : [];
     const sanitizedTranscript = redactClinicalText(result.rawTranscript, redactionRules);
 
@@ -94,14 +80,8 @@ export async function POST(req: Request) {
     }
 
     // Update database record with the exact agent used
-    const updated = await db.audioRecording.update({
-      where: { id: recordingId },
-      data: {
-        rawTranscript: sanitizedTranscript,
-        transcriptionStatus: "ASR_COMPLETED",
-        transcriptionAgent: result.modelIdentifier,
-      },
-    });
+    const { rows: updatedRows } = await query(`UPDATE macula.macula_audio_recordings SET "rawTranscript" = $1, "transcriptionStatus" = 'ASR_COMPLETED', "transcriptionAgent" = $2, "updatedAt" = NOW() WHERE id = $3 RETURNING id, "transcriptionStatus"`, [sanitizedTranscript, result.modelIdentifier, recordingId]);
+    const updated = updatedRows[0];
 
     return NextResponse.json({
       success: true,

@@ -1,4 +1,5 @@
-import { db } from "@/lib/db";
+import { query } from "@/lib/worker-db";
+import crypto from "node:crypto";
 
 export async function logAIUsage(input: {
   organizationId: string;
@@ -13,20 +14,7 @@ export async function logAIUsage(input: {
   metadata?: Record<string, unknown>;
 }) {
   try {
-    await db.aIUsageLog.create({
-      data: {
-        organizationId: input.organizationId,
-        caseId: input.caseId || null,
-        operation: input.operation,
-        provider: input.provider,
-        model: input.model,
-        inputTokens: input.inputTokens ?? null,
-        outputTokens: input.outputTokens ?? null,
-        audioSeconds: input.audioSeconds ?? null,
-        estimatedCostUsd: input.estimatedCostUsd ?? null,
-        metadata: input.metadata as any,
-      },
-    });
+    await query(`INSERT INTO macula.macula_ai_usage_logs (id, operation, provider, model, "inputTokens", "outputTokens", "audioSeconds", "estimatedCostUsd", metadata, "organizationId", "caseId") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11)`, [crypto.randomUUID(), input.operation, input.provider, input.model, input.inputTokens ?? null, input.outputTokens ?? null, input.audioSeconds ?? null, input.estimatedCostUsd ?? null, JSON.stringify(input.metadata || {}), input.organizationId, input.caseId || null]);
   } catch (error) {
     console.error("AI usage logging failed:", error);
   }

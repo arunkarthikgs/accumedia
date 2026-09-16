@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
 import { requireOrganizationAccess } from "@/lib/tenant-auth";
+import { query } from "@/lib/worker-db";
+import crypto from "node:crypto";
+
+export const dynamic = "force-dynamic";
 import { encryptPublishingSecret } from "@/lib/publishing";
 
 const PLATFORMS = new Set(["linkedin", "facebook", "instagram", "x", "youtube", "cms"]);
@@ -23,7 +26,7 @@ export async function GET(req: Request) {
     const orgId = new URL(req.url).searchParams.get("orgId");
     if (!orgId) return NextResponse.json({ error: "orgId is required." }, { status: 400 });
     await requireOrganizationAccess(orgId);
-    const connections = await db.publicationConnection.findMany({ where: { organizationId: orgId }, orderBy: { platform: "asc" } });
+    const { rows: connections } = await query(`SELECT * FROM macula.macula_publication_connections WHERE "organizationId" = $1 ORDER BY platform ASC`, [orgId]);
     return NextResponse.json({ connections: connections.map(publicConnection) });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || "Failed to load publishing connections." }, { status: 500 });
@@ -39,27 +42,9 @@ export async function POST(req: Request) {
     await requireOrganizationAccess(organizationId);
     if (!body.accessToken && !body.webhookUrl) return NextResponse.json({ error: "accessToken or webhookUrl is required." }, { status: 400 });
 
-    const connection = await db.publicationConnection.upsert({
-      where: { organizationId_platform_externalAccountId: { organizationId, platform, externalAccountId: body.externalAccountId || null } },
-      create: {
-        organizationId,
-        platform,
-        accountLabel: body.accountLabel || null,
-        externalAccountId: body.externalAccountId || null,
-        accessTokenEncrypted: body.accessToken ? encryptPublishingSecret(String(body.accessToken)) : null,
-        refreshTokenEncrypted: body.refreshToken ? encryptPublishingSecret(String(body.refreshToken)) : null,
-        webhookUrlEncrypted: body.webhookUrl ? encryptPublishingSecret(String(body.webhookUrl)) : null,
-        expiresAt: body.expiresAt ? new Date(body.expiresAt) : null,
-      },
-      update: {
-        accountLabel: body.accountLabel || null,
-        accessTokenEncrypted: body.accessToken ? encryptPublishingSecret(String(body.accessToken)) : undefined,
-        refreshTokenEncrypted: body.refreshToken ? encryptPublishingSecret(String(body.refreshToken)) : undefined,
-        webhookUrlEncrypted: body.webhookUrl ? encryptPublishingSecret(String(body.webhookUrl)) : undefined,
-        expiresAt: body.expiresAt ? new Date(body.expiresAt) : undefined,
-        isActive: true,
-      },
-    });
+    const externalAccountId = body.externalAccountId || null;
+    const { rows } = await query(`INSERT INTO macula.macula_publication_connections (id, platform, "accountLabel", "externalAccountId", "accessTokenEncrypted", "refreshTokenEncrypted", "webhookUrlEncrypted", "expiresAt", "organizationId") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) ON CONFLICT ("organizationId", platform, "externalAccountId") DO UPDATE SET "accountLabel" = EXCLUDED."accountLabel", "accessTokenEncrypted" = COALESCE(EXCLUDED."accessTokenEncrypted", macula.macula_publication_connections."accessTokenEncrypted"), "refreshTokenEncrypted" = COALESCE(EXCLUDED."refreshTokenEncrypted", macula.macula_publication_connections."refreshTokenEncrypted"), "webhookUrlEncrypted" = COALESCE(EXCLUDED."webhookUrlEncrypted", macula.macula_publication_connections."webhookUrlEncrypted"), "expiresAt" = COALESCE(EXCLUDED."expiresAt", macula.macula_publication_connections."expiresAt"), "isActive" = TRUE, "updatedAt" = NOW() RETURNING *`, [crypto.randomUUID(), platform, body.accountLabel || null, externalAccountId, body.accessToken ? encryptPublishingSecret(String(body.accessToken)) : null, body.refreshToken ? encryptPublishingSecret(String(body.refreshToken)) : null, body.webhookUrl ? encryptPublishingSecret(String(body.webhookUrl)) : null, body.expiresAt ? new Date(body.expiresAt) : null, organizationId]);
+    const connection = rows[0];
     return NextResponse.json({ success: true, connection: publicConnection(connection) });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || "Failed to save publishing connection." }, { status: 500 });
@@ -69,10 +54,11 @@ export async function POST(req: Request) {
 export async function DELETE(req: Request) {
   try {
     const { connectionId } = await req.json();
-    const connection = await db.publicationConnection.findUnique({ where: { id: connectionId } });
+    const connection = (await query<any>(`SELECT * FROM macula.macula_publication_connections WHERE id = $1 LIMIT 1`, [connectionId])).rows[0];
     if (!connection) return NextResponse.json({ error: "Connection not found." }, { status: 404 });
     await requireOrganizationAccess(connection.organizationId);
-    const updated = await db.publicationConnection.update({ where: { id: connectionId }, data: { isActive: false, accessTokenEncrypted: null, refreshTokenEncrypted: null, webhookUrlEncrypted: null } });
+    const { rows } = await query(`UPDATE macula.macula_publication_connections SET "isActive" = FALSE, "accessTokenEncrypted" = NULL, "refreshTokenEncrypted" = NULL, "webhookUrlEncrypted" = NULL, "updatedAt" = NOW() WHERE id = $1 RETURNING *`, [connectionId]);
+    const updated = rows[0];
     return NextResponse.json({ success: true, connection: publicConnection(updated) });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || "Failed to revoke publishing connection." }, { status: 500 });

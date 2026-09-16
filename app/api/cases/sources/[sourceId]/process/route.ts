@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { extractSourceText } from "@/lib/source-extraction";
-import { extractAudioFromVideo } from "@/lib/video-extraction";
 import { getASRProvider } from "@/lib/asr/factory";
 import { getASRPromptProfile } from "@/lib/asr/prompts";
 import { redactClinicalText } from "@/lib/prompts/clinical-redaction";
@@ -26,6 +25,9 @@ export async function POST(
     const sourceBuffer = Buffer.from(await response.arrayBuffer());
     let extractedText: string;
     if (source.sourceType === "VIDEO") {
+      return NextResponse.json({ error: "Video audio extraction is not available in the Cloudflare Worker. Configure an external media-processing worker or queue-backed service." }, { status: 501 });
+      /*
+      const { extractAudioFromVideo } = await import("@/lib/video-extraction");
       const audio = await extractAudioFromVideo(sourceBuffer, source.fileName);
       await assertAudioQuota(source.organizationId, audio.durationSeconds);
       const model = new URL(req.url).searchParams.get("model") || process.env.DEFAULT_ASR_MODEL || "whisper-1";
@@ -61,6 +63,7 @@ export async function POST(
         model: result.modelIdentifier,
         audioSeconds: audio.durationSeconds,
       });
+      */
     } else {
       extractedText = await extractSourceText(sourceBuffer, source.fileName, source.mimeType);
     }

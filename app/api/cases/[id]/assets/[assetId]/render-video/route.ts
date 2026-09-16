@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireOrganizationAccess } from "@/lib/tenant-auth";
-import { renderClinicalVideo } from "@/lib/video-renderer";
 import { uploadVideoToR2 } from "@/lib/r2";
 import { normalizeBrandColor } from "@/lib/brand";
 
 export async function POST(req: Request, props: { params: Promise<{ id: string; assetId: string }> }) {
+  return NextResponse.json({ error: "Video rendering is not available in the Cloudflare Worker. Configure an external video-rendering worker or queue-backed media service." }, { status: 501 });
+  /*
   try {
     const { id, assetId } = await props.params;
     const asset = await db.generatedAsset.findUnique({ where: { id: assetId }, include: { case: { include: { organization: true } } } });
@@ -29,4 +30,5 @@ export async function POST(req: Request, props: { params: Promise<{ id: string; 
   } catch (error: any) {
     return NextResponse.json({ error: error.message || "Video rendering failed." }, { status: 500 });
   }
+  */
 }

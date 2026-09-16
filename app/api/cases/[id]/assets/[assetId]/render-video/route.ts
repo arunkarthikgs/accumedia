@@ -1,8 +1,4 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { requireOrganizationAccess } from "@/lib/tenant-auth";
-import { uploadVideoToR2 } from "@/lib/r2";
-import { normalizeBrandColor } from "@/lib/brand";
 
 export async function POST(req: Request, props: { params: Promise<{ id: string; assetId: string }> }) {
   return NextResponse.json({ error: "Video rendering is not available in the Cloudflare Worker. Configure an external video-rendering worker or queue-backed media service." }, { status: 501 });

@@ -1,7 +1,4 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { generateCaseImage } from "@/lib/image-engine";
-import { requireAuthenticatedUser, requireOrganizationAccess } from "@/lib/tenant-auth";
 
 export async function POST(req: Request) {
   return NextResponse.json({ error: "Image generation jobs require an external image-processing worker. The Cloudflare Worker cannot run the current image engine safely." }, { status: 501 });

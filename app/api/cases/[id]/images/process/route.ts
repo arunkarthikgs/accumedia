@@ -1,7 +1,4 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { generateCaseImage } from "@/lib/image-engine";
-import { requireOrganizationAccess } from "@/lib/tenant-auth";
 
 export async function POST(_req: Request, props: { params: Promise<{ id: string }> }) {
   return NextResponse.json({ error: "Image generation is not available in the Cloudflare Worker. Configure an external image-generation processor or queue-backed service." }, { status: 501 });

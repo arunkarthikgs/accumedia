@@ -41,9 +41,7 @@ export function query<T extends QueryResultRow>(text: string, values: unknown[] 
     const message = error instanceof Error ? error.message : String(error);
     if (!/timeout|connection terminated|connection reset|ECONNRESET/i.test(message)) throw error;
 
-    const stalePool = pool;
     pool = undefined;
-    await stalePool?.end().catch(() => undefined);
     return getPool().query<T>(text, values);
   });
 }

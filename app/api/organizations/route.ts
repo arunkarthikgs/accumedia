@@ -4,6 +4,8 @@ import { requireAuthenticatedUser } from "@/lib/tenant-auth";
 import { unstable_cache } from "next/cache";
 import { timeDbOperation } from "@/lib/perf";
 
+export const dynamic = "force-dynamic";
+
 const getOrganizationsForScope = (organizationId: string | null, isSuperAdmin: boolean) => unstable_cache(
   () => db.organization.findMany({
     where: isSuperAdmin ? undefined : organizationId ? { id: organizationId } : { id: "__no_organization__" },

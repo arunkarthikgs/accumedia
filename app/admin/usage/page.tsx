@@ -113,7 +113,7 @@ export default function UsagePage() {
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({
     page: 1,
-    pageSize: 50,
+       pageSize: 25,
     total: 0,
     totalPages: 0,
   });
@@ -139,7 +139,7 @@ export default function UsagePage() {
       if (!organizationId) return;
       try {
         const usageResponse = await fetch(
-          `/api/admin/usage?orgId=${organizationId}&operation=${operationFilter}&caseSearch=${encodeURIComponent(caseSearch)}&from=${fromDate}&to=${toDate}&page=${page}&pageSize=50`,
+           `/api/admin/usage?orgId=${organizationId}&operation=${operationFilter}&caseSearch=${encodeURIComponent(caseSearch)}&from=${fromDate}&to=${toDate}&page=${page}&pageSize=25`,
         );
         const usageData = await usageResponse.json();
         if (!usageResponse.ok)

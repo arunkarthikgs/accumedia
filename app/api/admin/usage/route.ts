@@ -13,7 +13,7 @@ export async function GET(req: Request) {
     const from = searchParams.get("from");
     const to = searchParams.get("to");
     const page = Math.max(1, Number(searchParams.get("page") || "1"));
-    const pageSize = Math.min(100, Math.max(10, Number(searchParams.get("pageSize") || "50")));
+    const pageSize = Math.min(100, Math.max(10, Number(searchParams.get("pageSize") || "25")));
     if (!organizationId) return NextResponse.json({ error: "orgId is required." }, { status: 400 });
     await requirePermission("USAGE_VIEW");
     await requireOrganizationAccess(organizationId);
@@ -26,16 +26,25 @@ export async function GET(req: Request) {
       AND ($3::text IS NULL OR c.title ILIKE $3)
       AND ($4::timestamptz IS NULL OR l."createdAt" >= $4)
       AND ($5::timestamptz IS NULL OR l."createdAt" <= $5)`;
-    const [{ rows: logs }, { rows: countRows }, { rows: summaryRows }, quota] = await Promise.all([
-      query(`SELECT l.*, CASE WHEN c.id IS NULL THEN NULL ELSE json_build_object('id', c.id, 'title', c.title) END AS case
-             FROM macula.macula_ai_usage_logs l LEFT JOIN macula.macula_cases c ON c.id = l."caseId"
-             WHERE ${filter} ORDER BY l."createdAt" DESC OFFSET $6 LIMIT $7`, [...params, (page - 1) * pageSize, pageSize]),
-      query(`SELECT COUNT(*)::int AS count FROM macula.macula_ai_usage_logs l LEFT JOIN macula.macula_cases c ON c.id = l."caseId" WHERE ${filter}`, params),
-      query(`SELECT COUNT(*)::int AS count, COALESCE(SUM(l."inputTokens"), 0)::int AS "inputTokens", COALESCE(SUM(l."outputTokens"), 0)::int AS "outputTokens", COALESCE(SUM(l."audioSeconds"), 0)::int AS "audioSeconds", COALESCE(SUM(l."estimatedCostUsd"), 0) AS "estimatedCostUsd" FROM macula.macula_ai_usage_logs l LEFT JOIN macula.macula_cases c ON c.id = l."caseId" WHERE ${filter}`, params),
+    const [{ rows: usageRows }, quota] = await Promise.all([
+      query<any>(`WITH filtered AS (
+        SELECT l.*, c.id AS case_id, c.title AS case_title
+        FROM macula.macula_ai_usage_logs l LEFT JOIN macula.macula_cases c ON c.id = l."caseId"
+        WHERE ${filter}
+      )
+      SELECT filtered.*, CASE WHEN case_id IS NULL THEN NULL ELSE json_build_object('id', case_id, 'title', case_title) END AS case,
+             COUNT(*) OVER()::int AS total_count,
+             SUM(COALESCE("inputTokens",0)) OVER()::int AS total_input_tokens,
+             SUM(COALESCE("outputTokens",0)) OVER()::int AS total_output_tokens,
+             SUM(COALESCE("audioSeconds",0)) OVER()::int AS total_audio_seconds,
+             SUM(COALESCE("estimatedCostUsd",0)) OVER() AS total_cost
+      FROM filtered ORDER BY "createdAt" DESC OFFSET $6 LIMIT $7`, [...params, (page - 1) * pageSize, pageSize]),
       getOrganizationQuota(organizationId),
     ]);
-    const count = Number(countRows[0]?.count || 0);
-    const summary = { _count: { _all: Number(summaryRows[0]?.count || 0) }, _sum: summaryRows[0] };
+    const firstUsage = usageRows[0];
+    const count = Number(firstUsage?.total_count || 0);
+    const summary = { _count: { _all: count }, _sum: { inputTokens: firstUsage?.total_input_tokens || 0, outputTokens: firstUsage?.total_output_tokens || 0, audioSeconds: firstUsage?.total_audio_seconds || 0, estimatedCostUsd: firstUsage?.total_cost || 0 } };
+    const logs = usageRows.map(({ case_id: _caseId, case_title: _caseTitle, total_count: _count, total_input_tokens: _input, total_output_tokens: _output, total_audio_seconds: _audio, total_cost: _cost, ...log }) => log);
 
     return NextResponse.json({ logs, summary, quota, pagination: { page, pageSize, total: count, totalPages: Math.ceil(count / pageSize) } });
   } catch (error: any) {

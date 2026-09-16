@@ -27,6 +27,7 @@ export default function LoginPage() {
     setError(null);
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 15_000);
+    let navigationStarted = false;
 
     try {
       const response = await fetch("/api/auth/login", {
@@ -40,14 +41,15 @@ export default function LoginPage() {
         setError(data.error || "Login failed.");
         return;
       }
-      window.location.replace("/");
+      navigationStarted = true;
+      window.location.replace(`/?from=login&t=${Date.now()}`);
     } catch (requestError) {
       setError(requestError instanceof DOMException && requestError.name === "AbortError"
         ? "Sign-in timed out. Please try again."
         : "Unable to reach the sign-in service.");
     } finally {
       window.clearTimeout(timeout);
-      setIsSubmitting(false);
+      if (!navigationStarted) setIsSubmitting(false);
     }
   };
 

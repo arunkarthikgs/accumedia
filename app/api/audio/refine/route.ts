@@ -5,10 +5,11 @@ import { findUnredactedRuleMatches, redactClinicalText } from "@/lib/prompts/cli
 import { logAIUsage } from "@/lib/ai-usage";
 import { assertTokenQuota } from "@/lib/quotas";
 import { getResolvedAiPrompts } from "@/lib/ai-prompts";
-import { requireOrganizationAccess } from "@/lib/tenant-auth";
+import { requireAuthenticatedUser, requireOrganizationAccess } from "@/lib/tenant-auth";
 
 export async function POST(req: Request) {
   try {
+    await requireAuthenticatedUser();
     const { recordingId, organizationId, textToRefine } = await req.json();
 
     if (!textToRefine || !textToRefine.trim()) {
@@ -33,7 +34,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Recording belongs to another organization." }, { status: 403 });
     }
     const resolvedOrganizationId = recording?.organizationId || organizationId || null;
-    if (resolvedOrganizationId) await requireOrganizationAccess(resolvedOrganizationId);
+    if (!resolvedOrganizationId) {
+      return NextResponse.json({ error: "organizationId or recordingId is required." }, { status: 400 });
+    }
+    await requireOrganizationAccess(resolvedOrganizationId);
     const organization = recording?.organization || (organizationId
       ? await db.organization.findUnique({
           where: { id: organizationId },

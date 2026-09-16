@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { requireAuthenticatedUser } from "@/lib/tenant-auth";
+import { requireAuthenticatedUser, requireOrganizationAccess } from "@/lib/tenant-auth";
 
 export async function GET() {
   try {
@@ -12,6 +12,21 @@ export async function GET() {
         name: true,
         slug: true,
         brandingHex: true,
+        logoUrl: true,
+        brandFont: true,
+        brandTagline: true,
+        location: true,
+        websiteUrl: true,
+        linkedinUrl: true,
+        facebookUrl: true,
+        instagramUrl: true,
+        xUrl: true,
+        youtubeUrl: true,
+        contactEmail: true,
+        contactPhone: true,
+        preferredTone: true,
+        callToAction: true,
+        hospitalPhotoUrls: true,
         preferredAsrModel: true,
         customSystemPrompt: true,
         defaultDisclaimer: true,
@@ -27,7 +42,7 @@ export async function GET() {
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json({ success: true, organizations });
+    return NextResponse.json({ success: true, organizations, isSuperAdmin: Boolean(user?.isSuperAdmin) });
   } catch (error: any) {
     console.error("Fetch organizations error:", error);
     return NextResponse.json(
@@ -39,6 +54,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    const user = await requireAuthenticatedUser();
     const body = await req.json();
     const {
       name,
@@ -47,6 +63,21 @@ export async function POST(req: Request) {
       preferredAsrModel,
       customSystemPrompt,
       defaultDisclaimer,
+      logoUrl,
+      brandFont,
+      brandTagline,
+      location,
+      websiteUrl,
+      linkedinUrl,
+      facebookUrl,
+      instagramUrl,
+      xUrl,
+      youtubeUrl,
+      contactEmail,
+      contactPhone,
+      preferredTone,
+      callToAction,
+      hospitalPhotoUrls,
     } = body;
 
     if (!name || !name.trim()) {
@@ -78,8 +109,23 @@ export async function POST(req: Request) {
         name: name.trim(),
         slug: cleanSlug,
         brandingHex: brandingHex?.trim() || "#0f766e",
-        preferredAsrModel: preferredAsrModel || "whisper-1",
+        preferredAsrModel: user?.isSuperAdmin ? preferredAsrModel || "whisper-1" : "whisper-1",
         customSystemPrompt: customSystemPrompt?.trim() || null,
+        logoUrl: logoUrl?.trim() || null,
+        brandFont: brandFont?.trim() || "Arial",
+        brandTagline: brandTagline?.trim() || null,
+        location: location?.trim() || null,
+        websiteUrl: websiteUrl?.trim() || null,
+        linkedinUrl: linkedinUrl?.trim() || null,
+        facebookUrl: facebookUrl?.trim() || null,
+        instagramUrl: instagramUrl?.trim() || null,
+        xUrl: xUrl?.trim() || null,
+        youtubeUrl: youtubeUrl?.trim() || null,
+        contactEmail: contactEmail?.trim() || null,
+        contactPhone: contactPhone?.trim() || null,
+        preferredTone: preferredTone?.trim() || null,
+        callToAction: callToAction?.trim() || null,
+        hospitalPhotoUrls: Array.isArray(hospitalPhotoUrls) ? hospitalPhotoUrls : null,
         defaultDisclaimer:
           defaultDisclaimer?.trim() ||
           "This clinical summary is generated under NMC registered medical practitioner supervision.",
@@ -98,6 +144,7 @@ export async function POST(req: Request) {
 
 export async function PUT(req: Request) {
   try {
+    const user = await requireAuthenticatedUser();
     const body = await req.json();
     const {
       id,
@@ -107,6 +154,21 @@ export async function PUT(req: Request) {
       preferredAsrModel,
       customSystemPrompt,
       defaultDisclaimer,
+      logoUrl,
+      brandFont,
+      brandTagline,
+      location,
+      websiteUrl,
+      linkedinUrl,
+      facebookUrl,
+      instagramUrl,
+      xUrl,
+      youtubeUrl,
+      contactEmail,
+      contactPhone,
+      preferredTone,
+      callToAction,
+      hospitalPhotoUrls,
     } = body;
 
     if (!id) {
@@ -115,6 +177,9 @@ export async function PUT(req: Request) {
         { status: 400 }
       );
     }
+    await requireOrganizationAccess(id);
+    const existing = await db.organization.findUnique({ where: { id }, select: { preferredAsrModel: true } });
+    if (!existing) return NextResponse.json({ error: "Organization not found." }, { status: 404 });
 
     const updated = await db.organization.update({
       where: { id },
@@ -122,8 +187,23 @@ export async function PUT(req: Request) {
         name: name?.trim(),
         slug: slug?.trim(),
         brandingHex: brandingHex?.trim() || "#0f766e",
-        preferredAsrModel: preferredAsrModel || "whisper-1",
+        preferredAsrModel: user?.isSuperAdmin ? preferredAsrModel || "whisper-1" : existing.preferredAsrModel,
         customSystemPrompt: customSystemPrompt?.trim() || null,
+        logoUrl: logoUrl?.trim() || null,
+        brandFont: brandFont?.trim() || "Arial",
+        brandTagline: brandTagline?.trim() || null,
+        location: location?.trim() || null,
+        websiteUrl: websiteUrl?.trim() || null,
+        linkedinUrl: linkedinUrl?.trim() || null,
+        facebookUrl: facebookUrl?.trim() || null,
+        instagramUrl: instagramUrl?.trim() || null,
+        xUrl: xUrl?.trim() || null,
+        youtubeUrl: youtubeUrl?.trim() || null,
+        contactEmail: contactEmail?.trim() || null,
+        contactPhone: contactPhone?.trim() || null,
+        preferredTone: preferredTone?.trim() || null,
+        callToAction: callToAction?.trim() || null,
+        hospitalPhotoUrls: Array.isArray(hospitalPhotoUrls) ? hospitalPhotoUrls : null,
         defaultDisclaimer: defaultDisclaimer?.trim(),
       },
     });
@@ -140,8 +220,10 @@ export async function PUT(req: Request) {
 
 export async function PATCH(req: Request) {
   try {
+    const user = await requireAuthenticatedUser();
     const body = await req.json();
     if (!body.organizationId) return NextResponse.json({ error: "Organization ID is required." }, { status: 400 });
+    await requireOrganizationAccess(body.organizationId);
     const updated = await db.organization.update({
       where: { id: body.organizationId },
       data: {
@@ -150,6 +232,18 @@ export async function PATCH(req: Request) {
         logoUrl: body.logoUrl?.trim() || null,
         brandFont: body.brandFont?.trim() || "Arial",
         brandTagline: body.brandTagline?.trim() || null,
+        location: body.location?.trim() || null,
+        websiteUrl: body.websiteUrl?.trim() || null,
+        linkedinUrl: body.linkedinUrl?.trim() || null,
+        facebookUrl: body.facebookUrl?.trim() || null,
+        instagramUrl: body.instagramUrl?.trim() || null,
+        xUrl: body.xUrl?.trim() || null,
+        youtubeUrl: body.youtubeUrl?.trim() || null,
+        contactEmail: body.contactEmail?.trim() || null,
+        contactPhone: body.contactPhone?.trim() || null,
+        preferredTone: body.preferredTone?.trim() || null,
+        callToAction: body.callToAction?.trim() || null,
+        hospitalPhotoUrls: Array.isArray(body.hospitalPhotoUrls) ? body.hospitalPhotoUrls : null,
         defaultDisclaimer: body.defaultDisclaimer?.trim(),
       },
     });

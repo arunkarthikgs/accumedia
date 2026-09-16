@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { requireAuthenticatedUser } from "@/lib/tenant-auth";
+import { requireAuthenticatedUser, requireOrganizationAccess } from "@/lib/tenant-auth";
 import { recordAudit } from "@/lib/audit";
 
 export async function GET(req: Request) {
@@ -95,6 +95,7 @@ export async function GET(req: Request) {
  */
 export async function PATCH(req: Request) {
   try {
+    await requireAuthenticatedUser();
     const { caseId, status, rejectionReason, reviewedBy } = await req.json();
 
     if (!caseId || !status) {
@@ -113,6 +114,10 @@ export async function PATCH(req: Request) {
         { status: 400 }
       );
     }
+
+    const existingCase = await db.case.findUnique({ where: { id: caseId }, select: { organizationId: true } });
+    if (!existingCase) return NextResponse.json({ error: "Case not found." }, { status: 404 });
+    await requireOrganizationAccess(existingCase.organizationId);
 
     const updated = await db.case.update({
       where: { id: caseId },

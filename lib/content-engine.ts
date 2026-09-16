@@ -91,7 +91,9 @@ export async function generateChannelAsset({
 Never include anything listed under the record's confidentialityFlags or confidentiality_flags.
 Never state or imply a guaranteed outcome. Respect the record's
 terminologyRetain, terminologySimplify, terminology_retain, and terminology_simplify guidance. Include this disclaimer
-where applicable: "${organization.defaultDisclaimer}".`;
+where applicable: "${organization.defaultDisclaimer}".
+Organization writing tone: ${organization.preferredTone || "clinically precise, educational, and respectful"}.
+Default call to action, where appropriate and non-promotional: ${organization.callToAction || "None configured"}.`;
 
   const resolvedPrompt = systemPrompt
     .replace("{duration}", channel.durationLabel || "60 seconds")

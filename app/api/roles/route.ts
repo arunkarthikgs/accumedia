@@ -1,6 +1,34 @@
 import { NextResponse } from "next/server";
+import { unstable_cache, revalidateTag } from "next/cache";
 import { db } from "@/lib/db";
 import { requireAuthenticatedUser } from "@/lib/tenant-auth";
+
+const getRoleMatrixCatalog = unstable_cache(
+  async () => Promise.all([
+    db.permission.findMany({ orderBy: { module: "asc" } }),
+    db.taskDefinition.findMany({ select: { id: true, slug: true, name: true, module: true, description: true, permissions: { select: { id: true } } }, orderBy: [{ module: "asc" }, { slug: "asc" }] }),
+  ]),
+  ["role-matrix-catalog"],
+  { revalidate: 300, tags: ["role-matrix"] },
+);
+
+const getRolesForScope = unstable_cache(
+  async (organizationId: string | null, includeGlobal: boolean) => db.role.findMany({
+    where: includeGlobal ? { OR: [{ organizationId: null }, { organizationId }] } : { organizationId },
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      isSystem: true,
+      organizationId: true,
+      definition: { select: { id: true, slug: true, name: true, isSystem: true } },
+      rolePermissions: { select: { permissionId: true } },
+    },
+    orderBy: { slug: "asc" },
+  }),
+  ["role-matrix-roles"],
+  { revalidate: 300, tags: ["role-matrix"] },
+);
 
 async function requireRoleManager() {
   const user = await requireAuthenticatedUser();
@@ -22,28 +50,11 @@ export async function GET(req: Request) {
     if (!organizationId && !user.isSuperAdmin) {
       return NextResponse.json({ error: "User is not assigned to an organization." }, { status: 400 });
     }
-    const roleScope = user.isSuperAdmin
-      ? (organizationId ? { OR: [{ organizationId: null }, { organizationId }] } : { organizationId: null })
-      : { organizationId };
-    const [roles, permissions, taskDefinitions] = await Promise.all([
-      db.role.findMany({
-        where: roleScope,
-        select: {
-          id: true,
-          name: true,
-          slug: true,
-          isSystem: true,
-          organizationId: true,
-          definition: { select: { id: true, slug: true, name: true, isSystem: true } },
-          rolePermissions: { select: { permissionId: true } },
-        },
-        orderBy: { slug: "asc" },
-      }),
-      db.permission.findMany({
-        orderBy: { module: "asc" },
-      }),
-      db.taskDefinition.findMany({ select: { id: true, slug: true, name: true, module: true, description: true, permissions: { select: { id: true } } }, orderBy: [{ module: "asc" }, { slug: "asc" }] }),
+    const [roles, catalog] = await Promise.all([
+      getRolesForScope(organizationId, user.isSuperAdmin),
+      getRoleMatrixCatalog(),
     ]);
+    const [permissions, taskDefinitions] = catalog;
 
     const currentOrganization = organizationId
       ? organizations.find((organization) => organization.id === organizationId) || await db.organization.findUnique({ where: { id: organizationId }, select: { id: true, name: true, slug: true } })
@@ -81,6 +92,7 @@ export async function POST(req: Request) {
         data: { name, slug, description, organizationId: targetOrganizationId, isSystem: false },
         include: { definition: { select: { id: true, slug: true, name: true, isSystem: true } }, rolePermissions: { select: { permissionId: true } } },
       });
+      revalidateTag("role-matrix");
       return NextResponse.json({ role }, { status: 201 });
     }
 
@@ -112,6 +124,7 @@ export async function POST(req: Request) {
       });
     }
 
+    revalidateTag("role-matrix");
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error("Failed to toggle permission:", error);

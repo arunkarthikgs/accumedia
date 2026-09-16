@@ -4,6 +4,7 @@ import { getASRProvider } from "@/lib/asr/factory";
 import { getASRPromptProfile } from "@/lib/asr/prompts";
 import { redactClinicalText } from "@/lib/prompts/clinical-redaction";
 import { logAIUsage } from "@/lib/ai-usage";
+import { requireOrganizationAccess } from "@/lib/tenant-auth";
 
 export async function POST(req: Request) {
   try {
@@ -16,6 +17,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "recordingId is required." }, { status: 400 });
     }
 
+    const recording = await db.audioRecording.findUnique({
+      where: { id: recordingId },
+      include: { organization: true },
+    });
+    if (!recording) return NextResponse.json({ error: "Recording not found." }, { status: 404 });
+    await requireOrganizationAccess(recording.organizationId);
+
     if (!audioFile) {
       return NextResponse.json({ error: "Audio file payload is required." }, { status: 400 });
     }
@@ -23,10 +31,6 @@ export async function POST(req: Request) {
     // Resolve Organization-specific preference if not explicitly supplied in request
     let selectedModel = requestedModel;
     if (!selectedModel) {
-      const recording = await db.audioRecording.findUnique({
-        where: { id: recordingId },
-        include: { organization: true },
-      });
       // Supports org-level model mapping if added to schema
       selectedModel = (recording?.organization as any)?.preferredAsrModel || process.env.DEFAULT_ASR_MODEL || "whisper-1";
     }
@@ -52,10 +56,11 @@ export async function POST(req: Request) {
     // Resolve provider via Factory
     const provider = getASRProvider(selectedModel);
     const promptProfile = getASRPromptProfile(selectedModel);
-    const recordingMeta = await db.audioRecording.findUnique({
-      where: { id: recordingId },
-      select: { organizationId: true, durationSeconds: true, caseId: true },
-    });
+    const recordingMeta = {
+      organizationId: recording.organizationId,
+      durationSeconds: recording.durationSeconds,
+      caseId: recording.caseId,
+    };
 
     // Execute Transcription
     const result = await provider.transcribe({

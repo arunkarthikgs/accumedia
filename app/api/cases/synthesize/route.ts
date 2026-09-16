@@ -5,7 +5,7 @@ import { MANDATORY_CLINICAL_SYNTHESIS_PROMPT } from "@/lib/prompts/clinical-synt
 import { getResolvedAiPrompts } from "@/lib/ai-prompts";
 import { findUnredactedRuleMatches, redactClinicalText, redactClinicalValue } from "@/lib/prompts/clinical-redaction";
 import { logAIUsage } from "@/lib/ai-usage";
-import { requireOrganizationAccess } from "@/lib/tenant-auth";
+import { requireAuthenticatedUser, requireOrganizationAccess } from "@/lib/tenant-auth";
 import { assertTokenQuota } from "@/lib/quotas";
 import { generateSeoKeywordSet } from "@/lib/seo-keyword-engine";
 
@@ -37,6 +37,7 @@ function summarizeRedactions(value: string) {
 
 export async function POST(req: Request) {
   try {
+    await requireAuthenticatedUser();
     const body = await req.json();
     const { rawText, physicianId, organizationId, audioRecordingId, caseId, inputMode, guidedSubmission } = body;
 
@@ -76,6 +77,14 @@ export async function POST(req: Request) {
         { error: "A valid physician user is required to associate with the clinical case." },
         { status: 400 }
       );
+    }
+
+    const physician = await db.user.findFirst({
+      where: { id: resolvedPhysicianId, organizationId },
+      select: { id: true },
+    });
+    if (!physician) {
+      return NextResponse.json({ error: "Physician does not belong to the requested organization." }, { status: 403 });
     }
 
     // 1. Fetch organization custom system prompts, compliance rules, and active channel definitions
@@ -250,6 +259,9 @@ Return ONLY a valid JSON object matching this exact schema:
     const previousCase = targetCaseId
       ? await db.case.findUnique({ where: { id: targetCaseId } })
       : null;
+    if (previousCase && previousCase.organizationId !== organizationId) {
+      return NextResponse.json({ error: "Case belongs to another organization." }, { status: 403 });
+    }
 
     const seoPromptTemplate = promptTemplates.get("SEO_KEYWORDS");
     const seoKeywordResult = await generateSeoKeywordSet({ masterRecord, prompt: seoPromptTemplate?.content });

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { requirePermission } from "@/lib/auth";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -7,6 +8,7 @@ const openai = new OpenAI({
 
 export async function POST(req: Request) {
   try {
+    await requirePermission("PROMPT_MANAGE");
     const { promptType, systemPrompt, testInput, temperature = 0.1 } = await req.json();
 
     if (!systemPrompt || !testInput) {

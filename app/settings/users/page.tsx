@@ -15,36 +15,54 @@ interface Physician {
   email: string;
   registrationNo?: string | null;
   specialty?: string | null;
+  qualifications?: string | null;
+  designation?: string | null;
+  profilePhotoUrl?: string | null;
   role?: { name: string; slug: string };
   organization?: Organization;
 }
 
 export default function UsersSettingsPage() {
   const [physicians, setPhysicians] = useState<Physician[]>([]);
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [availableSpecialties, setAvailableSpecialties] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedOrganizationId, setSelectedOrganizationId] = useState("");
+  const [scopeReady, setScopeReady] = useState(false);
 
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     registrationNo: "",
     specialty: "",
+    qualifications: "",
+    designation: "",
+    profilePhotoUrl: "",
+    organizationId: selectedOrganizationId,
+    password: "",
   });
 
   const fetchUsers = async () => {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch("/api/users");
+      const organizationQuery = selectedOrganizationId ? `?organizationId=${encodeURIComponent(selectedOrganizationId)}` : "";
+      const res = await fetch(`/api/users${organizationQuery}`);
       const contentType = res.headers.get("content-type");
 
       if (contentType && contentType.includes("application/json")) {
         const data = await res.json();
         if (res.ok) {
-          setPhysicians(data.users || []);
+          const scopedUsers = selectedOrganizationId
+            ? (data.users || []).filter((item: Physician) => item.organization?.id === selectedOrganizationId)
+            : data.users || [];
+          setPhysicians(scopedUsers);
+          setOrganizations(data.organizations || []);
+          setIsSuperAdmin(Boolean(data.isSuperAdmin));
           setAvailableSpecialties(data.specialties || []);
         } else {
           setError(data.error || "Failed to load physicians");
@@ -61,8 +79,16 @@ export default function UsersSettingsPage() {
   };
 
   useEffect(() => {
-    fetchUsers();
+    const organizationId = new URLSearchParams(window.location.search).get("organizationId") || "";
+    setSelectedOrganizationId(organizationId);
+    if (organizationId) setFormData((current) => ({ ...current, organizationId }));
+    setScopeReady(true);
   }, []);
+
+  useEffect(() => {
+    if (!scopeReady) return;
+    fetchUsers();
+  }, [scopeReady, selectedOrganizationId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,6 +112,11 @@ export default function UsersSettingsPage() {
         email: "",
         registrationNo: "",
         specialty: "",
+        qualifications: "",
+        designation: "",
+        profilePhotoUrl: "",
+        organizationId: selectedOrganizationId,
+        password: "",
       });
       setModalOpen(false);
       fetchUsers();
@@ -194,6 +225,8 @@ export default function UsersSettingsPage() {
                             {doc.role?.name || "Consultant RMP"}
                           </span>
                         </div>
+                        {doc.designation && <div className="text-[11px] text-ink">{doc.designation}</div>}
+                        {doc.qualifications && <div className="text-[11px] text-muted">{doc.qualifications}</div>}
                       </div>
                     </div>
                   </div>
@@ -228,6 +261,13 @@ export default function UsersSettingsPage() {
               )}
 
               <form onSubmit={handleSubmit} className="space-y-4">
+                {isSuperAdmin && <div>
+                  <label className="mb-1 block text-xs font-semibold text-slate-700">Organisation</label>
+                  <select required value={formData.organizationId} onChange={(e) => setFormData({ ...formData, organizationId: e.target.value })} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-teal-600 focus:outline-none">
+                    <option value="">Select hospital or clinic</option>
+                    {organizations.map((organization) => <option key={organization.id} value={organization.id}>{organization.name}</option>)}
+                  </select>
+                </div>}
                 <div>
                   <label className="mb-1 block text-xs font-semibold text-slate-700">
                     Physician Name
@@ -240,6 +280,11 @@ export default function UsersSettingsPage() {
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-teal-600 focus:outline-none"
                   />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-slate-700">Initial password</label>
+                  <input type="password" required minLength={12} autoComplete="new-password" placeholder="At least 12 characters" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-teal-600 focus:outline-none" />
+                  <p className="mt-1 text-[11px] text-muted">Share this securely with the physician. It is stored as a hash.</p>
                 </div>
 
                 <div>
@@ -286,6 +331,19 @@ export default function UsersSettingsPage() {
                       <option key={spec} value={spec} />
                     ))}
                   </datalist>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-slate-700">Qualifications</label>
+                  <input type="text" placeholder="MBBS, MD, FRCS" value={formData.qualifications} onChange={(e) => setFormData({ ...formData, qualifications: e.target.value })} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-teal-600 focus:outline-none" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-slate-700">Designation</label>
+                  <input type="text" placeholder="Consultant Cardiologist" value={formData.designation} onChange={(e) => setFormData({ ...formData, designation: e.target.value })} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-teal-600 focus:outline-none" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-slate-700">Profile photo URL</label>
+                  <input type="url" placeholder="https://.../doctor.jpg" value={formData.profilePhotoUrl} onChange={(e) => setFormData({ ...formData, profilePhotoUrl: e.target.value })} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-teal-600 focus:outline-none" />
                 </div>
 
                 <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">

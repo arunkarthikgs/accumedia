@@ -30,6 +30,21 @@ interface OrganizationItem {
   preferredAsrModel: string;
   customSystemPrompt: string | null;
   defaultDisclaimer: string;
+  logoUrl?: string | null;
+  brandFont?: string | null;
+  brandTagline?: string | null;
+  location?: string | null;
+  websiteUrl?: string | null;
+  linkedinUrl?: string | null;
+  facebookUrl?: string | null;
+  instagramUrl?: string | null;
+  xUrl?: string | null;
+  youtubeUrl?: string | null;
+  contactEmail?: string | null;
+  contactPhone?: string | null;
+  preferredTone?: string | null;
+  callToAction?: string | null;
+  hospitalPhotoUrls?: string[] | null;
   createdAt: string;
   _count: {
     users: number;
@@ -62,8 +77,22 @@ const ASR_MODELS = [
   },
 ];
 
+const ORGANIZATION_PROFILE_FIELDS = [
+  { key: "location", label: "Location", placeholder: "City, state, country", type: "text" },
+  { key: "websiteUrl", label: "Website URL", placeholder: "https://hospital.example", type: "url" },
+  { key: "contactEmail", label: "Contact email", placeholder: "communications@hospital.example", type: "email" },
+  { key: "contactPhone", label: "Contact phone", placeholder: "+91 ...", type: "tel" },
+  { key: "linkedinUrl", label: "LinkedIn profile URL", placeholder: "https://linkedin.com/company/...", type: "url" },
+  { key: "facebookUrl", label: "Facebook page URL", placeholder: "https://facebook.com/...", type: "url" },
+  { key: "instagramUrl", label: "Instagram profile URL", placeholder: "https://instagram.com/...", type: "url" },
+  { key: "xUrl", label: "X profile URL", placeholder: "https://x.com/...", type: "url" },
+  { key: "youtubeUrl", label: "YouTube channel URL", placeholder: "https://youtube.com/@...", type: "url" },
+  { key: "preferredTone", label: "Preferred writing tone", placeholder: "Warm, educational, clinically precise", type: "text" },
+] as const;
+
 export default function AdminOrganizationsPage() {
   const [organizations, setOrganizations] = useState<OrganizationItem[]>([]);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -82,6 +111,21 @@ export default function AdminOrganizationsPage() {
     customSystemPrompt: "",
     defaultDisclaimer:
       "This clinical summary is generated under NMC registered medical practitioner supervision.",
+    logoUrl: "",
+    brandFont: "Arial",
+    brandTagline: "",
+    location: "",
+    websiteUrl: "",
+    linkedinUrl: "",
+    facebookUrl: "",
+    instagramUrl: "",
+    xUrl: "",
+    youtubeUrl: "",
+    contactEmail: "",
+    contactPhone: "",
+    preferredTone: "",
+    callToAction: "",
+    hospitalPhotoUrls: [],
   });
 
   const loadOrganizations = async () => {
@@ -107,6 +151,7 @@ export default function AdminOrganizationsPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to load hospitals.");
       setOrganizations(data.organizations || []);
+      setIsSuperAdmin(Boolean(data.isSuperAdmin));
       try { sessionStorage.setItem(cacheKey, JSON.stringify({ organizations: data.organizations || [], cachedAt: Date.now() })); } catch { /* Ignore storage limits. */ }
     } catch (err: any) {
       setErrorMessage(err.message);
@@ -131,6 +176,7 @@ export default function AdminOrganizationsPage() {
         "You are a clinical intelligence assistant adhering strictly to NMC ethical guidelines and DPDP privacy standards.",
       defaultDisclaimer:
         "This clinical summary is generated under NMC registered medical practitioner supervision.",
+      logoUrl: "", brandFont: "Arial", brandTagline: "", location: "", websiteUrl: "", linkedinUrl: "", facebookUrl: "", instagramUrl: "", xUrl: "", youtubeUrl: "", contactEmail: "", contactPhone: "", preferredTone: "", callToAction: "", hospitalPhotoUrls: [],
     });
     setIsModalOpen(true);
   };
@@ -145,6 +191,7 @@ export default function AdminOrganizationsPage() {
       preferredAsrModel: org.preferredAsrModel || "whisper-1",
       customSystemPrompt: org.customSystemPrompt || "",
       defaultDisclaimer: org.defaultDisclaimer || "",
+      logoUrl: org.logoUrl || "", brandFont: org.brandFont || "Arial", brandTagline: org.brandTagline || "", location: org.location || "", websiteUrl: org.websiteUrl || "", linkedinUrl: org.linkedinUrl || "", facebookUrl: org.facebookUrl || "", instagramUrl: org.instagramUrl || "", xUrl: org.xUrl || "", youtubeUrl: org.youtubeUrl || "", contactEmail: org.contactEmail || "", contactPhone: org.contactPhone || "", preferredTone: org.preferredTone || "", callToAction: org.callToAction || "", hospitalPhotoUrls: org.hospitalPhotoUrls || [],
     });
     setIsModalOpen(true);
   };
@@ -205,14 +252,13 @@ export default function AdminOrganizationsPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
-            <button
-              type="button"
-              onClick={openCreateModal}
+            <Link
+              href="/admin/organizations/new"
               className="flex items-center gap-1.5 rounded-lg bg-pine px-3.5 py-2 text-xs font-semibold text-white hover:bg-pine-dark transition"
             >
               <Plus className="h-3.5 w-3.5" />
               <span>Add Hospital</span>
-            </button>
+            </Link>
 
             <button
               type="button"
@@ -259,7 +305,7 @@ export default function AdminOrganizationsPage() {
             <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200">
               <tr>
                 <th className="w-[250px] px-6 py-3.5">Hospital Name &amp; Slug</th>
-                <th className="w-[250px] px-6 py-3.5">Default Speech Engine (ASR)</th>
+                {isSuperAdmin && <th className="w-[250px] px-6 py-3.5">Default Speech Engine (ASR)</th>}
                 <th className="w-[210px] px-6 py-3.5">Clinicians &amp; Cases</th>
                 <th className="min-w-[260px] px-6 py-3.5">Statutory Disclaimer</th>
                 <th className="w-[250px] px-6 py-3.5 text-right">Actions</th>
@@ -268,13 +314,13 @@ export default function AdminOrganizationsPage() {
             <tbody className="divide-y divide-slate-100">
               {isLoading ? (
                 <tr>
-                  <td colSpan={5} className="py-12 text-center text-slate-400">
+                  <td colSpan={isSuperAdmin ? 5 : 4} className="py-12 text-center text-slate-400">
                     Loading hospital networks...
                   </td>
                 </tr>
               ) : filteredOrgs.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-12 text-center text-slate-400">
+                  <td colSpan={isSuperAdmin ? 5 : 4} className="py-12 text-center text-slate-400">
                     No hospitals registered yet. Click &ldquo;Add Hospital&rdquo; to start.
                   </td>
                 </tr>
@@ -290,7 +336,7 @@ export default function AdminOrganizationsPage() {
 
                   return (
                     <tr key={org.id} className="hover:bg-slate-50/70 transition">
-                      <td className="px-6 py-4">
+                      {isSuperAdmin && <td className="px-6 py-4">
                         <div className="flex items-center gap-2.5">
                           <div
                             className="h-3 w-3 rounded-full border border-slate-300 shrink-0"
@@ -303,7 +349,7 @@ export default function AdminOrganizationsPage() {
                             </div>
                           </div>
                         </div>
-                      </td>
+                      </td>}
 
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
@@ -344,6 +390,12 @@ export default function AdminOrganizationsPage() {
                             className="inline-flex items-center gap-1 rounded-lg border border-pine/30 bg-pine-tint px-2.5 py-1 text-[11px] font-semibold text-pine hover:border-pine transition"
                           >
                             <Palette className="h-3 w-3" /> Brand &amp; Disclaimers
+                          </Link>
+                          <Link
+                            href={`/settings/users?organizationId=${org.id}`}
+                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 transition shadow-2xs"
+                          >
+                            <Users className="h-3 w-3 text-slate-500" /> Users
                           </Link>
                           <button
                             type="button"
@@ -387,7 +439,7 @@ export default function AdminOrganizationsPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="mb-1 block font-semibold text-slate-700">
-                    Hospital / Network Name *
+                    Organisation / Hospital name *
                   </label>
                   <input
                     type="text"
@@ -401,22 +453,43 @@ export default function AdminOrganizationsPage() {
 
                 <div>
                   <label className="mb-1 block font-semibold text-slate-700">
-                    Slug Identifier (Unique)
+                    Organisation slug
                   </label>
                   <input
                     type="text"
                     value={formData.slug}
                     onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
-                    placeholder="apollo-bangalore"
+                    placeholder="apollo-bangalore (optional; generated if blank)"
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-mono text-slate-800 focus:border-teal-500 focus:bg-white focus:outline-hidden"
                   />
                 </div>
               </div>
 
+              <div>
+                <h4 className="mb-3 border-b border-slate-100 pb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">Organisation details</h4>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {ORGANIZATION_PROFILE_FIELDS.map((field) => (
+                  <div key={field.key}>
+                    <label className="mb-1 block font-semibold text-slate-700">{field.label}</label>
+                    <input type={field.type} value={formData[field.key]} onChange={(e) => setFormData({ ...formData, [field.key]: e.target.value })} placeholder={field.placeholder} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800 focus:border-teal-500 focus:bg-white focus:outline-hidden" />
+                  </div>
+                ))}
+                </div>
+              </div>
+              <div>
+                <h4 className="mb-3 border-b border-slate-100 pb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">Brand identity</h4>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div><label className="mb-1 block font-semibold text-slate-700">Logo URL</label><input type="url" value={formData.logoUrl} onChange={(e) => setFormData({ ...formData, logoUrl: e.target.value })} placeholder="https://.../logo.png" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs" /></div>
+                  <div><label className="mb-1 block font-semibold text-slate-700">Brand typeface</label><input value={formData.brandFont} onChange={(e) => setFormData({ ...formData, brandFont: e.target.value })} placeholder="Arial or a web-safe font" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs" /></div>
+                </div>
+                <div className="mt-4"><label className="mb-1 block font-semibold text-slate-700">Brand tagline</label><input value={formData.brandTagline} onChange={(e) => setFormData({ ...formData, brandTagline: e.target.value })} placeholder="Short public-facing descriptor" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs" /></div>
+                <div className="mt-4"><label className="mb-1 block font-semibold text-slate-700">Hospital image URLs</label><textarea rows={2} value={formData.hospitalPhotoUrls.join("\n")} onChange={(e) => setFormData({ ...formData, hospitalPhotoUrls: e.target.value.split("\n").map((url) => url.trim()).filter(Boolean) })} placeholder="One image URL per line" className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs" /></div>
+              </div>
+
               {/* Branding Color */}
               <div>
                 <label className="mb-1 block font-semibold text-slate-700">
-                  Branding Hex Color
+                    Primary brand colour
                 </label>
                 <div className="flex items-center gap-2">
                   <input
@@ -434,8 +507,15 @@ export default function AdminOrganizationsPage() {
                 </div>
               </div>
 
+              <div>
+                <h4 className="mb-3 border-b border-slate-100 pb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">Content preferences</h4>
+                <label className="mb-1 block font-semibold text-slate-700">Default call to action</label>
+                <textarea rows={2} value={formData.callToAction} onChange={(e) => setFormData({ ...formData, callToAction: e.target.value })} placeholder="Book an appointment through the hospital reception." className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs" />
+              </div>
+
               {/* ASR Speech Recognition Model Selection */}
-              <div className="rounded-xl border border-teal-100 bg-teal-50/40 p-4 space-y-2">
+              {isSuperAdmin && <div className="rounded-xl border border-teal-100 bg-teal-50/40 p-4 space-y-2">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-teal-800">Advanced configuration</p>
                 <label className="block font-bold text-teal-950 flex items-center gap-1.5">
                   <Layers className="h-4 w-4 text-teal-700" /> Default Speech Recognition (ASR) Engine
                 </label>
@@ -482,7 +562,7 @@ export default function AdminOrganizationsPage() {
                     );
                   })}
                 </div>
-              </div>
+              </div>}
 
               {/* Custom System Prompt */}
               <div>

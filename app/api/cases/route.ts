@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { assertCaseQuota } from "@/lib/quotas";
-import { requireOrganizationAccess } from "@/lib/tenant-auth";
+import { requireAuthenticatedUser, requireOrganizationAccess } from "@/lib/tenant-auth";
 
 // GET /api/cases - List cases with optional filtering
 export async function GET(req: Request) {
   try {
+    const user = await requireAuthenticatedUser();
     const { searchParams } = new URL(req.url);
     const orgId = searchParams.get("orgId");
     const physicianId = searchParams.get("physicianId");
@@ -14,8 +15,13 @@ export async function GET(req: Request) {
     const offset = parseInt(searchParams.get("offset") || "0", 10);
 
     const where: any = {};
-    if (orgId && orgId !== "ALL") await requireOrganizationAccess(orgId);
-    if (orgId && orgId !== "ALL") where.organizationId = orgId;
+    const requestedOrgId = orgId && orgId !== "ALL" ? orgId : null;
+    const scopedOrgId = user?.isSuperAdmin ? requestedOrgId : user?.organizationId;
+    if (!scopedOrgId) {
+      return NextResponse.json({ error: "An organization scope is required." }, { status: 400 });
+    }
+    await requireOrganizationAccess(scopedOrgId);
+    where.organizationId = scopedOrgId;
     if (physicianId) where.physicianId = physicianId;
     if (status && status !== "ALL") where.status = status;
 
@@ -83,6 +89,7 @@ export async function GET(req: Request) {
 // POST /api/cases - Manual case creation (direct text entry or external integration)
 export async function POST(req: Request) {
   try {
+    const user = await requireAuthenticatedUser();
     const body = await req.json();
     const { title, rawInput, organizationId, physicianId } = body;
 
@@ -93,11 +100,17 @@ export async function POST(req: Request) {
       );
     }
 
+    if (!user?.isSuperAdmin && user?.organizationId !== organizationId) {
+      return NextResponse.json({ error: "Forbidden: organization access denied." }, { status: 403 });
+    }
     await assertCaseQuota(organizationId);
     await requireOrganizationAccess(organizationId);
 
     let targetPhysicianId = physicianId;
-    if (!targetPhysicianId) {
+    const physician = targetPhysicianId
+      ? await db.user.findFirst({ where: { id: targetPhysicianId, organizationId }, select: { id: true } })
+      : null;
+    if (!physician) {
       const defaultPhysician = await db.user.findFirst({
         where: { organizationId },
       });

@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { db } from "@/lib/db";
 import { requireAuthenticatedUser, requireOrganizationAccess } from "@/lib/tenant-auth";
 import { requirePermission } from "@/lib/auth";
 import { isBrandColor, normalizeBrandColor } from "@/lib/brand";
 import { query } from "@/lib/worker-db";
+import crypto from "node:crypto";
 
 export async function GET() {
   try {
@@ -144,7 +144,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Hospital administrator name, email/User ID, and a password of at least 8 characters are required." }, { status: 400 });
     }
     const normalizedAdminEmail = adminUserEmail.trim().toLowerCase();
-    const existingAdmin = await db.user.findUnique({ where: { email: normalizedAdminEmail }, select: { id: true } });
+    const existingAdmin = (await query(`SELECT id FROM macula.macula_users WHERE email = $1 LIMIT 1`, [normalizedAdminEmail])).rows[0];
     if (existingAdmin) return NextResponse.json({ error: "A user with this administrator email/User ID already exists." }, { status: 409 });
 
     const cleanSlug = (slug || name)
@@ -153,9 +153,7 @@ export async function POST(req: Request) {
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "");
 
-    const existing = await db.organization.findUnique({
-      where: { slug: cleanSlug },
-    });
+    const existing = (await query(`SELECT id FROM macula.macula_organizations WHERE slug = $1 LIMIT 1`, [cleanSlug])).rows[0];
 
     if (existing) {
       return NextResponse.json(
@@ -164,62 +162,20 @@ export async function POST(req: Request) {
       );
     }
 
-    const result = await db.$transaction(async (tx) => {
-      const org = await tx.organization.create({
-        data: {
-        name: name.trim(),
-        slug: cleanSlug,
-        brandingHex: normalizeBrandColor(brandingHex),
-        preferredAsrModel: user?.isSuperAdmin ? preferredAsrModel || "whisper-1" : "whisper-1",
-        customSystemPrompt: customSystemPrompt?.trim() || null,
-        logoUrl: logoUrl?.trim() || null,
-        brandFont: brandFont?.trim() || "Arial",
-        brandTagline: brandTagline?.trim() || null,
-        location: location?.trim() || null,
-        websiteUrl: websiteUrl?.trim() || null,
-        linkedinUrl: linkedinUrl?.trim() || null,
-        facebookUrl: facebookUrl?.trim() || null,
-        instagramUrl: instagramUrl?.trim() || null,
-        xUrl: xUrl?.trim() || null,
-        youtubeUrl: youtubeUrl?.trim() || null,
-        contactEmail: contactEmail?.trim() || null,
-        contactPhone: contactPhone?.trim() || null,
-        preferredTone: preferredTone?.trim() || null,
-        callToAction: callToAction?.trim() || null,
-        hospitalPhotoUrls: Array.isArray(hospitalPhotoUrls) ? hospitalPhotoUrls : null,
-        defaultDisclaimer:
-          defaultDisclaimer?.trim() ||
-          "This clinical summary is generated under NMC registered medical practitioner supervision.",
-        },
-      });
-      const selectedPlan = planId ? await tx.plan.findUnique({ where: { id: planId }, select: { id: true } }) : null;
-      if (planId && !selectedPlan) throw new Error("Selected subscription plan was not found.");
-      const roleDefinition = await tx.roleDefinition.findUnique({
-        where: { slug: "organization-admin" },
-        select: { id: true, defaultPermissions: { select: { permissionId: true } } },
-      });
-      const role = await tx.role.create({
-        data: { name: "Organization Administrator", slug: "organization-admin", description: "Manage the hospital organization and its users.", isSystem: false, organizationId: org.id, definitionId: roleDefinition?.id || null },
-      });
-      if (roleDefinition?.defaultPermissions.length) {
-        await tx.rolePermission.createMany({ data: roleDefinition.defaultPermissions.map(({ permissionId }) => ({ roleId: role.id, permissionId })) });
-      }
-      const adminUser = await tx.user.create({
-        data: {
-          name: adminUserName.trim(),
-          email: normalizedAdminEmail,
-          passwordHash: await bcrypt.hash(adminUserPassword, 12),
-          role: "ADMIN",
-          roleId: role.id,
-          organizationId: org.id,
-        },
-        select: { id: true, name: true, email: true, organizationId: true },
-      });
-      if (selectedPlan) {
-        await tx.subscription.create({ data: { organizationId: org.id, planId: selectedPlan.id, status: "ACTIVE", currentPeriodEnd: new Date(Date.now() + 30 * 86400000) } });
-      }
-      return { org, adminUser };
-    });
+    const organizationId = crypto.randomUUID();
+    const roleId = crypto.randomUUID();
+    const adminUserId = crypto.randomUUID();
+    const definition = (await query<{ id: string }>(`SELECT id FROM macula.macula_role_definitions WHERE slug = 'organization-admin' LIMIT 1`)).rows[0];
+    const selectedPlan = planId ? (await query<{ id: string }>(`SELECT id FROM macula.macula_plans WHERE id = $1 LIMIT 1`, [planId])).rows[0] : null;
+    if (planId && !selectedPlan) throw new Error("Selected subscription plan was not found.");
+    const organizationValues = [organizationId, name.trim(), cleanSlug, normalizeBrandColor(brandingHex), user?.isSuperAdmin ? preferredAsrModel || "whisper-1" : "whisper-1", customSystemPrompt?.trim() || null, logoUrl?.trim() || null, brandFont?.trim() || "Arial", brandTagline?.trim() || null, location?.trim() || null, websiteUrl?.trim() || null, linkedinUrl?.trim() || null, facebookUrl?.trim() || null, instagramUrl?.trim() || null, xUrl?.trim() || null, youtubeUrl?.trim() || null, contactEmail?.trim() || null, contactPhone?.trim() || null, preferredTone?.trim() || null, callToAction?.trim() || null, JSON.stringify(Array.isArray(hospitalPhotoUrls) ? hospitalPhotoUrls : null), defaultDisclaimer?.trim() || "This clinical summary is generated under NMC registered medical practitioner supervision."];
+    const { rows: orgRows } = await query(`INSERT INTO macula.macula_organizations (id, name, slug, "brandingHex", "preferredAsrModel", "customSystemPrompt", "logoUrl", "brandFont", "brandTagline", location, "websiteUrl", "linkedinUrl", "facebookUrl", "instagramUrl", "xUrl", "youtubeUrl", "contactEmail", "contactPhone", "preferredTone", "callToAction", "hospitalPhotoUrls", "defaultDisclaimer") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21::jsonb,$22) RETURNING *`, organizationValues);
+    await query(`INSERT INTO macula.macula_roles (id, name, slug, description, "isSystem", "organizationId", "definitionId") VALUES ($1, 'Organization Administrator', 'organization-admin', 'Manage the hospital organization and its users.', FALSE, $2, $3)`, [roleId, organizationId, definition?.id || null]);
+    if (definition) await query(`INSERT INTO macula.macula_role_permissions ("roleId", "permissionId") SELECT $1, "permissionId" FROM macula.macula_role_definition_permissions WHERE "roleDefinitionId" = $2 ON CONFLICT DO NOTHING`, [roleId, definition.id]);
+    const passwordHash = await bcrypt.hash(adminUserPassword, 12);
+    const { rows: adminRows } = await query(`INSERT INTO macula.macula_users (id, name, email, password_hash, role, "roleId", "organizationId") VALUES ($1,$2,$3,$4,'ADMIN',$5,$6) RETURNING id, name, email, "organizationId"`, [adminUserId, adminUserName.trim(), normalizedAdminEmail, passwordHash, roleId, organizationId]);
+    if (selectedPlan) await query(`INSERT INTO macula.macula_subscriptions (id, status, "currentPeriodStart", "currentPeriodEnd", "organizationId", "planId") VALUES ($1,'ACTIVE',NOW(),$2,$3,$4)`, [crypto.randomUUID(), new Date(Date.now() + 30 * 86400000), organizationId, selectedPlan.id]);
+    const result = { org: orgRows[0], adminUser: adminRows[0] };
 
     return NextResponse.json({ success: true, organization: result.org, adminUser: result.adminUser });
   } catch (error: any) {

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { unstable_cache } from "next/cache";
@@ -64,6 +65,7 @@ function toDisplayVariant(
 
 export default async function DashboardPage() {
   const user = await getCurrentUser();
+  if (!user) redirect("/login");
   const organizationId = user?.isSuperAdmin ? null : user?.organizationId || null;
   const { totalCases, pendingCases, approvedCases, rejectedCases, openSafetyFlags, recentCases, orgCount } = await getDashboardData(organizationId);
   const scopeLabel = organizationId ? "Your hospital" : "All connected hospitals";

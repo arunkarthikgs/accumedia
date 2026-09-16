@@ -58,11 +58,16 @@ export default function PublishingPage() {
       try {
         const organizationsResponse = await fetch("/api/admin/organizations");
         const organizationsData = await organizationsResponse.json();
+        if (!organizationsResponse.ok) {
+          throw new Error(organizationsData.error || "Unable to load organizations.");
+        }
         setOrganizations(organizationsData.organizations || []);
         const firstOrganization = organizationsData.organizations?.[0];
         if (firstOrganization) setOrganizationId(firstOrganization.id);
+        else setIsLoading(false);
       } catch (loadError: any) {
         setError(loadError.message || "Unable to load organizations.");
+        setIsLoading(false);
       }
     }
     loadOrganization();

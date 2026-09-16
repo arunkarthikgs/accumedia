@@ -1,4 +1,4 @@
-import { db } from "@/lib/db";
+import { query } from "@/lib/worker-db";
 import { cookies } from "next/headers";
 import crypto from "node:crypto";
 
@@ -35,64 +35,68 @@ async function resolveCurrentUser(): Promise<SessionUser | null> {
     const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
     const cached = sessionCache.get(tokenHash);
     if (cached && cached.expiresAt > Date.now()) return cached.user;
-    const session = await db.session.findFirst({
-      where: { tokenHash, expiresAt: { gt: new Date() } },
-      select: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            registrationNo: true,
-            specialty: true,
-            designation: true,
-            qualifications: true,
-            profilePhotoUrl: true,
-            isSuperAdmin: true,
-            organizationId: true,
-            assignedRole: {
-              select: {
-                id: true,
-                name: true,
-                slug: true,
-                rolePermissions: { select: { permission: { select: { slug: true } } } },
-              },
-            },
-            organization: { select: { name: true, brandingHex: true } },
-          },
-        },
-      },
-    });
+    const { rows } = await query<{
+      id: string;
+      name: string;
+      email: string;
+      registration_no: string | null;
+      specialty: string | null;
+      designation: string | null;
+      qualifications: string | null;
+      profile_photo_url: string | null;
+      is_super_admin: boolean;
+      organization_id: string | null;
+      organization_name: string | null;
+      branding_hex: string | null;
+      role_id: string | null;
+      role_name: string | null;
+      role_slug: string | null;
+      permissions: string[];
+    }>(
+      `SELECT u.id, u.name, u.email, u."registrationNo" AS registration_no,
+              u.specialty, u.designation, u.qualifications,
+              u."profilePhotoUrl" AS profile_photo_url,
+              u."isSuperAdmin" AS is_super_admin, u."organizationId" AS organization_id,
+              o.name AS organization_name, o."brandingHex" AS branding_hex,
+              r.id AS role_id, r.name AS role_name, r.slug AS role_slug,
+              COALESCE(array_agg(DISTINCT p.slug) FILTER (WHERE p.slug IS NOT NULL), '{}') AS permissions
+       FROM macula.macula_sessions s
+       JOIN macula.macula_users u ON u.id = s."userId"
+       LEFT JOIN macula.macula_roles r ON r.id = u."roleId"
+       LEFT JOIN macula.macula_role_permissions rp ON rp."roleId" = r.id
+       LEFT JOIN macula.macula_permissions p ON p.id = rp."permissionId"
+       LEFT JOIN macula.macula_organizations o ON o.id = u."organizationId"
+       WHERE s."tokenHash" = $1 AND s."expiresAt" > NOW()
+       GROUP BY u.id, o.name, o."brandingHex", r.id, r.name, r.slug
+       LIMIT 1`,
+      [tokenHash]
+    );
+    const session = rows[0];
 
-    if (!session?.user) {
+    if (!session) {
       sessionCache.set(tokenHash, { user: null, expiresAt: Date.now() + SESSION_CACHE_TTL_MS });
       return null;
     }
-    const user = session.user;
-
-    const permissions = user.assignedRole
-      ? user.assignedRole.rolePermissions.map((p) => p.permission.slug)
-      : [];
 
     const result = {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      registrationNo: user.registrationNo,
-      specialty: user.specialty,
-      designation: user.designation,
-      qualifications: user.qualifications,
-      profilePhotoUrl: user.profilePhotoUrl,
-      organizationName: user.organization?.name ?? null,
-      organizationBrandingHex: user.organization?.brandingHex ?? null,
-      isSuperAdmin: Boolean(user.isSuperAdmin),
-      organizationId: user.organizationId ?? null,
-      permissions,
-      role: user.assignedRole
+      id: session.id,
+      name: session.name,
+      email: session.email,
+      registrationNo: session.registration_no,
+      specialty: session.specialty,
+      designation: session.designation,
+      qualifications: session.qualifications,
+      profilePhotoUrl: session.profile_photo_url,
+      organizationName: session.organization_name,
+      organizationBrandingHex: session.branding_hex,
+      isSuperAdmin: Boolean(session.is_super_admin),
+      organizationId: session.organization_id,
+      permissions: session.permissions,
+      role: session.role_id
         ? {
-        id: user.assignedRole.id,
-        name: user.assignedRole.name,
-        slug: user.assignedRole.slug,
+        id: session.role_id,
+        name: session.role_name || "",
+        slug: session.role_slug || "",
           }
         : null,
     };

@@ -26,6 +26,9 @@ function getPool() {
   const connectionString = parsedConnectionString.toString();
   pool = new Pool({
     connectionString,
+    connectionTimeoutMillis: 10_000,
+    query_timeout: 10_000,
+    statement_timeout: 10_000,
     ...(parsedConnectionString.password ? {} : { password: "" }),
   });
   return pool;

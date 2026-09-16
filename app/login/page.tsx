@@ -27,18 +27,30 @@ export default function LoginPage() {
     event.preventDefault();
     setIsSubmitting(true);
     setError(null);
-    const response = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId, password }),
-    });
-    const data = await response.json();
-    if (!response.ok) {
-      setError(data.error || "Login failed.");
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 15_000);
+
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, password }),
+        signal: controller.signal,
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setError(data.error || "Login failed.");
+        return;
+      }
+      router.push("/");
+    } catch (requestError) {
+      setError(requestError instanceof DOMException && requestError.name === "AbortError"
+        ? "Sign-in timed out. Please try again."
+        : "Unable to reach the sign-in service.");
+    } finally {
+      window.clearTimeout(timeout);
       setIsSubmitting(false);
-      return;
     }
-    router.push("/");
   };
 
   return (

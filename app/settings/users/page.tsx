@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { UserPlus, Shield, Stethoscope, Mail, Hash, X, ArrowLeft, AlertCircle, Pencil } from "lucide-react";
+import { fetchJsonOnce } from "@/lib/client-fetch";
 
 interface Organization {
   id: string;
@@ -53,26 +54,18 @@ export default function UsersSettingsPage() {
       setLoading(true);
       setError(null);
       const organizationQuery = selectedOrganizationId ? `?organizationId=${encodeURIComponent(selectedOrganizationId)}` : "";
-      const res = await fetch(`/api/users${organizationQuery}`);
-      const contentType = res.headers.get("content-type");
-
-      if (contentType && contentType.includes("application/json")) {
-        const data = await res.json();
-        if (res.ok) {
-          const scopedUsers = selectedOrganizationId
-            ? (data.users || []).filter((item: Physician) => item.organization?.id === selectedOrganizationId)
-            : data.users || [];
-          setPhysicians(scopedUsers);
-          setOrganizations(data.organizations || []);
-          setIsSuperAdmin(Boolean(data.isSuperAdmin));
-          setCanManageUsers(Boolean(data.canManageUsers));
-          setAvailableSpecialties(data.specialties || []);
-        } else {
-          setError(data.error || "Failed to load physicians");
-        }
-      } else {
-        const text = await res.text();
-        setError(`Server returned status ${res.status}.`);
+      try {
+        const data = await fetchJsonOnce<any>(`/api/users${organizationQuery}`);
+        const scopedUsers = selectedOrganizationId
+          ? (data.users || []).filter((item: Physician) => item.organization?.id === selectedOrganizationId)
+          : data.users || [];
+        setPhysicians(scopedUsers);
+        setOrganizations(data.organizations || []);
+        setIsSuperAdmin(Boolean(data.isSuperAdmin));
+        setCanManageUsers(Boolean(data.canManageUsers));
+        setAvailableSpecialties(data.specialties || []);
+      } catch (requestError: any) {
+        setError(requestError.message || "Failed to load physicians");
       }
     } catch (e: any) {
       setError(e.message || "Failed to connect to /api/users endpoint.");

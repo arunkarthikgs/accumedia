@@ -46,7 +46,7 @@ export async function GET(req: Request) {
             } } : {}),
           },
         },
-        imageAsset: { select: { id: true, channel: true, sourceType: true, phiReviewStatus: true, safetyFindings: true } },
+        ...(flagId ? { imageAsset: { select: { id: true, channel: true, sourceType: true, phiReviewStatus: true, safetyFindings: true } } } : {}),
       },
       orderBy: { createdAt: "desc" },
       take: flagId ? 1 : 50,

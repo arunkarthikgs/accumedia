@@ -9,7 +9,7 @@ const getRoleMatrixCatalog = unstable_cache(
     db.taskDefinition.findMany({ select: { id: true, slug: true, name: true, module: true, description: true, permissions: { select: { id: true } } }, orderBy: [{ module: "asc" }, { slug: "asc" }] }),
   ]),
   ["role-matrix-catalog"],
-  { revalidate: 300, tags: ["role-matrix"] },
+  { revalidate: 900, tags: ["role-matrix"] },
 );
 
 const getRolesForScope = unstable_cache(
@@ -27,7 +27,7 @@ const getRolesForScope = unstable_cache(
     orderBy: { slug: "asc" },
   }),
   ["role-matrix-roles"],
-  { revalidate: 300, tags: ["role-matrix"] },
+  { revalidate: 900, tags: ["role-matrix"] },
 );
 
 async function requireRoleManager() {

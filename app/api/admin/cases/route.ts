@@ -13,6 +13,8 @@ export async function GET(req: Request) {
     const fromDate = searchParams.get("fromDate");
     const toDate = searchParams.get("toDate");
     const includeContent = searchParams.get("includeContent") === "true";
+    const page = Math.max(1, Number(searchParams.get("page") || "1"));
+    const pageSize = Math.min(100, Math.max(10, Number(searchParams.get("pageSize") || (includeContent ? "100" : "25"))));
 
     const where: any = {};
     if (orgId && orgId !== "ALL") where.organizationId = orgId;
@@ -28,7 +30,7 @@ export async function GET(req: Request) {
       : user?.organizationId
         ? db.organization.findMany({ where: { id: user.organizationId }, select: { id: true, name: true, slug: true } })
         : Promise.resolve([]);
-    const [cases, organizations] = await Promise.all([timeDbOperation("admin cases", () => db.case.findMany({
+    const [cases, count, organizations] = await Promise.all([timeDbOperation("admin cases", () => db.case.findMany({
       where,
       select: {
         id: true,
@@ -73,10 +75,11 @@ export async function GET(req: Request) {
         },
       },
       orderBy: { createdAt: "desc" },
-      take: includeContent ? 100 : 25,
-    })), organizationQuery]);
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    })), db.case.count({ where }), organizationQuery]);
 
-    return NextResponse.json({ success: true, cases, organizations });
+    return NextResponse.json({ success: true, cases, organizations, pagination: { page, pageSize, total: count, totalPages: Math.ceil(count / pageSize) } });
   } catch (error: any) {
     console.error("Admin cases fetch error:", error);
     return NextResponse.json(

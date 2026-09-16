@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { assertCaseQuota } from "@/lib/quotas";
 import { requireAuthenticatedUser, requireOrganizationAccess } from "@/lib/tenant-auth";
 import { query } from "@/lib/worker-db";
+import crypto from "node:crypto";
 
 // GET /api/cases - List cases with optional filtering
 export async function GET(req: Request) {
@@ -83,14 +84,9 @@ export async function POST(req: Request) {
 
     let targetPhysicianId = physicianId;
     const physician = targetPhysicianId
-      ? await db.user.findFirst({ where: { id: targetPhysicianId, organizationId }, select: { id: true } })
+      ? (await query(`SELECT id FROM macula.macula_users WHERE id = $1 AND "organizationId" = $2 LIMIT 1`, [targetPhysicianId, organizationId])).rows[0]
       : null;
-    if (!physician) {
-      const defaultPhysician = await db.user.findFirst({
-        where: { organizationId },
-      });
-      targetPhysicianId = defaultPhysician?.id || null;
-    }
+    if (!physician) targetPhysicianId = (await query<{ id: string }>(`SELECT id FROM macula.macula_users WHERE "organizationId" = $1 ORDER BY name ASC LIMIT 1`, [organizationId])).rows[0]?.id || null;
 
     if (!targetPhysicianId) {
       return NextResponse.json(
@@ -106,25 +102,10 @@ export async function POST(req: Request) {
         timeStyle: "short",
       })}`;
 
-    const newCase = await db.case.create({
-      data: {
-        title: defaultTitle,
-        rawInput: rawInput?.trim() || "",
-        status: "PENDING_REVIEW",
-        organizationId,
-        physicianId: targetPhysicianId,
-        masterRecord: {},
-        safetyAudit: {
-          auditLoggedAt: new Date().toISOString(),
-          source: "MANUAL_ENTRY",
-          status: "AWAITING_SYNTHESIS",
-        },
-      },
-      include: {
-        physician: true,
-        organization: true,
-      },
-    });
+    const caseId = crypto.randomUUID();
+    const safetyAudit = { auditLoggedAt: new Date().toISOString(), source: "MANUAL_ENTRY", status: "AWAITING_SYNTHESIS" };
+    const { rows } = await query(`INSERT INTO macula.macula_cases (id, title, raw_input, status, "organizationId", "physicianId", "masterRecord", "safetyAudit") VALUES ($1, $2, $3, 'PENDING_REVIEW', $4, $5, '{}'::jsonb, $6::jsonb) RETURNING *`, [caseId, defaultTitle, rawInput?.trim() || "", organizationId, targetPhysicianId, JSON.stringify(safetyAudit)]);
+    const newCase = { ...rows[0], physician: (await query(`SELECT * FROM macula.macula_users WHERE id = $1`, [targetPhysicianId])).rows[0], organization: (await query(`SELECT * FROM macula.macula_organizations WHERE id = $1`, [organizationId])).rows[0] };
 
     return NextResponse.json({
       success: true,

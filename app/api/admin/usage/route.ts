@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
 import { requireOrganizationAccess } from "@/lib/tenant-auth";
 import { getOrganizationQuota } from "@/lib/quotas";
 import { requirePermission } from "@/lib/auth";
+import { query } from "@/lib/worker-db";
 
 export async function GET(req: Request) {
   try {
@@ -14,25 +14,28 @@ export async function GET(req: Request) {
     const to = searchParams.get("to");
     const page = Math.max(1, Number(searchParams.get("page") || "1"));
     const pageSize = Math.min(100, Math.max(10, Number(searchParams.get("pageSize") || "50")));
-    const createdAt = {
-      ...(from ? { gte: new Date(`${from}T00:00:00.000Z`) } : {}),
-      ...(to ? { lte: new Date(`${to}T23:59:59.999Z`) } : {}),
-    };
-    const where = { organizationId, ...(operation && operation !== "ALL" ? { operation } : {}), ...(caseSearch ? { case: { title: { contains: caseSearch, mode: "insensitive" as const } } } : {}), ...(Object.keys(createdAt).length ? { createdAt } : {}) };
     if (!organizationId) return NextResponse.json({ error: "orgId is required." }, { status: 400 });
     await requirePermission("USAGE_VIEW");
     await requireOrganizationAccess(organizationId);
 
-    const [logs, count, summary, quota] = await Promise.all([
-      db.aIUsageLog.findMany({ where, include: { case: { select: { id: true, title: true } } }, orderBy: { createdAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize }),
-      db.aIUsageLog.count({ where }),
-      db.aIUsageLog.aggregate({
-        where,
-        _sum: { inputTokens: true, outputTokens: true, audioSeconds: true, estimatedCostUsd: true },
-        _count: { _all: true },
-      }),
+    const fromDate = from ? new Date(`${from}T00:00:00.000Z`) : null;
+    const toDate = to ? new Date(`${to}T23:59:59.999Z`) : null;
+    const params = [organizationId, operation && operation !== "ALL" ? operation : null, caseSearch ? `%${caseSearch}%` : null, fromDate, toDate];
+    const filter = `l."organizationId" = $1
+      AND ($2::text IS NULL OR l.operation = $2)
+      AND ($3::text IS NULL OR c.title ILIKE $3)
+      AND ($4::timestamptz IS NULL OR l."createdAt" >= $4)
+      AND ($5::timestamptz IS NULL OR l."createdAt" <= $5)`;
+    const [{ rows: logs }, { rows: countRows }, { rows: summaryRows }, quota] = await Promise.all([
+      query(`SELECT l.*, CASE WHEN c.id IS NULL THEN NULL ELSE json_build_object('id', c.id, 'title', c.title) END AS case
+             FROM macula.macula_ai_usage_logs l LEFT JOIN macula.macula_cases c ON c.id = l."caseId"
+             WHERE ${filter} ORDER BY l."createdAt" DESC OFFSET $6 LIMIT $7`, [...params, (page - 1) * pageSize, pageSize]),
+      query(`SELECT COUNT(*)::int AS count FROM macula.macula_ai_usage_logs l LEFT JOIN macula.macula_cases c ON c.id = l."caseId" WHERE ${filter}`, params),
+      query(`SELECT COUNT(*)::int AS count, COALESCE(SUM(l."inputTokens"), 0)::int AS "inputTokens", COALESCE(SUM(l."outputTokens"), 0)::int AS "outputTokens", COALESCE(SUM(l."audioSeconds"), 0)::int AS "audioSeconds", COALESCE(SUM(l."estimatedCostUsd"), 0) AS "estimatedCostUsd" FROM macula.macula_ai_usage_logs l LEFT JOIN macula.macula_cases c ON c.id = l."caseId" WHERE ${filter}`, params),
       getOrganizationQuota(organizationId),
     ]);
+    const count = Number(countRows[0]?.count || 0);
+    const summary = { _count: { _all: Number(summaryRows[0]?.count || 0) }, _sum: summaryRows[0] };
 
     return NextResponse.json({ logs, summary, quota, pagination: { page, pageSize, total: count, totalPages: Math.ceil(count / pageSize) } });
   } catch (error: any) {

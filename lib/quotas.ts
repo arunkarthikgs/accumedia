@@ -1,35 +1,46 @@
-import { db } from "@/lib/db";
+import { query } from "@/lib/worker-db";
 
 export async function getOrganizationQuota(organizationId: string) {
-  let subscription = await db.subscription.findUnique({
-    where: { organizationId },
-    include: { plan: true },
-  });
+  const subscriptionResult = await query<any>(
+    `SELECT s.*, row_to_json(p) AS plan
+     FROM macula.macula_subscriptions s
+     JOIN macula.macula_plans p ON p.id = s."planId"
+     WHERE s."organizationId" = $1 LIMIT 1`,
+    [organizationId]
+  );
+  let subscription = subscriptionResult.rows[0] as any;
   if (!subscription || subscription.status === "CANCELLED") return null;
 
-  if (subscription.currentPeriodEnd <= new Date() && ["TRIAL", "ACTIVE"].includes(subscription.status)) {
-    subscription = await db.subscription.update({
-      where: { id: subscription.id },
-      data: { currentPeriodStart: new Date(), currentPeriodEnd: new Date(Date.now() + 30 * 86400000) },
-      include: { plan: true },
-    });
+  if (new Date(subscription.currentPeriodEnd) <= new Date() && ["TRIAL", "ACTIVE"].includes(subscription.status)) {
+    const periodStart = new Date();
+    const periodEnd = new Date(Date.now() + 30 * 86400000);
+    const renewed = await query<any>(
+      `UPDATE macula.macula_subscriptions
+       SET "currentPeriodStart" = $1, "currentPeriodEnd" = $2, "updatedAt" = NOW()
+       WHERE id = $3
+       RETURNING *`,
+      [periodStart, periodEnd, subscription.id]
+    );
+    subscription = { ...renewed.rows[0], plan: subscription.plan };
   }
 
-  const periodStart = subscription.currentPeriodStart;
-  const periodEnd = subscription.currentPeriodEnd;
-  const [caseCount, audioUsage, tokenUsage, assetCount] = await Promise.all([
-    db.case.count({ where: { organizationId, createdAt: { gte: periodStart, lte: periodEnd } } }),
-    db.aIUsageLog.aggregate({ where: { organizationId, createdAt: { gte: periodStart, lte: periodEnd } }, _sum: { audioSeconds: true } }),
-    db.aIUsageLog.aggregate({ where: { organizationId, createdAt: { gte: periodStart, lte: periodEnd } }, _sum: { inputTokens: true, outputTokens: true } }),
-    db.generatedAsset.count({ where: { case: { organizationId }, createdAt: { gte: periodStart, lte: periodEnd } } }),
-  ]);
+  const { rows: usageRows } = await query<any>(
+    `SELECT
+       (SELECT COUNT(*) FROM macula.macula_cases WHERE "organizationId" = $1 AND "createdAt" BETWEEN $2 AND $3) AS case_count,
+       (SELECT COALESCE(SUM("audioSeconds"), 0) FROM macula.macula_ai_usage_logs WHERE "organizationId" = $1 AND "createdAt" BETWEEN $2 AND $3) AS audio_seconds,
+       (SELECT COALESCE(SUM("inputTokens"), 0) + COALESCE(SUM("outputTokens"), 0) FROM macula.macula_ai_usage_logs WHERE "organizationId" = $1 AND "createdAt" BETWEEN $2 AND $3) AS ai_tokens,
+       (SELECT COUNT(*) FROM macula.macula_generated_assets ga JOIN macula.macula_cases c ON c.id = ga."caseId" WHERE c."organizationId" = $1 AND ga."createdAt" BETWEEN $2 AND $3) AS asset_count`,
+    [organizationId, subscription.currentPeriodStart, subscription.currentPeriodEnd]
+  );
+  const usage = usageRows[0];
+  const plan = subscription.plan;
 
   return {
     subscription,
-    cases: { used: caseCount, limit: subscription.plan.monthlyCaseLimit },
-    audioMinutes: { used: Math.ceil((audioUsage._sum.audioSeconds || 0) / 60), limit: subscription.plan.monthlyAudioMinutes },
-    aiTokens: { used: (tokenUsage._sum.inputTokens || 0) + (tokenUsage._sum.outputTokens || 0), limit: subscription.plan.monthlyAiTokens },
-    assets: { used: assetCount, limit: subscription.plan.monthlyAssetLimit },
+    cases: { used: Number(usage.case_count), limit: plan.monthlyCaseLimit },
+    audioMinutes: { used: Math.ceil(Number(usage.audio_seconds) / 60), limit: plan.monthlyAudioMinutes },
+    aiTokens: { used: Number(usage.ai_tokens), limit: plan.monthlyAiTokens },
+    assets: { used: Number(usage.asset_count), limit: plan.monthlyAssetLimit },
   };
 }
 

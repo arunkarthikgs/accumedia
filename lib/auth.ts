@@ -53,21 +53,18 @@ async function resolveCurrentUser(): Promise<SessionUser | null> {
       role_slug: string | null;
       permissions: string[];
     }>(
-      `SELECT u.id, u.name, u.email, u."registrationNo" AS registration_no,
+            `SELECT u.id, u.name, u.email, u."registrationNo" AS registration_no,
               u.specialty, u.designation, u.qualifications,
               u."profilePhotoUrl" AS profile_photo_url,
               u."isSuperAdmin" AS is_super_admin, u."organizationId" AS organization_id,
               o.name AS organization_name, o."brandingHex" AS branding_hex,
               r.id AS role_id, r.name AS role_name, r.slug AS role_slug,
-              COALESCE(array_agg(DISTINCT p.slug) FILTER (WHERE p.slug IS NOT NULL), '{}') AS permissions
+              '{}'::text[] AS permissions
        FROM macula.macula_sessions s
        JOIN macula.macula_users u ON u.id = s."userId"
        LEFT JOIN macula.macula_roles r ON r.id = u."roleId"
-       LEFT JOIN macula.macula_role_permissions rp ON rp."roleId" = r.id
-       LEFT JOIN macula.macula_permissions p ON p.id = rp."permissionId"
        LEFT JOIN macula.macula_organizations o ON o.id = u."organizationId"
        WHERE s."tokenHash" = $1 AND s."expiresAt" > NOW()
-       GROUP BY u.id, o.name, o."brandingHex", r.id, r.name, r.slug
        LIMIT 1`,
       [tokenHash]
     );
@@ -77,6 +74,16 @@ async function resolveCurrentUser(): Promise<SessionUser | null> {
       sessionCache.set(tokenHash, { user: null, expiresAt: Date.now() + SESSION_CACHE_TTL_MS });
       return null;
     }
+
+    const permissions = session.is_super_admin
+      ? []
+      : (await query<{ slug: string }>(
+        `SELECT DISTINCT p.slug
+         FROM macula.macula_role_permissions rp
+         JOIN macula.macula_permissions p ON p.id = rp."permissionId"
+         WHERE rp."roleId" = $1`,
+        [session.role_id]
+      )).rows.map((permission) => permission.slug);
 
     const result = {
       id: session.id,
@@ -91,7 +98,7 @@ async function resolveCurrentUser(): Promise<SessionUser | null> {
       organizationBrandingHex: session.branding_hex,
       isSuperAdmin: Boolean(session.is_super_admin),
       organizationId: session.organization_id,
-      permissions: session.permissions,
+      permissions,
       role: session.role_id
         ? {
         id: session.role_id,

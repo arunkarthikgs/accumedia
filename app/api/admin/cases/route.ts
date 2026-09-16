@@ -9,14 +9,25 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const orgId = searchParams.get("orgId");
     const status = searchParams.get("status");
+    const fromDate = searchParams.get("fromDate");
+    const toDate = searchParams.get("toDate");
     const includeContent = searchParams.get("includeContent") === "true";
 
     const where: any = {};
     if (orgId && orgId !== "ALL") where.organizationId = orgId;
     if (user && !user.isSuperAdmin && user.organizationId) where.organizationId = user.organizationId;
     if (status && status !== "ALL") where.status = status;
+    if (fromDate || toDate) where.createdAt = {
+      ...(fromDate ? { gte: new Date(`${fromDate}T00:00:00.000Z`) } : {}),
+      ...(toDate ? { lte: new Date(`${toDate}T23:59:59.999Z`) } : {}),
+    };
 
-    const cases = await db.case.findMany({
+    const organizationQuery = user?.isSuperAdmin
+      ? db.organization.findMany({ select: { id: true, name: true, slug: true }, orderBy: { name: "asc" } })
+      : user?.organizationId
+        ? db.organization.findMany({ where: { id: user.organizationId }, select: { id: true, name: true, slug: true } })
+        : Promise.resolve([]);
+    const [cases, organizations] = await Promise.all([db.case.findMany({
       where,
       select: {
         id: true,
@@ -62,9 +73,9 @@ export async function GET(req: Request) {
       },
       orderBy: { createdAt: "desc" },
       take: includeContent ? 100 : 25,
-    });
+    }), organizationQuery]);
 
-    return NextResponse.json({ success: true, cases });
+    return NextResponse.json({ success: true, cases, organizations });
   } catch (error: any) {
     console.error("Admin cases fetch error:", error);
     return NextResponse.json(

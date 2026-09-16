@@ -3,17 +3,20 @@ import { db } from "@/lib/db";
 import { DEFAULT_CLINICAL_REFINER_PROMPT } from "@/lib/clinical-refiner";
 import { DEFAULT_IMAGE_GENERATION_PROMPT, DEFAULT_IMAGE_SAFETY_PROMPT } from "@/lib/image-prompts";
 import { getResolvedAiPrompts } from "@/lib/ai-prompts";
+import { requireAuthenticatedUser, requireOrganizationAccess } from "@/lib/tenant-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   try {
+    await requireAuthenticatedUser();
     const { searchParams } = new URL(req.url);
     const orgId = searchParams.get("orgId");
 
     if (!orgId) {
       return NextResponse.json({ error: "orgId is required" }, { status: 400 });
     }
+    await requireOrganizationAccess(orgId);
 
     const organization = await db.organization.findUnique({
       where: { id: orgId },
@@ -63,6 +66,7 @@ export async function GET(req: Request) {
 
 export async function PUT(req: Request) {
   try {
+    const sessionUser = await requireAuthenticatedUser();
     const body = await req.json();
     const {
       orgId,
@@ -78,26 +82,19 @@ export async function PUT(req: Request) {
     if (!orgId) {
       return NextResponse.json({ error: "orgId is required" }, { status: 400 });
     }
+    await requireOrganizationAccess(orgId);
 
     // Verify authorized compliance or admin user role
-    if (userId) {
-      const user = await db.user.findUnique({
-        where: { id: userId },
-        include: { assignedRole: true },
-      });
-
-      const allowedRoles = ["ADMIN", "COMPLIANCE_OFFICER"];
-      const hasAllowedRole =
-        (user?.role && allowedRoles.includes(user.role)) ||
-        (user?.assignedRole?.slug && ["admin", "compliance-officer"].includes(user.assignedRole.slug)) ||
-        user?.isSuperAdmin;
-
-      if (!hasAllowedRole) {
-        return NextResponse.json(
-          { error: "Access Denied: Only Compliance Officers and Admins can update system prompts." },
-          { status: 403 }
-        );
-      }
+    const allowedRoles = ["ADMIN", "COMPLIANCE_OFFICER"];
+    const roleSlug = sessionUser?.role?.slug?.toLowerCase();
+    const hasAllowedRole = sessionUser?.isSuperAdmin ||
+      (sessionUser?.role?.slug && ["admin", "compliance-officer"].includes(roleSlug || "")) ||
+      (sessionUser?.role && allowedRoles.includes(sessionUser.role.slug));
+    if (!hasAllowedRole) {
+      return NextResponse.json(
+        { error: "Access Denied: Only Compliance Officers and Admins can update system prompts." },
+        { status: 403 }
+      );
     }
 
     // Organization-level system prompt and disclaimer remain separate settings.

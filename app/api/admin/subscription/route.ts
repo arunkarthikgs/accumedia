@@ -1,12 +1,23 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { getCurrentUser } from "@/lib/auth";
 import { requireOrganizationAccess } from "@/lib/tenant-auth";
 import { getOrganizationQuota } from "@/lib/quotas";
+
+async function requireSubscriptionManager() {
+  const user = await getCurrentUser();
+  const roleSlug = user?.role?.slug?.toLowerCase();
+  if (!user || (!user.isSuperAdmin && !["platform-admin", "organization-admin", "admin"].includes(roleSlug || ""))) {
+    throw new Error("Forbidden: subscription management permission required.");
+  }
+  return user;
+}
 
 export async function GET(req: Request) {
   try {
     const organizationId = new URL(req.url).searchParams.get("orgId");
     if (!organizationId) return NextResponse.json({ error: "orgId is required." }, { status: 400 });
+    await requireSubscriptionManager();
     await requireOrganizationAccess(organizationId);
 
     const [subscription, plans, quota] = await Promise.all([
@@ -24,6 +35,7 @@ export async function PUT(req: Request) {
   try {
     const { organizationId, planId, status, currentPeriodEnd } = await req.json();
     if (!organizationId || !planId) return NextResponse.json({ error: "organizationId and planId are required." }, { status: 400 });
+    await requireSubscriptionManager();
     await requireOrganizationAccess(organizationId);
 
     const subscription = await db.subscription.upsert({
@@ -51,6 +63,7 @@ export async function PATCH(req: Request) {
   try {
     const { organizationId, action } = await req.json();
     if (!organizationId || !["activate", "cancel", "renew", "past_due"].includes(action)) return NextResponse.json({ error: "organizationId and a valid lifecycle action are required." }, { status: 400 });
+    await requireSubscriptionManager();
     await requireOrganizationAccess(organizationId);
     const existing = await db.subscription.findUnique({ where: { organizationId } });
     if (!existing) return NextResponse.json({ error: "Subscription is not configured." }, { status: 404 });

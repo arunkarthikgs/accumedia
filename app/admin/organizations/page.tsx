@@ -85,9 +85,9 @@ export default function AdminOrganizationsPage() {
   });
 
   const loadOrganizations = async () => {
-    setIsLoading(true);
     setErrorMessage(null);
     const cacheKey = "macula:organizations";
+    let servedCache = false;
     try {
       const cached = sessionStorage.getItem(cacheKey);
       if (cached) {
@@ -95,13 +95,15 @@ export default function AdminOrganizationsPage() {
         if (Date.now() - parsed.cachedAt < 60_000) {
           setOrganizations(parsed.organizations || []);
           setIsLoading(false);
+          servedCache = true;
         }
       }
     } catch {
       // Ignore unavailable or invalid browser cache.
     }
+    if (!servedCache) setIsLoading(true);
     try {
-      const res = await fetch("/api/admin/organizations");
+      const res = await fetch("/api/admin/organizations", { cache: "no-store" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to load hospitals.");
       setOrganizations(data.organizations || []);

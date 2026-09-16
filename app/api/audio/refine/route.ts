@@ -5,6 +5,7 @@ import { findUnredactedRuleMatches, redactClinicalText } from "@/lib/prompts/cli
 import { logAIUsage } from "@/lib/ai-usage";
 import { assertTokenQuota } from "@/lib/quotas";
 import { getResolvedAiPrompts } from "@/lib/ai-prompts";
+import { requireOrganizationAccess } from "@/lib/tenant-auth";
 
 export async function POST(req: Request) {
   try {
@@ -17,19 +18,28 @@ export async function POST(req: Request) {
       );
     }
 
-    const organization = recordingId
-      ? (await db.audioRecording.findUnique({
+    const recording = recordingId
+      ? await db.audioRecording.findUnique({
           where: { id: recordingId },
-          select: { organization: { select: { id: true, clinicalRefinerPrompt: true, defaultDisclaimer: true } } },
-        }))?.organization
-      : organizationId
-        ? await db.organization.findUnique({
-            where: { id: organizationId },
-            select: { id: true, clinicalRefinerPrompt: true, defaultDisclaimer: true },
-          })
-        : null;
-
-    const resolvedOrganizationId = organizationId || (recordingId ? (await db.audioRecording.findUnique({ where: { id: recordingId }, select: { organizationId: true } }))?.organizationId : null);
+          select: {
+            organizationId: true,
+            caseId: true,
+            organization: { select: { id: true, clinicalRefinerPrompt: true, defaultDisclaimer: true } },
+          },
+        })
+      : null;
+    if (recordingId && !recording) return NextResponse.json({ error: "Recording not found." }, { status: 404 });
+    if (recording && organizationId && recording.organizationId !== organizationId) {
+      return NextResponse.json({ error: "Recording belongs to another organization." }, { status: 403 });
+    }
+    const resolvedOrganizationId = recording?.organizationId || organizationId || null;
+    if (resolvedOrganizationId) await requireOrganizationAccess(resolvedOrganizationId);
+    const organization = recording?.organization || (organizationId
+      ? await db.organization.findUnique({
+          where: { id: organizationId },
+          select: { id: true, clinicalRefinerPrompt: true, defaultDisclaimer: true },
+        })
+      : null);
     const promptTemplates = organization?.id ? await getResolvedAiPrompts(organization.id, ["CLINICAL_REFINER"]) : new Map();
     const refinerPromptTemplate = promptTemplates.get("CLINICAL_REFINER");
     const redactionRules = await db.complianceRule.findMany({

@@ -65,13 +65,6 @@ export default function SafetyQueuePage() {
   const [refinedText, setRefinedText] = useState<string | null>(null);
   const [isLoadingRefinedText, setIsLoadingRefinedText] = useState(false);
 
-  useEffect(() => {
-    fetch("/api/admin/organizations")
-      .then((r) => r.json())
-      .then((d) => setOrganizations(d.organizations || []))
-      .catch(() => {});
-  }, []);
-
   const loadFlags = async () => {
     const caseId = new URLSearchParams(window.location.search).get("caseId");
     const cacheKey = `macula:safety-queue:${selectedOrgId}:${caseId || "all"}`;
@@ -79,9 +72,10 @@ export default function SafetyQueuePage() {
     try {
       const cached = sessionStorage.getItem(cacheKey);
       if (cached) {
-        const parsed = JSON.parse(cached) as { flags: Flag[]; cachedAt: number };
+        const parsed = JSON.parse(cached) as { flags: Flag[]; organizations?: Organization[]; cachedAt: number };
         if (Date.now() - parsed.cachedAt < 30_000) {
           setFlags(parsed.flags || []);
+          setOrganizations(parsed.organizations || []);
           servedCache = true;
         }
       }
@@ -94,7 +88,8 @@ export default function SafetyQueuePage() {
       const res = await fetch(url);
       const data = await res.json();
       setFlags(data.flags || []);
-      try { sessionStorage.setItem(cacheKey, JSON.stringify({ flags: data.flags || [], cachedAt: Date.now() })); } catch { /* Ignore storage limits. */ }
+      setOrganizations(data.organizations || []);
+      try { sessionStorage.setItem(cacheKey, JSON.stringify({ flags: data.flags || [], organizations: data.organizations || [], cachedAt: Date.now() })); } catch { /* Ignore storage limits. */ }
     } catch (err) {
       console.error("Failed to load safety flags:", err);
     } finally {

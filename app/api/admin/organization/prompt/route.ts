@@ -1,18 +1,20 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { requireOrganizationAccess, requireAuthenticatedUser } from "@/lib/tenant-auth";
 
 export async function GET(req: Request) {
   try {
+    const user = await requireAuthenticatedUser();
     const { searchParams } = new URL(req.url);
-    const orgId = searchParams.get("orgId");
+    const orgId = searchParams.get("orgId") || user?.organizationId;
+    if (!orgId) return NextResponse.json({ error: "Organization ID is required." }, { status: 400 });
+    await requireOrganizationAccess(orgId);
 
     const [globalDefault, organization] = await Promise.all([
       db.platformTemplate.findUnique({
         where: { slug: "CLINICAL_SYNTHESIS_DEFAULT" },
       }),
-      orgId
-        ? db.organization.findUnique({ where: { id: orgId } })
-        : db.organization.findFirst({ orderBy: { createdAt: "asc" } }),
+      db.organization.findUnique({ where: { id: orgId } }),
     ]);
 
     if (!organization) {
@@ -34,6 +36,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
+    const user = await requireAuthenticatedUser();
     const { orgId, prompt } = await req.json();
 
     if (!orgId || !prompt) {
@@ -42,6 +45,7 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
+    await requireOrganizationAccess(orgId);
 
     const updated = await db.organization.update({
       where: { id: orgId },

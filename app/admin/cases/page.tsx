@@ -88,6 +88,8 @@ export default function AdminCasesPage() {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [selectedOrgId, setSelectedOrgId] = useState<string>("ALL");
   const [selectedStatus, setSelectedStatus] = useState<string>("ALL");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
 
@@ -104,30 +106,16 @@ export default function AdminCasesPage() {
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
   const [isLoadingPlayback, setIsLoadingPlayback] = useState(false);
 
-  useEffect(() => {
-    async function loadOrgs() {
-      try {
-        const res = await fetch("/api/admin/organizations");
-        if (res.ok) {
-          const data = await res.json();
-          setOrganizations(data.organizations || []);
-        }
-      } catch (err) {
-        console.error("Failed to load organizations:", err);
-      }
-    }
-    loadOrgs();
-  }, []);
-
   const loadCases = async () => {
-    const cacheKey = `macula:case-list:${selectedOrgId}:${selectedStatus}`;
+    const cacheKey = `macula:case-list:${selectedOrgId}:${selectedStatus}:${fromDate}:${toDate}`;
     let servedCache = false;
     try {
       const cached = sessionStorage.getItem(cacheKey);
       if (cached) {
-        const parsed = JSON.parse(cached) as { cases: CaseItem[]; cachedAt: number };
+        const parsed = JSON.parse(cached) as { cases: CaseItem[]; organizations?: Organization[]; cachedAt: number };
         if (Date.now() - parsed.cachedAt < 60_000) {
           setCases(parsed.cases || []);
+          setOrganizations(parsed.organizations || []);
           setSelectedCaseIds(new Set());
           servedCache = true;
         }
@@ -139,11 +127,14 @@ export default function AdminCasesPage() {
     try {
       let url = `/api/admin/cases?status=${selectedStatus}`;
       if (selectedOrgId !== "ALL") url += `&orgId=${selectedOrgId}`;
-      const res = await fetch(url);
+      if (fromDate) url += `&fromDate=${fromDate}`;
+      if (toDate) url += `&toDate=${toDate}`;
+      const res = await fetch(url, { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
         setCases(data.cases || []);
-        try { sessionStorage.setItem(cacheKey, JSON.stringify({ cases: data.cases || [], cachedAt: Date.now() })); } catch { /* Ignore storage limits. */ }
+        setOrganizations(data.organizations || []);
+        try { sessionStorage.setItem(cacheKey, JSON.stringify({ cases: data.cases || [], organizations: data.organizations || [], cachedAt: Date.now() })); } catch { /* Ignore storage limits. */ }
         setSelectedCaseIds(new Set());
       }
     } catch (err) {
@@ -155,16 +146,21 @@ export default function AdminCasesPage() {
 
   useEffect(() => {
     loadCases();
-  }, [selectedOrgId, selectedStatus]);
+  }, [selectedOrgId, selectedStatus, fromDate, toDate]);
 
   const filteredCases = useMemo(() => {
+    const fromTimestamp = fromDate ? Date.parse(`${fromDate}T00:00:00.000Z`) : null;
+    const toTimestamp = toDate ? Date.parse(`${toDate}T23:59:59.999Z`) : null;
     return cases.filter((c) => {
       const q = searchQuery.toLowerCase();
+      const createdTimestamp = Date.parse(c.createdAt);
       return (
-        c.title.toLowerCase().includes(q) ||
-        c.physician.name.toLowerCase().includes(q) ||
-        c.physician.registrationNo?.toLowerCase().includes(q) ||
-        c.organization.name.toLowerCase().includes(q)
+        (fromTimestamp === null || createdTimestamp >= fromTimestamp) &&
+        (toTimestamp === null || createdTimestamp <= toTimestamp) &&
+        (c.title.toLowerCase().includes(q) ||
+          c.physician.name.toLowerCase().includes(q) ||
+          c.physician.registrationNo?.toLowerCase().includes(q) ||
+          c.organization.name.toLowerCase().includes(q))
       );
     });
   }, [cases, searchQuery]);
@@ -432,6 +428,14 @@ export default function AdminCasesPage() {
                 <option value="REJECTED">Rejected</option>
               </select>
             </div>
+            <label className="flex items-center gap-1.5 text-xs text-muted">
+              From
+              <input type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} className="rounded border border-line bg-paper px-2 py-1.5 text-xs text-ink focus:border-pine focus:outline-none" />
+            </label>
+            <label className="flex items-center gap-1.5 text-xs text-muted">
+              To
+              <input type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} className="rounded border border-line bg-paper px-2 py-1.5 text-xs text-ink focus:border-pine focus:outline-none" />
+            </label>
           </div>
           <div className="text-xs text-muted">
             <strong className="text-ink font-medium">{filteredCases.length}</strong> cases

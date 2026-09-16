@@ -7,6 +7,7 @@ import { getASRPromptProfile } from "@/lib/asr/prompts";
 import { redactClinicalText } from "@/lib/prompts/clinical-redaction";
 import { logAIUsage } from "@/lib/ai-usage";
 import { assertAudioQuota } from "@/lib/quotas";
+import { requireOrganizationAccess } from "@/lib/tenant-auth";
 
 export async function POST(
   req: Request,
@@ -15,6 +16,7 @@ export async function POST(
   const { sourceId } = await props.params;
   const source = await db.caseSource.findUnique({ where: { id: sourceId } });
   if (!source) return NextResponse.json({ error: "Source not found." }, { status: 404 });
+  await requireOrganizationAccess(source.organizationId);
 
   await db.caseSource.update({ where: { id: sourceId }, data: { status: "PROCESSING", processingError: null } });
 

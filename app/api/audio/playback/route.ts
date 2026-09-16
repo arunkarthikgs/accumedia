@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 import { db } from "@/lib/db";
 import { getAudioPlaybackUrl } from "@/lib/r2";
+import { requireOrganizationAccess } from "@/lib/tenant-auth";
 
 export async function GET(req: Request) {
   try {
@@ -13,12 +14,13 @@ export async function GET(req: Request) {
 
     const recording = await db.audioRecording.findUnique({
       where: { id: recordingId },
-      select: { r2Key: true, mimeType: true },
+      select: { r2Key: true, mimeType: true, organizationId: true },
     });
 
     if (!recording) {
       return NextResponse.json({ error: "Recording not found." }, { status: 404 });
     }
+    await requireOrganizationAccess(recording.organizationId);
 
     const url = await getAudioPlaybackUrl(recording.r2Key);
     return NextResponse.json({ url, mimeType: recording.mimeType });

@@ -20,7 +20,12 @@ export async function GET(req: Request) {
     const scopedOrgId = user?.isSuperAdmin ? orgId : user?.organizationId;
     if (scopedOrgId) await requireOrganizationAccess(scopedOrgId);
 
-    const flags = await db.safetyFlag.findMany({
+    const organizationQuery = user?.isSuperAdmin
+      ? db.organization.findMany({ select: { id: true, name: true, slug: true }, orderBy: { name: "asc" } })
+      : user?.organizationId
+        ? db.organization.findMany({ where: { id: user.organizationId }, select: { id: true, name: true, slug: true } })
+        : Promise.resolve([]);
+    const [flags, organizations] = await Promise.all([db.safetyFlag.findMany({
       where: {
         status: status === "ALL" ? undefined : (status as any),
         ...(scopedOrgId ? { case: { organizationId: scopedOrgId } } : {}),
@@ -45,9 +50,9 @@ export async function GET(req: Request) {
       },
       orderBy: { createdAt: "desc" },
       take: flagId ? 1 : 50,
-    });
+    }), organizationQuery]);
 
-    return NextResponse.json({ flags });
+    return NextResponse.json({ flags, organizations });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { requireAuthenticatedUser } from "@/lib/tenant-auth";
 
 export async function GET() {
   try {
+    const user = await requireAuthenticatedUser();
     const organizations = await db.organization.findMany({
+      where: user?.isSuperAdmin ? undefined : user?.organizationId ? { id: user.organizationId } : { id: "__no_organization__" },
       select: {
         id: true,
         name: true,

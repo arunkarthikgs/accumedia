@@ -4,7 +4,8 @@ import { requireAuthenticatedUser } from "@/lib/tenant-auth";
 
 async function requireRoleManager() {
   const user = await requireAuthenticatedUser();
-  if (!user || (!user.isSuperAdmin && user.role?.slug !== "platform-admin" && user.role?.slug !== "organization-admin" && user.role?.slug !== "compliance-officer" && user.role?.slug !== "admin")) {
+  const roleSlug = user?.role?.slug?.toLowerCase();
+  if (!user || (!user.isSuperAdmin && roleSlug !== "platform-admin" && roleSlug !== "organization-admin" && roleSlug !== "compliance-officer" && roleSlug !== "admin")) {
     throw new Error("Forbidden: role matrix management permission required.");
   }
   return user;
@@ -14,31 +15,41 @@ export async function GET(req: Request) {
   try {
     const user = await requireRoleManager();
     const requestedOrganizationId = new URL(req.url).searchParams.get("organizationId");
-    const organizationId = user.isSuperAdmin ? requestedOrganizationId : user.organizationId;
+    const organizations = user.isSuperAdmin
+      ? await db.organization.findMany({ select: { id: true, name: true, slug: true }, orderBy: { name: "asc" } })
+      : [];
+    const organizationId = user.isSuperAdmin ? requestedOrganizationId || organizations[0]?.id || null : user.organizationId;
     if (!organizationId && !user.isSuperAdmin) {
       return NextResponse.json({ error: "User is not assigned to an organization." }, { status: 400 });
     }
-    const [roles, permissions, definitions, taskDefinitions] = await Promise.all([
+    const roleScope = user.isSuperAdmin
+      ? (organizationId ? { OR: [{ organizationId: null }, { organizationId }] } : { organizationId: null })
+      : { organizationId };
+    const [roles, permissions, taskDefinitions] = await Promise.all([
       db.role.findMany({
-        where: organizationId ? { organizationId } : { organizationId: "__hospital_scope_required__" },
-        include: {
+        where: roleScope,
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          isSystem: true,
+          organizationId: true,
           definition: { select: { id: true, slug: true, name: true, isSystem: true } },
-          rolePermissions: { include: { permission: true } },
+          rolePermissions: { select: { permissionId: true } },
         },
         orderBy: { slug: "asc" },
       }),
       db.permission.findMany({
         orderBy: { module: "asc" },
       }),
-      db.roleDefinition.findMany({ include: { defaultPermissions: { include: { permission: true } } }, orderBy: { slug: "asc" } }),
-      db.taskDefinition.findMany({ include: { permissions: { select: { id: true } } }, orderBy: [{ module: "asc" }, { slug: "asc" }] }),
+      db.taskDefinition.findMany({ select: { id: true, slug: true, name: true, module: true, description: true, permissions: { select: { id: true } } }, orderBy: [{ module: "asc" }, { slug: "asc" }] }),
     ]);
 
-    const organizations = user.isSuperAdmin
-      ? await db.organization.findMany({ select: { id: true, name: true, slug: true }, orderBy: { name: "asc" } })
-      : [];
+    const currentOrganization = organizationId
+      ? organizations.find((organization) => organization.id === organizationId) || await db.organization.findUnique({ where: { id: organizationId }, select: { id: true, name: true, slug: true } })
+      : null;
 
-    return NextResponse.json({ roles, permissions, definitions, taskDefinitions, organizations, organizationId });
+    return NextResponse.json({ roles, permissions, taskDefinitions, organizations, organizationId, currentOrganization });
   } catch (error: any) {
     console.error("Failed to fetch role matrix:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -48,7 +59,32 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const user = await requireRoleManager();
-    const { roleId, permissionId, enabled } = await req.json();
+    const body = await req.json();
+
+    if (body.action === "createRole") {
+      const name = typeof body.name === "string" ? body.name.trim() : "";
+      const description = typeof body.description === "string" ? body.description.trim() : null;
+      const requestedOrganizationId = typeof body.organizationId === "string" ? body.organizationId : "";
+      const targetOrganizationId = user.isSuperAdmin ? requestedOrganizationId : user.organizationId;
+      if (!name || !targetOrganizationId) {
+        return NextResponse.json({ error: "Role name and hospital are required." }, { status: 400 });
+      }
+
+      const baseSlug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "custom-role";
+      let slug = baseSlug;
+      let suffix = 2;
+      while (await db.role.findFirst({ where: { slug, organizationId: targetOrganizationId }, select: { id: true } })) {
+        slug = `${baseSlug}-${suffix++}`;
+      }
+
+      const role = await db.role.create({
+        data: { name, slug, description, organizationId: targetOrganizationId, isSystem: false },
+        include: { definition: { select: { id: true, slug: true, name: true, isSystem: true } }, rolePermissions: { select: { permissionId: true } } },
+      });
+      return NextResponse.json({ role }, { status: 201 });
+    }
+
+    const { roleId, permissionId, enabled } = body;
 
     if (!roleId || !permissionId || typeof enabled !== "boolean") {
       return NextResponse.json({ error: "Missing required fields." }, { status: 400 });

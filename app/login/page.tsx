@@ -6,9 +6,14 @@ import { ArrowRight, CheckCircle2, FileText, LockKeyhole, ShieldCheck } from "lu
 import BrandLogo from "@/components/BrandLogo";
 
 const DEMO_ACCOUNTS = [
-  { label: "Super Admin", value: "superadmin@macula.health", detail: "Full governance access" },
-  { label: "Hospital Admin", value: "admin@hospital.in", detail: "Clinical operations" },
-  { label: "Physician", value: "doctor@hospital.in", detail: "Clinical operations" },
+  { label: "Super Admin", value: "superadmin@macula.health", password: "MaculaAdmin@2026!", detail: "Full governance access" },
+  { label: "Organization Administrator", value: "admin@hospital.in", password: "MaculaAdmin@2026!", detail: "Manipal Hospital Retina Institute" },
+  { label: "Physician", value: "doctor@hospital.in", password: "MaculaDoctor@2026!", detail: "Clinical operations" },
+  { label: "Organization Administrator", value: "role-admin@bangalore-hospital.test", password: "MaculaTest@2026!", detail: "Bangalore Hospital role test" },
+  { label: "Attending RMP", value: "role-rmp@bangalore-hospital.test", password: "MaculaTest@2026!", detail: "Bangalore Hospital role test" },
+  { label: "Compliance Officer", value: "role-compliance@bangalore-hospital.test", password: "MaculaTest@2026!", detail: "Bangalore Hospital role test" },
+  { label: "Publishing Editor", value: "role-publishing@bangalore-hospital.test", password: "MaculaTest@2026!", detail: "Bangalore Hospital role test" },
+  { label: "Auditor", value: "role-auditor@bangalore-hospital.test", password: "MaculaTest@2026!", detail: "Bangalore Hospital role test" },
 ];
 
 export default function LoginPage() {
@@ -127,7 +132,7 @@ export default function LoginPage() {
 
           <div className="my-8 flex items-center gap-3 text-[11px] uppercase tracking-[0.14em] text-muted">
             <span className="h-px flex-1 bg-line" />
-            Local demo access
+            Demo and role-test access
             <span className="h-px flex-1 bg-line" />
           </div>
 
@@ -136,7 +141,10 @@ export default function LoginPage() {
               <button
                 key={account.value}
                 type="button"
-                onClick={() => setUserId(account.value)}
+                onClick={() => {
+                  setUserId(account.value);
+                  setPassword(account.password);
+                }}
                 className="flex w-full items-center justify-between rounded-lg border border-line bg-surface px-3.5 py-3 text-left transition hover:border-pine/50 hover:bg-pine-tint"
               >
                 <span>
@@ -150,7 +158,7 @@ export default function LoginPage() {
 
           <p className="mt-8 flex items-start gap-2 text-[11px] leading-5 text-muted">
             <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-pine" />
-            Use an approved workspace account. Demo shortcuts only populate the user ID field.
+            Use an approved workspace account. Shortcuts populate the test credentials for local evaluation.
           </p>
         </div>
       </section>

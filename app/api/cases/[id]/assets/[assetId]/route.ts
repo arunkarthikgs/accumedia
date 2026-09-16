@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { generateChannelAsset } from "@/lib/content-engine";
+import { requireOrganizationAccess } from "@/lib/tenant-auth";
 
 /**
  * RFP §17 — "Regenerate only one platform output", "Retain version history".
@@ -34,6 +35,7 @@ export async function PATCH(
     if (!asset) {
       return NextResponse.json({ error: "Asset not found" }, { status: 404 });
     }
+    await requireOrganizationAccess(asset.case.organizationId);
 
     if (action === "approve") {
       const updated = await db.generatedAsset.update({
@@ -112,9 +114,10 @@ export async function GET(
     const { assetId } = await props.params;
     const asset = await db.generatedAsset.findUnique({
       where: { id: assetId },
-      include: { versions: { orderBy: { version: "desc" } } },
+      include: { versions: { orderBy: { version: "desc" } }, case: { select: { organizationId: true } } },
     });
     if (!asset) return NextResponse.json({ error: "Asset not found" }, { status: 404 });
+    await requireOrganizationAccess(asset.case.organizationId);
     return NextResponse.json({ asset });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

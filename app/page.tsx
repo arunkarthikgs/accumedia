@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
+import { getCurrentUser } from "@/lib/auth";
 import { unstable_cache } from "next/cache";
 import {
   Activity,
@@ -21,11 +22,13 @@ import type { CaseStatusVariant } from "@/components/ui/StatusBadge";
 
 export const dynamic = "force-dynamic";
 
-const getDashboardData = unstable_cache(async () => {
+const getDashboardData = unstable_cache(async (organizationId: string | null) => {
+  const caseWhere = organizationId ? { organizationId } : undefined;
   const [caseStatuses, openSafetyFlags, recentCases, orgCount] = await Promise.all([
-    db.case.groupBy({ by: ["status"], _count: { _all: true } }),
-    db.safetyFlag.count({ where: { status: "OPEN" } }),
+    db.case.groupBy({ by: ["status"], where: caseWhere, _count: { _all: true } }),
+    db.safetyFlag.count({ where: { status: "OPEN", ...(organizationId ? { case: { organizationId } } : {}) } }),
     db.case.findMany({
+      where: caseWhere,
       take: 6,
       orderBy: { createdAt: "desc" },
       include: {
@@ -35,7 +38,7 @@ const getDashboardData = unstable_cache(async () => {
         safetyFlags: { where: { status: "OPEN" }, select: { detail: true } },
       },
     }),
-    db.organization.count(),
+    organizationId ? Promise.resolve(1) : db.organization.count(),
   ]);
   const counts = Object.fromEntries(caseStatuses.map((entry) => [entry.status, entry._count._all]));
   return {
@@ -60,7 +63,10 @@ function toDisplayVariant(
 }
 
 export default async function DashboardPage() {
-  const { totalCases, pendingCases, approvedCases, rejectedCases, openSafetyFlags, recentCases, orgCount } = await getDashboardData();
+  const user = await getCurrentUser();
+  const organizationId = user?.isSuperAdmin ? null : user?.organizationId || null;
+  const { totalCases, pendingCases, approvedCases, rejectedCases, openSafetyFlags, recentCases, orgCount } = await getDashboardData(organizationId);
+  const scopeLabel = organizationId ? "Your hospital" : "All connected hospitals";
 
   return (
     <main className="ml-0 mr-auto max-w-7xl p-6 md:p-8 space-y-8">
@@ -110,7 +116,7 @@ export default async function DashboardPage() {
           <MetricCard
             label="Total clinical cases"
             value={totalCases}
-            description="Across all connected hospitals"
+            description={scopeLabel}
             icon={<FileText className="h-6 w-6" />}
           />
         </Link>
@@ -146,7 +152,7 @@ export default async function DashboardPage() {
             label="Hospital networks"
             value={orgCount}
             tone="pro"
-            description={`${rejectedCases} cases rejected`}
+            description={`${rejectedCases} cases rejected${organizationId ? " in your hospital" : ""}`}
             icon={<Building2 className="h-6 w-6" />}
           />
         </Link>

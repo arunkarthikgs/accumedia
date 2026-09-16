@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { recordAudit } from "@/lib/audit";
+import { requireOrganizationAccess } from "@/lib/tenant-auth";
 
 /**
  * RFP §6 + §16 — this is the MCCR approval gate. Two things it must do
@@ -29,6 +30,7 @@ export async function POST(
     if (!existingCase) {
       return NextResponse.json({ error: "Case not found" }, { status: 404 });
     }
+    await requireOrganizationAccess(existingCase.organizationId);
 
     const openFlags = existingCase.safetyFlags.filter((f) => f.status === "OPEN");
     if (openFlags.length > 0) {

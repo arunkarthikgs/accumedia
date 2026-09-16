@@ -31,7 +31,7 @@ export async function GET(req: Request) {
     const recordingSelect = includeContent
       ? `json_build_object('id', ar.id, 'durationSeconds', ar."durationSeconds", 'transcriptionStatus', ar."transcriptionStatus", 'r2Key', ar."r2Key", 'rawTranscript', ar."rawTranscript", 'transcribedText', ar."transcribedText")`
       : `json_build_object('id', ar.id, 'durationSeconds', ar."durationSeconds", 'transcriptionStatus', ar."transcriptionStatus")`;
-    const adminCaseQuery = `SELECT c.id, c.title, c.status, c.rejection_reason AS "rejectionReason", c.reviewed_by AS "reviewedBy", c.reviewed_at AS "reviewedAt", c."createdAt" AS "createdAt"${includeContent ? ', c."masterRecord" AS "masterRecord", c."safetyAudit" AS "safetyAudit"' : ''},
+    const adminCaseQuery = `SELECT c.id, c.title, c.status, c.rejection_reason AS "rejectionReason", c.reviewed_by AS "reviewedBy", c.reviewed_at AS "reviewedAt", c."createdAt" AS "createdAt", COUNT(*) OVER()::int AS "totalCount"${includeContent ? ', c."masterRecord" AS "masterRecord", c."safetyAudit" AS "safetyAudit"' : ''},
       json_build_object('id', u.id, 'name', u.name, 'email', u.email, 'registrationNo', u."registrationNo", 'specialty', u.specialty) AS physician,
       json_build_object('id', o.id, 'name', o.name) AS organization,
       COALESCE((SELECT json_agg(${recordingSelect}) FROM macula.macula_audio_recordings ar WHERE ar."caseId" = c.id), '[]') AS recordings,
@@ -40,17 +40,16 @@ export async function GET(req: Request) {
       COALESCE((SELECT json_agg(json_build_object('id', sf.id, 'flagType', sf."flagType", 'detail', sf.detail, 'confidence', sf.confidence)) FROM macula.macula_safety_flags sf WHERE sf."caseId" = c.id AND sf.status = 'OPEN'), '[]') AS "safetyFlags"
       FROM macula.macula_cases c JOIN macula.macula_users u ON u.id = c."physicianId" JOIN macula.macula_organizations o ON o.id = c."organizationId"
       WHERE ${filterSql} ORDER BY c."createdAt" DESC OFFSET $${values.length + 1} LIMIT $${values.length + 2}`;
-    const countQuery = `SELECT COUNT(*)::int AS count FROM macula.macula_cases c WHERE ${filterSql}`;
     const listValues = [...values, (page - 1) * pageSize, pageSize];
     const organizationQuery = user?.isSuperAdmin
       ? query(`SELECT id, name, slug FROM macula.macula_organizations ORDER BY name ASC`)
       : user?.organizationId
         ? query(`SELECT id, name, slug FROM macula.macula_organizations WHERE id = $1`, [user.organizationId])
         : Promise.resolve({ rows: [] });
-    const [{ rows: cases }, { rows: countRows }, { rows: organizations }] = await Promise.all([
-      query(adminCaseQuery, listValues), query<{ count: number }>(countQuery, values), organizationQuery,
+    const [{ rows: cases }, { rows: organizations }] = await Promise.all([
+      query(adminCaseQuery, listValues), organizationQuery,
     ]);
-    const count = Number(countRows[0]?.count || 0);
+    const count = Number(cases[0]?.totalCount || 0);
 
     return NextResponse.json({ success: true, cases, organizations, pagination: { page, pageSize, total: count, totalPages: Math.ceil(count / pageSize) } });
   } catch (error: any) {

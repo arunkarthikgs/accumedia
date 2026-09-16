@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { assertCaseQuota } from "@/lib/quotas";
 import { requireAuthenticatedUser, requireOrganizationAccess } from "@/lib/tenant-auth";
+import { query } from "@/lib/worker-db";
 
 // GET /api/cases - List cases with optional filtering
 export async function GET(req: Request) {
@@ -14,68 +15,42 @@ export async function GET(req: Request) {
     const limit = parseInt(searchParams.get("limit") || "50", 10);
     const offset = parseInt(searchParams.get("offset") || "0", 10);
 
-    const where: any = {};
     const requestedOrgId = orgId && orgId !== "ALL" ? orgId : null;
     const scopedOrgId = user?.isSuperAdmin ? requestedOrgId : user?.organizationId;
     if (!scopedOrgId) {
       return NextResponse.json({ error: "An organization scope is required." }, { status: 400 });
     }
     await requireOrganizationAccess(scopedOrgId);
-    where.organizationId = scopedOrgId;
-    if (physicianId) where.physicianId = physicianId;
-    if (status && status !== "ALL") where.status = status;
+    const filters = ["c.\"organizationId\" = $1"];
+    const values: unknown[] = [scopedOrgId];
+    if (physicianId) { values.push(physicianId); filters.push(`c."physicianId" = $${values.length}`); }
+    if (status && status !== "ALL") { values.push(status); filters.push(`c.status = $${values.length}`); }
+    const filterSql = filters.join(" AND ");
+    const caseQuery = `
+      SELECT c.id, c.title, c.raw_input AS "rawInput", c."masterRecord" AS "masterRecord", c."safetyAudit" AS "safetyAudit", c.status,
+             c."createdAt" AS "createdAt", c."updatedAt" AS "updatedAt",
+             json_build_object('id', u.id, 'name', u.name, 'email', u.email, 'registrationNo', u."registrationNo", 'specialty', u.specialty) AS physician,
+             json_build_object('id', o.id, 'name', o.name, 'slug', o.slug) AS organization,
+             COALESCE((SELECT json_agg(json_build_object('id', ar.id, 'r2Key', ar."r2Key", 'fileName', ar."fileName", 'durationSeconds', ar."durationSeconds", 'transcriptionStatus', ar."transcriptionStatus", 'transcriptionAgent', ar."transcriptionAgent", 'recordedAt', ar."recordedAt") ORDER BY ar."recordedAt" DESC) FROM macula.macula_audio_recordings ar WHERE ar."caseId" = c.id), '[]') AS recordings,
+             COALESCE((SELECT json_agg(json_build_object('id', ga.id, 'channelKey', ga."channelKey", 'channelName', ga."channelName") ORDER BY ga."createdAt" DESC) FROM macula.macula_generated_assets ga WHERE ga."caseId" = c.id), '[]') AS assets
+      FROM macula.macula_cases c
+      JOIN macula.macula_users u ON u.id = c."physicianId"
+      JOIN macula.macula_organizations o ON o.id = c."organizationId"
+      WHERE ${filterSql}
+      ORDER BY c."createdAt" DESC OFFSET $${values.length + 1} LIMIT $${values.length + 2}`;
+    const countQuery = `SELECT COUNT(*)::int AS count FROM macula.macula_cases c WHERE ${filterSql}`;
+    values.push(offset, limit);
 
     const [cases, totalCount] = await Promise.all([
-      db.case.findMany({
-        where,
-        take: limit,
-        skip: offset,
-        orderBy: { createdAt: "desc" },
-        include: {
-          physician: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              registrationNo: true,
-              specialty: true,
-            },
-          },
-          organization: {
-            select: {
-              id: true,
-              name: true,
-              slug: true,
-            },
-          },
-          recordings: {
-            select: {
-              id: true,
-              r2Key: true,
-              fileName: true,
-              durationSeconds: true,
-              transcriptionStatus: true,
-              transcriptionAgent: true,
-              recordedAt: true,
-            },
-          },
-          assets: {
-            select: {
-              id: true,
-              channelKey: true,
-              channelName: true,
-            },
-          },
-        },
-      }),
-      db.case.count({ where }),
+      query(caseQuery, values),
+      query<{ count: number }>(countQuery, values.slice(0, -2)),
     ]);
 
     return NextResponse.json({
       success: true,
-      totalCount,
-      count: cases.length,
-      cases,
+      totalCount: Number(totalCount.rows[0]?.count || 0),
+      count: cases.rows.length,
+      cases: cases.rows,
     });
   } catch (error: any) {
     console.error("Fetch cases error:", error);

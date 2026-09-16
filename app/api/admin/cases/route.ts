@@ -4,6 +4,7 @@ import { requireAuthenticatedUser, requireOrganizationAccess } from "@/lib/tenan
 import { recordAudit } from "@/lib/audit";
 import { timeDbOperation } from "@/lib/perf";
 import { unstable_cache } from "next/cache";
+import { query } from "@/lib/worker-db";
 
 const getAdminOrganizations = unstable_cache(
   () => db.organization.findMany({ select: { id: true, name: true, slug: true }, orderBy: { name: "asc" } }),
@@ -23,68 +24,41 @@ export async function GET(req: Request) {
     const page = Math.max(1, Number(searchParams.get("page") || "1"));
     const pageSize = Math.min(100, Math.max(10, Number(searchParams.get("pageSize") || (includeContent ? "100" : "25"))));
 
-    const where: any = {};
-    if (orgId && orgId !== "ALL") where.organizationId = orgId;
-    if (user && !user.isSuperAdmin && user.organizationId) where.organizationId = user.organizationId;
-    if (status && status !== "ALL") where.status = status;
-    if (fromDate || toDate) where.createdAt = {
-      ...(fromDate ? { gte: new Date(`${fromDate}T00:00:00.000Z`) } : {}),
-      ...(toDate ? { lte: new Date(`${toDate}T23:59:59.999Z`) } : {}),
-    };
+    const filters: string[] = [];
+    const values: unknown[] = [];
+    const scopedOrgId = user?.isSuperAdmin ? (orgId && orgId !== "ALL" ? orgId : null) : user?.organizationId;
+    values.push(scopedOrgId); filters.push(`c."organizationId" = COALESCE($${values.length}::text, c."organizationId")`);
+    if (status && status !== "ALL") { values.push(status); filters.push(`c.status = $${values.length}`); }
+    if (fromDate) { values.push(new Date(`${fromDate}T00:00:00.000Z`)); filters.push(`c."createdAt" >= $${values.length}`); }
+    if (toDate) { values.push(new Date(`${toDate}T23:59:59.999Z`)); filters.push(`c."createdAt" <= $${values.length}`); }
+    const filterSql = filters.join(" AND ");
 
+    const assetSelect = includeContent
+      ? `json_build_object('id', ga.id, 'channelKey', ga."channelKey", 'channelName', ga."channelName", 'outputType', ga."outputType", 'status', ga.status, 'content', ga.content, 'validationWarnings', ga."validationWarnings", 'validationWordCount', ga."validationWordCount", 'validationCharacterCount', ga."validationCharacterCount", 'validationDurationSeconds', ga."validationDurationSeconds")`
+      : `json_build_object('id', ga.id, 'channelKey', ga."channelKey", 'channelName', ga."channelName")`;
+    const recordingSelect = includeContent
+      ? `json_build_object('id', ar.id, 'durationSeconds', ar."durationSeconds", 'transcriptionStatus', ar."transcriptionStatus", 'r2Key', ar."r2Key", 'rawTranscript', ar."rawTranscript", 'transcribedText', ar."transcribedText")`
+      : `json_build_object('id', ar.id, 'durationSeconds', ar."durationSeconds", 'transcriptionStatus', ar."transcriptionStatus")`;
+    const adminCaseQuery = `SELECT c.id, c.title, c.status, c.rejection_reason AS "rejectionReason", c.reviewed_by AS "reviewedBy", c.reviewed_at AS "reviewedAt", c."createdAt" AS "createdAt"${includeContent ? ', c."masterRecord" AS "masterRecord", c."safetyAudit" AS "safetyAudit"' : ''},
+      json_build_object('id', u.id, 'name', u.name, 'email', u.email, 'registrationNo', u."registrationNo", 'specialty', u.specialty) AS physician,
+      json_build_object('id', o.id, 'name', o.name) AS organization,
+      COALESCE((SELECT json_agg(${recordingSelect}) FROM macula.macula_audio_recordings ar WHERE ar."caseId" = c.id), '[]') AS recordings,
+      COALESCE((SELECT json_agg(${assetSelect}) FROM macula.macula_generated_assets ga WHERE ga."caseId" = c.id), '[]') AS assets,
+      (SELECT COUNT(*)::int FROM macula.macula_generated_assets ga WHERE ga."caseId" = c.id) AS "_count_assets",
+      COALESCE((SELECT json_agg(json_build_object('id', sf.id, 'flagType', sf."flagType", 'detail', sf.detail, 'confidence', sf.confidence)) FROM macula.macula_safety_flags sf WHERE sf."caseId" = c.id AND sf.status = 'OPEN'), '[]') AS "safetyFlags"
+      FROM macula.macula_cases c JOIN macula.macula_users u ON u.id = c."physicianId" JOIN macula.macula_organizations o ON o.id = c."organizationId"
+      WHERE ${filterSql} ORDER BY c."createdAt" DESC OFFSET $${values.length + 1} LIMIT $${values.length + 2}`;
+    const countQuery = `SELECT COUNT(*)::int AS count FROM macula.macula_cases c WHERE ${filterSql}`;
+    const listValues = [...values, (page - 1) * pageSize, pageSize];
     const organizationQuery = user?.isSuperAdmin
-      ? getAdminOrganizations()
+      ? query(`SELECT id, name, slug FROM macula.macula_organizations ORDER BY name ASC`)
       : user?.organizationId
-        ? timeDbOperation("admin case organization", () => db.organization.findMany({ where: { id: user.organizationId }, select: { id: true, name: true, slug: true } }))
-        : Promise.resolve([]);
-    const [cases, count, organizations] = await Promise.all([timeDbOperation("admin cases", () => db.case.findMany({
-      where,
-      select: {
-        id: true,
-        title: true,
-        status: true,
-        rejectionReason: true,
-        reviewedBy: true,
-        reviewedAt: true,
-        createdAt: true,
-        ...(includeContent ? { masterRecord: true, safetyAudit: true } : {}),
-        physician: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            registrationNo: true,
-            specialty: true,
-          },
-        },
-        organization: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-        recordings: {
-          select: {
-            id: true,
-            durationSeconds: true,
-            transcriptionStatus: true,
-            ...(includeContent ? { r2Key: true, rawTranscript: true, transcribedText: true } : {}),
-          },
-        },
-        ...(includeContent ? { assets: { select: { id: true, channelKey: true, channelName: true, outputType: true, status: true, content: true, validationWarnings: true, validationWordCount: true, validationCharacterCount: true, validationDurationSeconds: true } } } : {}),
-        _count: { select: { assets: true } },
-        // RFP §16 — surfaced so the admin list can show "N open flags" and
-        // disable/redirect the approve action instead of letting it silently
-        // fail against the gate in app/api/cases/[id]/approve.
-        safetyFlags: {
-          where: { status: "OPEN" },
-          select: { id: true, flagType: true, detail: true, confidence: true },
-        },
-      },
-      orderBy: { createdAt: "desc" },
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-    })), timeDbOperation("admin case count", () => db.case.count({ where })), organizationQuery]);
+        ? query(`SELECT id, name, slug FROM macula.macula_organizations WHERE id = $1`, [user.organizationId])
+        : Promise.resolve({ rows: [] });
+    const [{ rows: cases }, { rows: countRows }, { rows: organizations }] = await Promise.all([
+      query(adminCaseQuery, listValues), query<{ count: number }>(countQuery, values), organizationQuery,
+    ]);
+    const count = Number(countRows[0]?.count || 0);
 
     return NextResponse.json({ success: true, cases, organizations, pagination: { page, pageSize, total: count, totalPages: Math.ceil(count / pageSize) } });
   } catch (error: any) {

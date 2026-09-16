@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import crypto from "node:crypto";
-import { db } from "@/lib/db";
+import { query } from "@/lib/worker-db";
 
 function hashToken(token: string) {
   return crypto.createHash("sha256").update(token).digest("hex");
@@ -12,18 +12,24 @@ export async function POST(req: Request) {
     const { userId, password } = await req.json();
     if (!userId || !password) return NextResponse.json({ error: "User ID and password are required." }, { status: 400 });
 
-    const user = await db.user.findFirst({
-      where: { OR: [{ email: userId }, { id: userId }] },
-      select: { id: true, passwordHash: true },
-    });
-    if (!user?.passwordHash || !(await bcrypt.compare(password, user.passwordHash))) {
+    const { rows } = await query<{ id: string; password_hash: string | null }>(
+      `SELECT id, password_hash
+       FROM macula.macula_users
+       WHERE email = $1 OR id = $1
+       LIMIT 1`,
+      [userId]
+    );
+    const user = rows[0];
+    if (!user?.password_hash || !(await bcrypt.compare(password, user.password_hash))) {
       return NextResponse.json({ error: "Invalid credentials." }, { status: 401 });
     }
 
     const token = crypto.randomBytes(32).toString("hex");
-    await db.session.create({
-      data: { tokenHash: hashToken(token), userId: user.id, expiresAt: new Date(Date.now() + 8 * 60 * 60 * 1000) },
-    });
+    await query(
+      `INSERT INTO macula.macula_sessions (token_hash, user_id, expires_at)
+       VALUES ($1, $2, $3)`,
+      [hashToken(token), user.id, new Date(Date.now() + 8 * 60 * 60 * 1000)]
+    );
 
     const response = NextResponse.json({ success: true });
     response.cookies.set("macula_session", token, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 8 * 60 * 60 });

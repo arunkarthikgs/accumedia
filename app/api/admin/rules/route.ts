@@ -1,18 +1,15 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
 import { requireAuthenticatedUser } from "@/lib/tenant-auth";
+import { query } from "@/lib/worker-db";
+import crypto from "node:crypto";
 
 export async function GET() {
   try {
     const user = await requireAuthenticatedUser();
-    const organizationScope = user?.isSuperAdmin
-      ? undefined
-      : user?.organizationId
-        ? { OR: [{ organizationId: null }, { organizationId: user.organizationId }] }
-        : { organizationId: "__no_organization__" };
-    const [rules, channels] = await Promise.all([
-      db.complianceRule.findMany({ where: organizationScope, orderBy: { createdAt: "desc" } }),
-      db.channelDefinition.findMany({ where: organizationScope, orderBy: { createdAt: "desc" } }),
+    const scope = user?.isSuperAdmin ? null : user?.organizationId;
+    const [{ rows: rules }, { rows: channels }] = await Promise.all([
+      query(`SELECT * FROM macula.macula_compliance_rules WHERE ($1::text IS NULL OR "organizationId" IS NULL OR "organizationId" = $1) ORDER BY "createdAt" DESC`, [scope]),
+      query(`SELECT * FROM macula.macula_channel_definitions WHERE ($1::text IS NULL OR "organizationId" IS NULL OR "organizationId" = $1) ORDER BY "createdAt" DESC`, [scope]),
     ]);
     return NextResponse.json({ rules, channels });
   } catch (error: any) {
@@ -28,28 +25,14 @@ export async function POST(req: Request) {
     if (!organizationId && !user?.isSuperAdmin) return NextResponse.json({ error: "User is not assigned to an organization." }, { status: 400 });
 
     if (type === "RULE") {
-      const rule = await db.complianceRule.create({
-        data: {
-          ruleType: data.ruleType,
-          patternOrCheck: data.patternOrCheck,
-          description: data.description,
-          severity: data.severity,
-          organizationId,
-        },
-      });
+      const { rows } = await query(`INSERT INTO macula.macula_compliance_rules (id, "ruleType", "patternOrCheck", description, severity, "organizationId") VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`, [crypto.randomUUID(), data.ruleType, data.patternOrCheck, data.description, data.severity, organizationId]);
+      const rule = rows[0];
       return NextResponse.json({ rule }, { status: 201 });
     }
 
     if (type === "CHANNEL") {
-      const channel = await db.channelDefinition.create({
-        data: {
-          channelKey: data.channelKey,
-          displayName: data.displayName,
-          targetAudience: data.targetAudience,
-          systemPrompt: data.systemPrompt,
-          organizationId,
-        },
-      });
+      const { rows } = await query(`INSERT INTO macula.macula_channel_definitions (id, "channelKey", "displayName", "targetAudience", "systemPrompt", "organizationId") VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`, [crypto.randomUUID(), data.channelKey, data.displayName, data.targetAudience, data.systemPrompt, organizationId]);
+      const channel = rows[0];
       return NextResponse.json({ channel }, { status: 201 });
     }
 

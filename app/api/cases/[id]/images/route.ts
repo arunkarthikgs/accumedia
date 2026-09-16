@@ -12,11 +12,15 @@ export async function GET(
     const kase = await db.case.findUnique({ where: { id }, select: { organizationId: true } });
     if (!kase) return NextResponse.json({ error: "Case not found." }, { status: 404 });
     await requireOrganizationAccess(kase.organizationId);
-    const images = await db.imageAsset.findMany({
+    const [images, jobs] = await Promise.all([db.imageAsset.findMany({
       where: { caseId: id },
       orderBy: { createdAt: "desc" },
-    });
-    return NextResponse.json({ images });
+    }), db.imageGenerationJob.findMany({
+      where: { caseId: id, status: { in: ["QUEUED", "PROCESSING", "FAILED"] } },
+      select: { id: true, channel: true, status: true, error: true, createdAt: true, startedAt: true, completedAt: true },
+      orderBy: { createdAt: "desc" },
+    })]);
+    return NextResponse.json({ images, jobs });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

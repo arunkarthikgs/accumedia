@@ -13,6 +13,13 @@ interface ImageAssetData {
   phiReviewStatus: string;
 }
 
+interface ImageJobData {
+  id: string;
+  channel: string;
+  status: "QUEUED" | "PROCESSING" | "FAILED";
+  error: string | null;
+}
+
 const CHANNELS = [
   { id: "linkedin_cover", label: "LinkedIn cover", description: "Wide editorial image for a LinkedIn article." },
   { id: "linkedin_carousel", label: "LinkedIn carousel", description: "Square educational card for a swipeable carousel." },
@@ -30,6 +37,7 @@ const CHANNELS = [
  */
 export default function ImagesPanel({ caseId, mccrApproved }: { caseId: string; mccrApproved: boolean }) {
   const [images, setImages] = useState<ImageAssetData[]>([]);
+  const [jobs, setJobs] = useState<ImageJobData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [genChannel, setGenChannel] = useState(CHANNELS[0].id);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -46,6 +54,7 @@ export default function ImagesPanel({ caseId, mccrApproved }: { caseId: string; 
       const res = await fetch(`/api/cases/${caseId}/images`);
       const data = await res.json();
       setImages(data.images || []);
+      setJobs(data.jobs || []);
     } finally {
       setIsLoading(false);
     }
@@ -54,6 +63,12 @@ export default function ImagesPanel({ caseId, mccrApproved }: { caseId: string; 
   useEffect(() => {
     load();
   }, [caseId]);
+
+  useEffect(() => {
+    if (!jobs.some((job) => job.status === "QUEUED" || job.status === "PROCESSING")) return;
+    const timer = window.setInterval(load, 4000);
+    return () => window.clearInterval(timer);
+  }, [jobs, caseId]);
 
   const generate = async () => {
     setIsGenerating(true);
@@ -67,7 +82,12 @@ export default function ImagesPanel({ caseId, mccrApproved }: { caseId: string; 
       });
       const json = await res.json();
       if (!res.ok) { setError(json.error); return; }
-      setQueueMessage(json.message || "Image generation queued. It will appear here after background processing.");
+      setQueueMessage("Image generation started. This panel will update when the image is ready.");
+      const processResponse = await fetch(`/api/cases/${caseId}/images/process`, { method: "POST" });
+      const processData = await processResponse.json();
+      if (!processResponse.ok) setQueueMessage("Image queued for background processing. The status below will update automatically.");
+      else if ((processData.processed || 0) > 0) setQueueMessage("Image generation finished. Your image is now available below.");
+      await load();
     } finally {
       setIsGenerating(false);
     }
@@ -136,6 +156,11 @@ export default function ImagesPanel({ caseId, mccrApproved }: { caseId: string; 
 
       {error && <div className="text-xs text-brick bg-brick-tint border border-brick/30 rounded p-2">{error}</div>}
       {queueMessage && <div className="text-xs text-pine bg-pine-tint border border-pine/30 rounded p-2">{queueMessage}</div>}
+
+      {jobs.length > 0 && <div className="space-y-2 rounded border border-line bg-paper p-3">
+        <div className="text-[10px] font-semibold uppercase tracking-wide text-muted">Image generation status</div>
+        {jobs.map((job) => <div key={job.id} className="flex items-center justify-between gap-3 text-xs"><span className="text-ink">{CHANNELS.find((channel) => channel.id === job.channel)?.label || job.channel}</span><span className={job.status === "FAILED" ? "text-brick" : job.status === "PROCESSING" ? "text-pine" : "text-ochre"}>{job.status === "QUEUED" ? "Queued — waiting for background processing" : job.status === "PROCESSING" ? "Processing…" : `Failed${job.error ? `: ${job.error}` : ""}`}</span></div>)}
+      </div>}
 
       {!mccrApproved && (
         <div className="text-xs text-ochre bg-ochre-tint border border-ochre/30 rounded p-2">

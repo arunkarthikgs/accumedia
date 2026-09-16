@@ -2,6 +2,13 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAuthenticatedUser, requireOrganizationAccess } from "@/lib/tenant-auth";
 import { recordAudit } from "@/lib/audit";
+import { unstable_cache } from "next/cache";
+
+const getSafetyOrganizations = unstable_cache(
+  () => db.organization.findMany({ select: { id: true, name: true, slug: true }, orderBy: { name: "asc" } }),
+  ["safety-queue-organizations"],
+  { revalidate: 60, tags: ["organizations"] },
+);
 
 /**
  * RFP §16 — "Potentially problematic content should be flagged for human
@@ -21,7 +28,7 @@ export async function GET(req: Request) {
     if (scopedOrgId) await requireOrganizationAccess(scopedOrgId);
 
     const organizationQuery = user?.isSuperAdmin
-      ? db.organization.findMany({ select: { id: true, name: true, slug: true }, orderBy: { name: "asc" } })
+      ? getSafetyOrganizations()
       : user?.organizationId
         ? db.organization.findMany({ where: { id: user.organizationId }, select: { id: true, name: true, slug: true } })
         : Promise.resolve([]);

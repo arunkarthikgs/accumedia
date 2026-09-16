@@ -3,6 +3,13 @@ import { db } from "@/lib/db";
 import { requireAuthenticatedUser, requireOrganizationAccess } from "@/lib/tenant-auth";
 import { recordAudit } from "@/lib/audit";
 import { timeDbOperation } from "@/lib/perf";
+import { unstable_cache } from "next/cache";
+
+const getAdminOrganizations = unstable_cache(
+  () => db.organization.findMany({ select: { id: true, name: true, slug: true }, orderBy: { name: "asc" } }),
+  ["admin-case-organizations"],
+  { revalidate: 60, tags: ["organizations"] },
+);
 
 export async function GET(req: Request) {
   try {
@@ -26,9 +33,9 @@ export async function GET(req: Request) {
     };
 
     const organizationQuery = user?.isSuperAdmin
-      ? db.organization.findMany({ select: { id: true, name: true, slug: true }, orderBy: { name: "asc" } })
+      ? getAdminOrganizations()
       : user?.organizationId
-        ? db.organization.findMany({ where: { id: user.organizationId }, select: { id: true, name: true, slug: true } })
+        ? timeDbOperation("admin case organization", () => db.organization.findMany({ where: { id: user.organizationId }, select: { id: true, name: true, slug: true } }))
         : Promise.resolve([]);
     const [cases, count, organizations] = await Promise.all([timeDbOperation("admin cases", () => db.case.findMany({
       where,
@@ -77,7 +84,7 @@ export async function GET(req: Request) {
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * pageSize,
       take: pageSize,
-    })), db.case.count({ where }), organizationQuery]);
+    })), timeDbOperation("admin case count", () => db.case.count({ where })), organizationQuery]);
 
     return NextResponse.json({ success: true, cases, organizations, pagination: { page, pageSize, total: count, totalPages: Math.ceil(count / pageSize) } });
   } catch (error: any) {

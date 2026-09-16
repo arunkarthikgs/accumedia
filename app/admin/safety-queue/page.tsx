@@ -13,6 +13,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import StatusTag from "@/components/ui/StatusTag";
+import { fetchJsonOnce } from "@/lib/client-fetch";
 
 interface Flag {
   id: string;
@@ -85,8 +86,7 @@ export default function SafetyQueuePage() {
     setIsLoading(!servedCache);
     try {
       const url = `/api/safety-flags?status=OPEN${selectedOrgId !== "ALL" ? `&orgId=${selectedOrgId}` : ""}${caseId ? `&caseId=${caseId}` : ""}`;
-      const res = await fetch(url);
-      const data = await res.json();
+      const data = await fetchJsonOnce<{ flags: Flag[]; organizations: Organization[] }>(url);
       setFlags(data.flags || []);
       setOrganizations(data.organizations || []);
       try { sessionStorage.setItem(cacheKey, JSON.stringify({ flags: data.flags || [], organizations: data.organizations || [], cachedAt: Date.now() })); } catch { /* Ignore storage limits. */ }

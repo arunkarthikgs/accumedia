@@ -37,16 +37,25 @@ async function resolveCurrentUser(): Promise<SessionUser | null> {
     if (cached && cached.expiresAt > Date.now()) return cached.user;
     const session = await db.session.findFirst({
       where: { tokenHash, expiresAt: { gt: new Date() } },
-      include: {
+      select: {
         user: {
-          include: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            registrationNo: true,
+            specialty: true,
+            designation: true,
+            qualifications: true,
+            profilePhotoUrl: true,
+            isSuperAdmin: true,
+            organizationId: true,
             assignedRole: {
-              include: {
-                rolePermissions: {
-                  include: {
-                    permission: true,
-                  },
-                },
+              select: {
+                id: true,
+                name: true,
+                slug: true,
+                rolePermissions: { select: { permission: { select: { slug: true } } } },
               },
             },
             organization: { select: { name: true, brandingHex: true } },

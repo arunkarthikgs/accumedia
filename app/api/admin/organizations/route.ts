@@ -38,7 +38,17 @@ export async function GET() {
       case_count: string;
       recording_count: string;
     }>(
-      `SELECT o.id, o.name, o.slug, o."brandingHex" AS branding_hex,
+      `WITH user_counts AS (
+         SELECT "organizationId" AS organization_id, COUNT(*) AS count
+         FROM macula.macula_users GROUP BY "organizationId"
+       ), case_counts AS (
+         SELECT "organizationId" AS organization_id, COUNT(*) AS count
+         FROM macula.macula_cases GROUP BY "organizationId"
+       ), recording_counts AS (
+         SELECT "organizationId" AS organization_id, COUNT(*) AS count
+         FROM macula.macula_audio_recordings GROUP BY "organizationId"
+       )
+       SELECT o.id, o.name, o.slug, o."brandingHex" AS branding_hex,
               o."logoUrl" AS logo_url, o."brandFont" AS brand_font,
               o."brandTagline" AS brand_tagline, o.location,
               o."websiteUrl" AS website_url, o."linkedinUrl" AS linkedin_url,
@@ -50,10 +60,13 @@ export async function GET() {
               o."preferredAsrModel" AS preferred_asr_model,
               o."customSystemPrompt" AS custom_system_prompt,
               o."defaultDisclaimer" AS default_disclaimer, o."createdAt" AS created_at,
-              (SELECT COUNT(*) FROM macula.macula_users u WHERE u."organizationId" = o.id) AS user_count,
-              (SELECT COUNT(*) FROM macula.macula_cases c WHERE c."organizationId" = o.id) AS case_count,
-              (SELECT COUNT(*) FROM macula.macula_audio_recordings ar WHERE ar."organizationId" = o.id) AS recording_count
-       FROM macula.macula_organizations o
+              COALESCE(uc.count, 0) AS user_count,
+              COALESCE(cc.count, 0) AS case_count,
+              COALESCE(rc.count, 0) AS recording_count
+            FROM macula.macula_organizations o
+            LEFT JOIN user_counts uc ON uc.organization_id = o.id
+            LEFT JOIN case_counts cc ON cc.organization_id = o.id
+            LEFT JOIN recording_counts rc ON rc.organization_id = o.id
        WHERE ($1::text IS NULL OR o.id = $1)
        ORDER BY o."createdAt" DESC`,
       [scope]

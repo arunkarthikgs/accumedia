@@ -1,9 +1,4 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { uploadImageToR2 } from "@/lib/r2";
-import { requireOrganizationAccess } from "@/lib/tenant-auth";
-import { screenImage } from "@/lib/image-safety";
-import { recordAudit } from "@/lib/audit";
 
 /**
  * RFP §15 — "The system should include a clear 'Use this image publicly:

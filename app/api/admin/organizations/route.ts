@@ -4,46 +4,90 @@ import { db } from "@/lib/db";
 import { requireAuthenticatedUser, requireOrganizationAccess } from "@/lib/tenant-auth";
 import { requirePermission } from "@/lib/auth";
 import { isBrandColor, normalizeBrandColor } from "@/lib/brand";
+import { query } from "@/lib/worker-db";
 
 export async function GET() {
   try {
     const user = await requireAuthenticatedUser();
-    const organizations = await db.organization.findMany({
-      where: user?.isSuperAdmin ? undefined : user?.organizationId ? { id: user.organizationId } : { id: "__no_organization__" },
-      select: {
-        id: true,
-        name: true,
-        slug: true,
-        brandingHex: true,
-        logoUrl: true,
-        brandFont: true,
-        brandTagline: true,
-        location: true,
-        websiteUrl: true,
-        linkedinUrl: true,
-        facebookUrl: true,
-        instagramUrl: true,
-        xUrl: true,
-        youtubeUrl: true,
-        contactEmail: true,
-        contactPhone: true,
-        preferredTone: true,
-        callToAction: true,
-        hospitalPhotoUrls: true,
-        preferredAsrModel: true,
-        customSystemPrompt: true,
-        defaultDisclaimer: true,
-        createdAt: true,
-        _count: {
-          select: {
-            users: true,
-            cases: true,
-            recordings: true,
-          },
-        },
+    const scope = user?.isSuperAdmin ? null : user?.organizationId;
+    const { rows } = await query<{
+      id: string;
+      name: string;
+      slug: string;
+      branding_hex: string | null;
+      logo_url: string | null;
+      brand_font: string | null;
+      brand_tagline: string | null;
+      location: string | null;
+      website_url: string | null;
+      linkedin_url: string | null;
+      facebook_url: string | null;
+      instagram_url: string | null;
+      x_url: string | null;
+      youtube_url: string | null;
+      contact_email: string | null;
+      contact_phone: string | null;
+      preferred_tone: string | null;
+      call_to_action: string | null;
+      hospital_photo_urls: unknown;
+      preferred_asr_model: string;
+      custom_system_prompt: string | null;
+      default_disclaimer: string;
+      created_at: string;
+      user_count: string;
+      case_count: string;
+      recording_count: string;
+    }>(
+      `SELECT o.id, o.name, o.slug, o."brandingHex" AS branding_hex,
+              o."logoUrl" AS logo_url, o."brandFont" AS brand_font,
+              o."brandTagline" AS brand_tagline, o.location,
+              o."websiteUrl" AS website_url, o."linkedinUrl" AS linkedin_url,
+              o."facebookUrl" AS facebook_url, o."instagramUrl" AS instagram_url,
+              o."xUrl" AS x_url, o."youtubeUrl" AS youtube_url,
+              o."contactEmail" AS contact_email, o."contactPhone" AS contact_phone,
+              o."preferredTone" AS preferred_tone, o."callToAction" AS call_to_action,
+              o."hospitalPhotoUrls" AS hospital_photo_urls,
+              o."preferredAsrModel" AS preferred_asr_model,
+              o."customSystemPrompt" AS custom_system_prompt,
+              o."defaultDisclaimer" AS default_disclaimer, o."createdAt" AS created_at,
+              (SELECT COUNT(*) FROM macula.macula_users u WHERE u."organizationId" = o.id) AS user_count,
+              (SELECT COUNT(*) FROM macula.macula_cases c WHERE c."organizationId" = o.id) AS case_count,
+              (SELECT COUNT(*) FROM macula.macula_audio_recordings ar WHERE ar."organizationId" = o.id) AS recording_count
+       FROM macula.macula_organizations o
+       WHERE ($1::text IS NULL OR o.id = $1)
+       ORDER BY o."createdAt" DESC`,
+      [scope]
+    );
+    const organizations = rows.map((organization) => ({
+      id: organization.id,
+      name: organization.name,
+      slug: organization.slug,
+      brandingHex: organization.branding_hex,
+      logoUrl: organization.logo_url,
+      brandFont: organization.brand_font,
+      brandTagline: organization.brand_tagline,
+      location: organization.location,
+      websiteUrl: organization.website_url,
+      linkedinUrl: organization.linkedin_url,
+      facebookUrl: organization.facebook_url,
+      instagramUrl: organization.instagram_url,
+      xUrl: organization.x_url,
+      youtubeUrl: organization.youtube_url,
+      contactEmail: organization.contact_email,
+      contactPhone: organization.contact_phone,
+      preferredTone: organization.preferred_tone,
+      callToAction: organization.call_to_action,
+      hospitalPhotoUrls: organization.hospital_photo_urls,
+      preferredAsrModel: organization.preferred_asr_model,
+      customSystemPrompt: organization.custom_system_prompt,
+      defaultDisclaimer: organization.default_disclaimer,
+      createdAt: organization.created_at,
+      _count: {
+        users: Number(organization.user_count),
+        cases: Number(organization.case_count),
+        recordings: Number(organization.recording_count),
       },
-      orderBy: { createdAt: "desc" },
-    });
+    }));
 
     return NextResponse.json({ success: true, organizations, isSuperAdmin: Boolean(user?.isSuperAdmin), canManageOrganizations: Boolean(user?.isSuperAdmin || user?.permissions.includes("ORGANIZATION_MANAGE")) });
   } catch (error: any) {

@@ -1,25 +1,20 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
 import { requireAuthenticatedUser } from "@/lib/tenant-auth";
-import { unstable_cache } from "next/cache";
-import { timeDbOperation } from "@/lib/perf";
+import { query } from "@/lib/worker-db";
 
 export const dynamic = "force-dynamic";
-
-const getOrganizationsForScope = (organizationId: string | null, isSuperAdmin: boolean) => unstable_cache(
-  () => db.organization.findMany({
-    where: isSuperAdmin ? undefined : organizationId ? { id: organizationId } : { id: "__no_organization__" },
-    select: { id: true, name: true, slug: true },
-    orderBy: { name: "asc" },
-  }),
-  ["organization-selector", organizationId || "none", isSuperAdmin ? "super-admin" : "tenant"],
-  { revalidate: 60, tags: ["organizations"] },
-);
 
 export async function GET() {
   try {
     const user = await requireAuthenticatedUser();
-    const organizations = await timeDbOperation("organization selector", () => getOrganizationsForScope(user?.organizationId || null, Boolean(user?.isSuperAdmin))());
+    const scopeId = user?.isSuperAdmin ? null : user?.organizationId;
+    const { rows: organizations } = await query<{ id: string; name: string; slug: string }>(
+      `SELECT id, name, slug
+       FROM macula.macula_organizations
+       WHERE ($1::text IS NULL OR id = $1)
+       ORDER BY name ASC`,
+      [scopeId || null]
+    );
 
     return NextResponse.json({ success: true, organizations });
   } catch (error: any) {

@@ -148,7 +148,7 @@ export default function AdminOrganizationsPage() {
     }
     if (!servedCache) setIsLoading(true);
     try {
-      const res = await fetch("/api/admin/organizations", { cache: "no-store" });
+      const res = await fetch("/api/admin/organizations", { cache: "default" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to load hospitals.");
       setOrganizations(data.organizations || []);

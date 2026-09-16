@@ -6,10 +6,18 @@ import { isBrandColor, normalizeBrandColor } from "@/lib/brand";
 import { query } from "@/lib/worker-db";
 import crypto from "node:crypto";
 
+const ORGANIZATION_CACHE_TTL_MS = 30_000;
+const organizationCache = new Map<string, { expiresAt: number; organizations: unknown[] }>();
+
 export async function GET() {
   try {
     const user = await requireAuthenticatedUser();
     const scope = user?.isSuperAdmin ? null : user?.organizationId;
+    const cacheKey = scope || "all";
+    const cached = organizationCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return NextResponse.json({ success: true, organizations: cached.organizations, isSuperAdmin: Boolean(user?.isSuperAdmin), canManageOrganizations: Boolean(user?.isSuperAdmin || user?.permissions.includes("ORGANIZATION_MANAGE")) }, { headers: { "Cache-Control": "private, max-age=30" } });
+    }
     const { rows } = await query<{
       id: string;
       name: string;
@@ -101,8 +109,9 @@ export async function GET() {
         recordings: Number(organization.recording_count),
       },
     }));
+    organizationCache.set(cacheKey, { organizations, expiresAt: Date.now() + ORGANIZATION_CACHE_TTL_MS });
 
-    return NextResponse.json({ success: true, organizations, isSuperAdmin: Boolean(user?.isSuperAdmin), canManageOrganizations: Boolean(user?.isSuperAdmin || user?.permissions.includes("ORGANIZATION_MANAGE")) });
+    return NextResponse.json({ success: true, organizations, isSuperAdmin: Boolean(user?.isSuperAdmin), canManageOrganizations: Boolean(user?.isSuperAdmin || user?.permissions.includes("ORGANIZATION_MANAGE")) }, { headers: { "Cache-Control": "private, max-age=30" } });
   } catch (error: any) {
     console.error("Fetch organizations error:", error);
     return NextResponse.json(
@@ -190,6 +199,7 @@ export async function POST(req: Request) {
     if (selectedPlan) await query(`INSERT INTO macula.macula_subscriptions (id, status, "currentPeriodStart", "currentPeriodEnd", "organizationId", "planId") VALUES ($1,'ACTIVE',NOW(),$2,$3,$4)`, [crypto.randomUUID(), new Date(Date.now() + 30 * 86400000), organizationId, selectedPlan.id]);
     const result = { org: orgRows[0], adminUser: adminRows[0] };
 
+    organizationCache.clear();
     return NextResponse.json({ success: true, organization: result.org, adminUser: result.adminUser });
   } catch (error: any) {
     console.error("Create organization error:", error);
@@ -245,6 +255,7 @@ export async function PUT(req: Request) {
     const { rows } = await query(`UPDATE macula.macula_organizations SET name=$1, slug=$2, "brandingHex"=$3, "preferredAsrModel"=$4, "customSystemPrompt"=$5, "logoUrl"=$6, "brandFont"=$7, "brandTagline"=$8, location=$9, "websiteUrl"=$10, "linkedinUrl"=$11, "facebookUrl"=$12, "instagramUrl"=$13, "xUrl"=$14, "youtubeUrl"=$15, "contactEmail"=$16, "contactPhone"=$17, "preferredTone"=$18, "callToAction"=$19, "hospitalPhotoUrls"=$20::jsonb, "defaultDisclaimer"=$21, "updatedAt"=NOW() WHERE id=$22 RETURNING *`, [name?.trim(), slug?.trim(), normalizeBrandColor(brandingHex), user?.isSuperAdmin ? preferredAsrModel || "whisper-1" : existing.preferredAsrModel, customSystemPrompt?.trim() || null, logoUrl?.trim() || null, brandFont?.trim() || "Arial", brandTagline?.trim() || null, location?.trim() || null, websiteUrl?.trim() || null, linkedinUrl?.trim() || null, facebookUrl?.trim() || null, instagramUrl?.trim() || null, xUrl?.trim() || null, youtubeUrl?.trim() || null, contactEmail?.trim() || null, contactPhone?.trim() || null, preferredTone?.trim() || null, callToAction?.trim() || null, JSON.stringify(Array.isArray(hospitalPhotoUrls) ? hospitalPhotoUrls : null), defaultDisclaimer?.trim(), id]);
     const updated = rows[0];
 
+    organizationCache.clear();
     return NextResponse.json({ success: true, organization: updated });
   } catch (error: any) {
     console.error("Update organization error:", error);
@@ -266,6 +277,7 @@ export async function PATCH(req: Request) {
     await requireOrganizationAccess(body.organizationId);
     const { rows } = await query(`UPDATE macula.macula_organizations SET name=$1, "brandingHex"=$2, "logoUrl"=$3, "brandFont"=$4, "brandTagline"=$5, location=$6, "websiteUrl"=$7, "linkedinUrl"=$8, "facebookUrl"=$9, "instagramUrl"=$10, "xUrl"=$11, "youtubeUrl"=$12, "contactEmail"=$13, "contactPhone"=$14, "preferredTone"=$15, "callToAction"=$16, "hospitalPhotoUrls"=$17::jsonb, "preferredAsrModel"=COALESCE($18, "preferredAsrModel"), "customSystemPrompt"=$19, "defaultDisclaimer"=$20, "updatedAt"=NOW() WHERE id=$21 RETURNING *`, [body.name?.trim(), normalizeBrandColor(body.brandingHex), body.logoUrl?.trim() || null, body.brandFont?.trim() || "Arial", body.brandTagline?.trim() || null, body.location?.trim() || null, body.websiteUrl?.trim() || null, body.linkedinUrl?.trim() || null, body.facebookUrl?.trim() || null, body.instagramUrl?.trim() || null, body.xUrl?.trim() || null, body.youtubeUrl?.trim() || null, body.contactEmail?.trim() || null, body.contactPhone?.trim() || null, body.preferredTone?.trim() || null, body.callToAction?.trim() || null, JSON.stringify(Array.isArray(body.hospitalPhotoUrls) ? body.hospitalPhotoUrls : null), body.preferredAsrModel?.trim() || null, body.customSystemPrompt?.trim() || null, body.defaultDisclaimer?.trim(), body.organizationId]);
     const updated = rows[0];
+    organizationCache.clear();
     return NextResponse.json({ success: true, organization: updated });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || "Failed to update brand settings." }, { status: 500 });

@@ -1,21 +1,19 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
 import { requireOrganizationAccess } from "@/lib/tenant-auth";
+import { query } from "@/lib/worker-db";
 
 export async function GET(req: Request, props: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await props.params;
     const cursor = new URL(req.url).searchParams.get("cursor");
-    const kase = await db.case.findUnique({ where: { id }, select: { organizationId: true } });
+    const kase = (await query<{ organizationId: string }>(`SELECT "organizationId" FROM macula.macula_cases WHERE id = $1 LIMIT 1`, [id])).rows[0];
     if (!kase) return NextResponse.json({ error: "Case not found." }, { status: 404 });
     await requireOrganizationAccess(kase.organizationId);
-    const events = await db.auditLog.findMany({
-      where: { caseId: id },
-      include: { actor: { select: { id: true, name: true, email: true } } },
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      take: 51,
-      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-    });
+    const cursorFilter = cursor ? `AND al.id < $2` : "";
+    const params = cursor ? [id, cursor] : [id];
+    const { rows: events } = await query(`SELECT al.*, CASE WHEN u.id IS NULL THEN NULL ELSE json_build_object('id', u.id, 'name', u.name, 'email', u.email) END AS actor
+      FROM macula.macula_audit_logs al LEFT JOIN macula.macula_users u ON u.id = al."actorId"
+      WHERE al."caseId" = $1 ${cursorFilter} ORDER BY al."createdAt" DESC, al.id DESC LIMIT 51`, params);
     const hasMore = events.length > 50;
     const page = hasMore ? events.slice(0, 50) : events;
     return NextResponse.json({ events: page, nextCursor: hasMore ? page.at(-1)?.id : null });

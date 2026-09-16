@@ -1,16 +1,8 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
 import { requireAuthenticatedUser, requireOrganizationAccess } from "@/lib/tenant-auth";
 import { recordAudit } from "@/lib/audit";
 import { timeDbOperation } from "@/lib/perf";
-import { unstable_cache } from "next/cache";
 import { query } from "@/lib/worker-db";
-
-const getAdminOrganizations = unstable_cache(
-  () => db.organization.findMany({ select: { id: true, name: true, slug: true }, orderBy: { name: "asc" } }),
-  ["admin-case-organizations"],
-  { revalidate: 60, tags: ["organizations"] },
-);
 
 export async function GET(req: Request) {
   try {
@@ -100,23 +92,12 @@ export async function PATCH(req: Request) {
       );
     }
 
-    const existingCase = await db.case.findUnique({ where: { id: caseId }, select: { organizationId: true } });
+    const existingCase = (await query<{ organizationId: string }>(`SELECT "organizationId" FROM macula.macula_cases WHERE id = $1 LIMIT 1`, [caseId])).rows[0];
     if (!existingCase) return NextResponse.json({ error: "Case not found." }, { status: 404 });
     await requireOrganizationAccess(existingCase.organizationId);
 
-    const updated = await db.case.update({
-      where: { id: caseId },
-      data: {
-        status,
-        rejectionReason: status === "REJECTED" ? rejectionReason : null,
-        reviewedBy: reviewedBy || "Admin / Compliance Officer",
-        reviewedAt: new Date(),
-      },
-      include: {
-        physician: true,
-        organization: true,
-      },
-    });
+    const { rows: updatedRows } = await query(`UPDATE macula.macula_cases SET status = $1, rejection_reason = $2, reviewed_by = $3, reviewed_at = NOW(), "updatedAt" = NOW() WHERE id = $4 RETURNING *`, [status, status === "REJECTED" ? rejectionReason : null, reviewedBy || "Admin / Compliance Officer", caseId]);
+    const updated = updatedRows[0];
     await recordAudit({ organizationId: updated.organizationId, caseId: updated.id, targetType: "CASE", targetId: updated.id, action: status === "REJECTED" ? "CASE_REJECTED" : "CASE_STATUS_CHANGED", detail: rejectionReason || undefined, metadata: { status } });
 
     return NextResponse.json({ success: true, case: updated });

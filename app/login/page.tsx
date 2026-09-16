@@ -1,7 +1,6 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { useRouter } from "next/navigation";
 import { ArrowRight, CheckCircle2, FileText, LockKeyhole, ShieldCheck } from "lucide-react";
 import BrandLogo from "@/components/BrandLogo";
 
@@ -17,7 +16,6 @@ const DEMO_ACCOUNTS = [
 ];
 
 export default function LoginPage() {
-  const router = useRouter();
   const [userId, setUserId] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -42,7 +40,7 @@ export default function LoginPage() {
         setError(data.error || "Login failed.");
         return;
       }
-      router.push("/");
+      window.location.replace("/");
     } catch (requestError) {
       setError(requestError instanceof DOMException && requestError.name === "AbortError"
         ? "Sign-in timed out. Please try again."

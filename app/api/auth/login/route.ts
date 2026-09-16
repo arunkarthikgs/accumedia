@@ -32,7 +32,7 @@ export async function POST(req: Request) {
       [sessionId, hashToken(token), user.id, new Date(Date.now() + 8 * 60 * 60 * 1000)]
     );
 
-    const response = NextResponse.json({ success: true });
+    const response = NextResponse.json({ success: true }, { headers: { "Cache-Control": "no-store" } });
     response.cookies.set("macula_session", token, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: 8 * 60 * 60 });
     return response;
   } catch (error: any) {

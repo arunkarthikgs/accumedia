@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { requireAuthenticatedUser, requireOrganizationAccess } from "@/lib/tenant-auth";
 import { timeDbOperation } from "@/lib/perf";
-import { query } from "@/lib/worker-db";
+import { query, queryWithTimeout } from "@/lib/worker-db";
 
 export const dynamic = "force-dynamic";
+
+const publishingJobCache = new Map<string, { expiresAt: number; jobs: any[] }>();
 
 export async function GET(req: Request) {
   try {
@@ -17,7 +19,18 @@ export async function GET(req: Request) {
     const filters: string[] = [];
     if (scopedOrgId) { values.push(scopedOrgId); filters.push(`pj."organizationId" = $${values.length}`); }
     if (status && status !== "ALL") { values.push(status); filters.push(`pj.status = $${values.length}`); }
-    const { rows: jobRows } = await timeDbOperation("admin publishing jobs", () => query<any>(`SELECT id, platform, status, "scheduledAt", "publishedAt", "externalId", "failureReason", "attemptCount", "lastAttemptAt", "nextAttemptAt", "createdAt", "updatedAt", "organizationId", "caseId", "assetId" FROM macula.macula_publication_jobs pj ${filters.length ? `WHERE ${filters.join(" AND ")}` : ""} ORDER BY "createdAt" DESC LIMIT 25`, values));
+    const cacheKey = `${scopedOrgId || "all"}:${status || "ALL"}`;
+    let jobRows: any[];
+    try {
+      const result = await timeDbOperation("admin publishing jobs", () => queryWithTimeout<any>(`SELECT id, platform, status, "scheduledAt", "publishedAt", "externalId", "failureReason", "attemptCount", "lastAttemptAt", "nextAttemptAt", "createdAt", "updatedAt", "organizationId", "caseId", "assetId" FROM macula.macula_publication_jobs pj ${filters.length ? `WHERE ${filters.join(" AND ")}` : ""} ORDER BY "createdAt" DESC LIMIT 25`, values));
+      jobRows = result.rows;
+      publishingJobCache.set(cacheKey, { expiresAt: Date.now() + 30_000, jobs: jobRows });
+    } catch (error) {
+      const cached = publishingJobCache.get(cacheKey);
+      if (!cached || cached.expiresAt <= Date.now()) throw error;
+      console.warn("Using cached publishing jobs after a transient database timeout.");
+      jobRows = cached.jobs;
+    }
     const caseIds = jobRows.map((job) => job.caseId).filter(Boolean);
     const assetIds = jobRows.map((job) => job.assetId).filter(Boolean);
     const [{ rows: cases }, { rows: assets }] = await Promise.all([

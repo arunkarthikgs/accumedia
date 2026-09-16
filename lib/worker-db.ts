@@ -45,3 +45,7 @@ export function query<T extends QueryResultRow>(text: string, values: unknown[] 
     return getPool().query<T>(text, values);
   });
 }
+
+export function queryWithTimeout<T extends QueryResultRow>(text: string, values: unknown[] = [], timeoutMs = 1500) {
+  return (getPool() as any).query({ text, values, query_timeout: timeoutMs }) as Promise<{ rows: T[] }>;
+}

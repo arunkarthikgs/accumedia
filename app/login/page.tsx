@@ -108,6 +108,11 @@ export default function LoginPage() {
           </div>
 
           <form onSubmit={continueToWorkspace} className="space-y-5">
+            {error && (
+              <div role="alert" className="rounded-lg border border-brick/30 bg-brick-tint p-3 text-xs font-medium text-brick">
+                {error}
+              </div>
+            )}
             <label className="block">
               <span className="mb-2 block text-xs font-semibold text-ink">User ID or email</span>
               <input

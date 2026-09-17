@@ -71,6 +71,19 @@ const PROMPT_STAGE_HELP: Record<string, string> = {
   IMAGE_SAFETY: "Used after image generation or upload to detect faces, readable identifiers, and other public-use risks.",
 };
 
+const GOVERNED_PROMPT_GROUPS = [
+  {
+    title: "Case Ingestion",
+    description: "Prompts used to transform dictated clinical input into the approved Master Clinical Record.",
+    promptKeys: ["CLINICAL_REFINER", "MASTER_SYNTHESIS"],
+  },
+  {
+    title: "Asset Creation",
+    description: "Prompts used to create publishing strategy, images, and publication-ready assets from an approved case.",
+    promptKeys: ["SEO_KEYWORDS", "IMAGE_GENERATION", "IMAGE_SAFETY"],
+  },
+] as const;
+
 export default function CompliancePromptsAdminPage() {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [selectedOrgId, setSelectedOrgId] = useState<string>("");
@@ -365,9 +378,23 @@ export default function CompliancePromptsAdminPage() {
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs">
               {activeTab === "governed" && selectedGovernedPrompt && (
                 <div className="space-y-4">
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {governedPrompts.map((prompt) => <button key={prompt.promptKey} type="button" onClick={() => setSelectedPromptKey(prompt.promptKey)} className={`rounded-lg border p-3 text-left ${selectedGovernedPrompt.promptKey === prompt.promptKey ? "border-teal-500 bg-teal-50" : "border-slate-200 hover:border-teal-300"}`}><span className="block text-xs font-bold text-slate-800">{prompt.name}</span><span className="mt-1 block text-[10px] text-slate-500">v{prompt.version} · {prompt.source === "organization" ? "Organization override" : "Global default"}</span></button>)}
-                  </div>
+                  {GOVERNED_PROMPT_GROUPS.map((group) => {
+                    const groupPrompts = group.promptKeys
+                      .map((promptKey) => governedPrompts.find((prompt) => prompt.promptKey === promptKey))
+                      .filter(Boolean) as GovernedPrompt[];
+                    if (groupPrompts.length === 0) return null;
+                    return (
+                      <section key={group.title} className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                        <div className="mb-3">
+                          <h2 className="text-xs font-bold uppercase tracking-wide text-slate-800">{group.title}</h2>
+                          <p className="mt-1 text-[11px] text-slate-500">{group.description}</p>
+                        </div>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          {groupPrompts.map((prompt) => <button key={prompt.promptKey} type="button" onClick={() => setSelectedPromptKey(prompt.promptKey)} className={`rounded-lg border bg-white p-3 text-left ${selectedGovernedPrompt.promptKey === prompt.promptKey ? "border-teal-500 bg-teal-50" : "border-slate-200 hover:border-teal-300"}`}><span className="block text-xs font-bold text-slate-800">{prompt.name}</span><span className="mt-1 block text-[10px] text-slate-500">v{prompt.version} · {prompt.source === "organization" ? "Organization override" : "Global default"}</span></button>)}
+                        </div>
+                      </section>
+                    );
+                  })}
                   <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
                     <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-sm font-bold text-slate-900">{selectedGovernedPrompt.name}</h3><p className="mt-1 text-xs text-slate-600">{selectedGovernedPrompt.description}</p></div><span className="rounded bg-white px-2 py-1 text-[10px] font-semibold text-teal-700">{editScope === "global" ? "Global default" : selectedGovernedPrompt.source === "organization" ? "Organization override" : "Inherited global default"} · v{selectedGovernedPrompt.version}</span></div>
                     <div className="mt-3 rounded border border-teal-200 bg-teal-50 p-3 text-xs text-teal-900"><strong>Used during:</strong> {PROMPT_STAGE_HELP[selectedGovernedPrompt.promptKey]}</div>

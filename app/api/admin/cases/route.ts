@@ -18,7 +18,12 @@ export async function GET(req: Request) {
 
     const filters: string[] = [];
     const values: unknown[] = [];
-    const scopedOrgId = user ? await requireOrganizationScope(orgId && orgId !== "ALL" ? orgId : user.organizationId) : null;
+    const requestedOrgId = orgId && orgId !== "ALL"
+      ? orgId
+      : user?.isSuperAdmin
+        ? null
+        : user?.organizationId;
+    const scopedOrgId = user ? await requireOrganizationScope(requestedOrgId) : null;
     values.push(scopedOrgId); filters.push(`c."organizationId" = COALESCE($${values.length}::text, c."organizationId")`);
     if (status && status !== "ALL") { values.push(status); filters.push(`c.status = $${values.length}`); }
     if (fromDate) { values.push(new Date(`${fromDate}T00:00:00.000Z`)); filters.push(`c."createdAt" >= $${values.length}`); }

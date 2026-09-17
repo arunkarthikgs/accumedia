@@ -70,8 +70,8 @@ export default async function DashboardPage() {
               Clinical Narrative Ingestion &amp; Governance
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted">
-              Capture dictations, run multi-model speech-to-text, synthesize structured master
-              clinical records, and conduct compliance reviews across connected hospital networks.
+              Turn clinician dictation into reviewable, structured clinical records, with safety
+              checks and approval gates before anything is shared beyond the care team.
             </p>
           </div>
 

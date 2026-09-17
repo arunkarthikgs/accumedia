@@ -8,7 +8,9 @@ export function getEffectiveOrganizationScope(
 ): string | null {
   if (!user) return null;
   if (user.isSuperAdmin) {
-    return requestedOrganizationId || user.organizationId || null;
+    return requestedOrganizationId !== undefined
+      ? requestedOrganizationId
+      : user.organizationId || null;
   }
   if (!user.organizationId) return null;
   if (requestedOrganizationId && requestedOrganizationId !== user.organizationId) {

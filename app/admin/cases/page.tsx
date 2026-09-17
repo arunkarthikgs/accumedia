@@ -135,6 +135,15 @@ export default function AdminCasesPage() {
     } catch {
       // Ignore unavailable or invalid browser cache.
     }
+    try {
+      const organizationData = await fetchJsonOnce<{ organizations: Organization[] }>(
+        "/api/admin/organizations",
+        { cache: "no-store" },
+      );
+      setOrganizations(organizationData.organizations || []);
+    } catch (organizationError) {
+      console.error("Failed to load organizations:", organizationError);
+    }
     setIsLoading(!servedCache);
     try {
       let url = `/api/admin/cases?status=${selectedStatus}&pageSize=10`;

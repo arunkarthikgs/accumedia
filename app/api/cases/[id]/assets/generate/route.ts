@@ -13,14 +13,22 @@ export async function POST(
   try {
     const { id } = await props.params;
     const kase = (await query<any>(`SELECT c.*, c.mccr_approved_at AS "mccrApprovedAt", row_to_json(o) AS organization FROM macula.cases c JOIN macula.organizations o ON o.id = c."organizationId" WHERE c.id = $1 LIMIT 1`, [id])).rows[0];
+    const caseLoadedAt = performance.now();
     if (!kase) return NextResponse.json({ error: "Case not found." }, { status: 404 });
     await requireOrganizationAccess(kase.organizationId);
+    const accessCheckedAt = performance.now();
     if (kase.status !== "APPROVED" || !kase.mccrApprovedAt) return NextResponse.json({ error: "Approve the clinical record before generating publishing assets." }, { status: 409 });
     const assets = await runAdaptationEngine(id, kase);
+    const completedAt = performance.now();
     return NextResponse.json({ success: true, assetsGenerated: assets.length, assets }, {
       headers: {
         "Cache-Control": "no-store",
-        "Server-Timing": `publishing-assets;dur=${(performance.now() - startedAt).toFixed(1)}`,
+        "Server-Timing": [
+          `case;dur=${(caseLoadedAt - startedAt).toFixed(1)}`,
+          `access;dur=${(accessCheckedAt - caseLoadedAt).toFixed(1)}`,
+          `generation;dur=${(completedAt - accessCheckedAt).toFixed(1)}`,
+          `publishing-assets;dur=${(completedAt - startedAt).toFixed(1)}`,
+        ].join(", "),
       },
     });
   } catch (error: any) {

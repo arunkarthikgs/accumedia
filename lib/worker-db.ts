@@ -1,47 +1,75 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { Pool, type QueryResultRow } from "pg";
 
-let pool: Pool | undefined;
+let localPool: Pool | undefined;
+const requestPools = new WeakMap<object, Pool>();
 
-function getConnectionString(): string | undefined {
+function getRuntimeDatabaseContext(): { connectionString?: string; requestContext?: object } {
   try {
-    const runtimeEnv = getCloudflareContext({ async: false }).env as typeof globalThis & {
+    const runtimeContext = getCloudflareContext({ async: false });
+    const runtimeEnv = runtimeContext.env as typeof globalThis & {
       HYPERDRIVE?: { connectionString?: string };
     };
-    if (runtimeEnv.HYPERDRIVE?.connectionString) return runtimeEnv.HYPERDRIVE.connectionString;
+    if (runtimeEnv.HYPERDRIVE?.connectionString) {
+      return {
+        connectionString: runtimeEnv.HYPERDRIVE.connectionString,
+        requestContext: runtimeContext.ctx as object,
+      };
+    }
   } catch {
     // Fall back to local environment variables outside the Worker.
   }
-  return process.env.DIRECT_URL || process.env.DATABASE_URL;
+  return { connectionString: process.env.DIRECT_URL || process.env.DATABASE_URL };
 }
 
-function getPool() {
-  if (pool) return pool;
-
-  const runtimeConnectionString = getConnectionString();
-  if (!runtimeConnectionString) throw new Error("Database connection string is unavailable.");
-
+function createPool(runtimeConnectionString: string) {
   const parsedConnectionString = new URL(runtimeConnectionString);
   parsedConnectionString.search = "";
   const connectionString = parsedConnectionString.toString();
-  pool = new Pool({
+  return new Pool({
     connectionString,
     max: 4,
-    idleTimeoutMillis: 10_000,
+    idleTimeoutMillis: 1_000,
     connectionTimeoutMillis: 10_000,
     query_timeout: 5_000,
     statement_timeout: 5_000,
     ...(parsedConnectionString.password ? {} : { password: "" }),
   });
-  return pool;
+}
+
+function getPool() {
+  const { connectionString, requestContext } = getRuntimeDatabaseContext();
+  if (!connectionString) throw new Error("Database connection string is unavailable.");
+
+  if (requestContext) {
+    const existingPool = requestPools.get(requestContext);
+    if (existingPool) return existingPool;
+    const requestPool = createPool(connectionString);
+    requestPools.set(requestContext, requestPool);
+    return requestPool;
+  }
+
+  localPool ||= createPool(connectionString);
+  return localPool;
+}
+
+function discardPool(failedPool: Pool) {
+  const { requestContext } = getRuntimeDatabaseContext();
+  if (requestContext && requestPools.get(requestContext) === failedPool) {
+    requestPools.delete(requestContext);
+  } else if (localPool === failedPool) {
+    localPool = undefined;
+  }
+  void failedPool.end().catch(() => undefined);
 }
 
 export function query<T extends QueryResultRow>(text: string, values: unknown[] = []) {
-  return getPool().query<T>(text, values).catch(async (error: unknown) => {
+  const activePool = getPool();
+  return activePool.query<T>(text, values).catch(async (error: unknown) => {
     const message = error instanceof Error ? error.message : String(error);
     if (!/timeout|connection terminated|connection reset|ECONNRESET/i.test(message)) throw error;
 
-    pool = undefined;
+    discardPool(activePool);
     return getPool().query<T>(text, values);
   });
 }

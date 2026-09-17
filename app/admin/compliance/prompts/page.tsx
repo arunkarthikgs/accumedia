@@ -12,14 +12,13 @@ import {
   AlertCircle,
   Loader2,
   Terminal,
-  FileCheck,
-  Cpu,
   RefreshCw,
   Sparkles,
   Sliders,
   Layers,
-  Image,
+  History,
 } from "lucide-react";
+import { formatDateTime } from "@/lib/date-format";
 
 interface ChannelDefinition {
   id: string;
@@ -28,11 +27,50 @@ interface ChannelDefinition {
   targetAudience: string;
   systemPrompt: string;
   isActive: boolean;
+  source: "global" | "organization";
+  globalSystemPrompt: string;
+  globalPromptVersion: number;
+  organizationSystemPrompt: string | null;
+  organizationPromptVersion: number | null;
+  promptVersion: number;
+  resetToGlobal?: boolean;
+}
+interface GovernedPrompt {
+  promptKey: string;
+  name: string;
+  description: string;
+  content: string;
+  version: number;
+  source: "global" | "organization";
+  globalContent: string;
+  globalVersion: number;
+  organizationContent: string | null;
+  organizationVersion: number | null;
+  history: { id: string; version: number; source: "global" | "organization"; isActive: boolean; createdAt: string }[];
+  resetToGlobal?: boolean;
 }
 interface Organization {
   id: string;
   name: string;
 }
+interface PromptAuditEvent {
+  id: string;
+  action: string;
+  targetType: string;
+  targetId: string;
+  detail: string | null;
+  metadata: { scope?: string; promptKey?: string; channelKey?: string; changedFields?: string[] } | null;
+  createdAt: string;
+  actorName: string | null;
+}
+
+const PROMPT_STAGE_HELP: Record<string, string> = {
+  MASTER_SYNTHESIS: "Used after clinical refinement to create the structured Master Clinical Record and its DPDP/NMC safety audit.",
+  CLINICAL_REFINER: "Used after speech-to-text to correct medical terminology and structure without adding clinical facts.",
+  SEO_KEYWORDS: "Used after Master Clinical Record synthesis to create the approved keyword strategy consumed by SEO publishing assets.",
+  IMAGE_GENERATION: "Used when an approved case requests a generated educational image for a publishing channel.",
+  IMAGE_SAFETY: "Used after image generation or upload to detect faces, readable identifiers, and other public-use risks.",
+};
 
 export default function CompliancePromptsAdminPage() {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
@@ -40,15 +78,19 @@ export default function CompliancePromptsAdminPage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
 
   // Form State
+  const [governedPrompts, setGovernedPrompts] = useState<GovernedPrompt[]>([]);
+  const [selectedPromptKey, setSelectedPromptKey] = useState("MASTER_SYNTHESIS");
+  const [editScope, setEditScope] = useState<"organization" | "global">("organization");
+  const [canEditGlobal, setCanEditGlobal] = useState(false);
   const [customSystemPrompt, setCustomSystemPrompt] = useState("");
   const [defaultDisclaimer, setDefaultDisclaimer] = useState("");
-  const [clinicalRefinerPrompt, setClinicalRefinerPrompt] = useState("");
-  const [imageGenerationPrompt, setImageGenerationPrompt] = useState("");
-  const [imageSafetyPrompt, setImageSafetyPrompt] = useState("");
+  const [preferredTone, setPreferredTone] = useState("");
+  const [callToAction, setCallToAction] = useState("");
   const [channels, setChannels] = useState<ChannelDefinition[]>([]);
+  const [promptAuditTrail, setPromptAuditTrail] = useState<PromptAuditEvent[]>([]);
 
   // Testing Sandbox State
-  const [activeTab, setActiveTab] = useState<"synthesizer" | "refiner" | "disclaimer" | "channels" | "imageGeneration" | "imageSafety">("synthesizer");
+  const [activeTab, setActiveTab] = useState<"governed" | "organization" | "channels">("governed");
   const [testInput, setTestInput] = useState(
     "Patient 45yo male presents with severe epigastric pain radiating to back since 6 hours. Hx of alcohol intake. BP 130/80, PR 102. Serum amylase 840, lipase 1200. USG abdomen shows bulky pancreas. Started on IV fluids, analgesics."
   );
@@ -61,16 +103,52 @@ export default function CompliancePromptsAdminPage() {
   const [isTesting, setIsTesting] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
+  const changeEditScope = (scope: "organization" | "global") => {
+    setEditScope(scope);
+    if (scope === "global" && activeTab === "organization") setActiveTab("governed");
+    setGovernedPrompts((current) => current.map((prompt) => ({
+      ...prompt,
+      content: scope === "global" ? prompt.globalContent : prompt.organizationContent || prompt.globalContent,
+      version: scope === "global" ? prompt.globalVersion : prompt.organizationVersion || prompt.globalVersion,
+      source: scope === "global" || !prompt.organizationContent ? "global" : "organization",
+    })));
+    setChannels((current) => current.map((channel) => ({
+      ...channel,
+      systemPrompt: scope === "global" ? channel.globalSystemPrompt : channel.organizationSystemPrompt || channel.globalSystemPrompt,
+      promptVersion: scope === "global" ? channel.globalPromptVersion : channel.organizationPromptVersion || channel.globalPromptVersion,
+      source: scope === "global" || !channel.organizationSystemPrompt ? "global" : "organization",
+    })));
+  };
+
+  const applyPromptData = (data: any, scope: "organization" | "global") => {
+    setGovernedPrompts((data.governedPrompts || []).map((prompt: GovernedPrompt) => ({
+      ...prompt,
+      content: scope === "global" ? prompt.globalContent : prompt.organizationContent || prompt.globalContent,
+      version: scope === "global" ? prompt.globalVersion : prompt.organizationVersion || prompt.globalVersion,
+      source: scope === "global" || !prompt.organizationContent ? "global" : "organization",
+    })));
+    setCustomSystemPrompt(data.customSystemPrompt || "");
+    setDefaultDisclaimer(data.defaultDisclaimer || "");
+    setPreferredTone(data.preferredTone || "");
+    setCallToAction(data.callToAction || "");
+    setCanEditGlobal(Boolean(data.canEditGlobal));
+    setChannels((data.channelDefinitions || []).map((channel: ChannelDefinition) => ({
+      ...channel,
+      systemPrompt: scope === "global" ? channel.globalSystemPrompt : channel.organizationSystemPrompt || channel.globalSystemPrompt,
+      promptVersion: scope === "global" ? channel.globalPromptVersion : channel.organizationPromptVersion || channel.globalPromptVersion,
+      source: scope === "global" || !channel.organizationSystemPrompt ? "global" : "organization",
+    })));
+    setPromptAuditTrail(data.promptAuditTrail || []);
+  };
+
   useEffect(() => {
     async function init() {
       try {
-        const userRes = await fetch("/api/users");
+        const [userRes, sessionRes] = await Promise.all([fetch("/api/users"), fetch("/api/auth/me")]);
+        if (sessionRes.ok) setCurrentUser((await sessionRes.json()).user || null);
         if (userRes.ok) {
           const data = await userRes.json();
           const users = data.users || [];
-          // Pick the first compliance officer or admin as default operator
-          const officer = users.find((u: any) => u.role === "COMPLIANCE_OFFICER" || u.role === "ADMIN") || users[0];
-          setCurrentUser(officer);
 
           const orgMap = new Map<string, Organization>();
           users.forEach((u: any) => {
@@ -105,12 +183,7 @@ export default function CompliancePromptsAdminPage() {
         const res = await fetch(`/api/compliance/prompts?orgId=${selectedOrgId}`);
         const json = await res.json();
         if (res.ok && json.data) {
-          setCustomSystemPrompt(json.data.customSystemPrompt || "");
-          setDefaultDisclaimer(json.data.defaultDisclaimer || "");
-          setClinicalRefinerPrompt(json.data.clinicalRefinerPrompt || "");
-          setImageGenerationPrompt(json.data.imageGenerationPrompt || "");
-          setImageSafetyPrompt(json.data.imageSafetyPrompt || "");
-          setChannels(json.data.channelDefinitions || []);
+          applyPromptData(json.data, "organization");
         } else {
           setStatusMessage({ type: "error", text: json.error || "Failed to load prompts" });
         }
@@ -133,13 +206,13 @@ export default function CompliancePromptsAdminPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           orgId: selectedOrgId,
-          userId: currentUser?.id,
+          scope: editScope,
           customSystemPrompt,
-          clinicalRefinerPrompt,
-          imageGenerationPrompt,
-          imageSafetyPrompt,
           defaultDisclaimer,
-          channels,
+          preferredTone,
+          callToAction,
+          governedPrompts: governedPrompts.map(({ promptKey, content, resetToGlobal }) => ({ promptKey, content, resetToGlobal })),
+          channels: channels.map(({ resetToGlobal, ...channel }) => ({ ...channel, resetToGlobal })),
         }),
       });
 
@@ -150,6 +223,9 @@ export default function CompliancePromptsAdminPage() {
         type: "success",
         text: "Changes saved and published to PostgreSQL live database.",
       });
+      const refreshed = await fetch(`/api/compliance/prompts?orgId=${selectedOrgId}`);
+      const refreshedJson = await refreshed.json();
+      if (refreshed.ok && refreshedJson.data) applyPromptData(refreshedJson.data, editScope);
     } catch (err: any) {
       setStatusMessage({ type: "error", text: err.message || "Failed to save prompts" });
     } finally {
@@ -162,9 +238,8 @@ export default function CompliancePromptsAdminPage() {
     setTestOutput("");
     setTestStats(null);
 
-    let activePrompt = customSystemPrompt;
-    if (activeTab === "refiner") activePrompt = clinicalRefinerPrompt;
-    else if (activeTab === "disclaimer") activePrompt = `Append the following disclaimer to clinical text: "${defaultDisclaimer}"`;
+    let activePrompt = governedPrompts.find((prompt) => prompt.promptKey === selectedPromptKey)?.content || "";
+    if (activeTab === "organization") activePrompt = `${customSystemPrompt}\n\nDisclaimer: ${defaultDisclaimer}\nTone: ${preferredTone}\nCall to action: ${callToAction}`;
     else if (activeTab === "channels" && channels.length > 0) activePrompt = channels[0].systemPrompt;
 
     try {
@@ -194,6 +269,15 @@ export default function CompliancePromptsAdminPage() {
     }
   };
 
+  const selectedGovernedPrompt = governedPrompts.find((prompt) => prompt.promptKey === selectedPromptKey) || governedPrompts[0];
+  const updateSelectedPrompt = (content: string) => {
+    setGovernedPrompts((current) => current.map((prompt) => prompt.promptKey === selectedGovernedPrompt?.promptKey ? { ...prompt, content, resetToGlobal: false } : prompt));
+  };
+  const resetSelectedPrompt = () => {
+    if (!selectedGovernedPrompt || editScope === "global") return;
+    setGovernedPrompts((current) => current.map((prompt) => prompt.promptKey === selectedGovernedPrompt.promptKey ? { ...prompt, content: prompt.globalContent, source: "global", resetToGlobal: true } : prompt));
+  };
+
   return (
     <div className="readable-route min-h-screen bg-slate-50 text-slate-900">
       {/* Top Bar */}
@@ -218,7 +302,7 @@ export default function CompliancePromptsAdminPage() {
           <div className="flex items-center gap-3">
             {currentUser && (
               <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
-                Auditor: <strong className="font-semibold">{currentUser.name}</strong> ({currentUser.role || "ADMIN"})
+                Operator: <strong className="font-semibold">{currentUser.name}</strong> ({currentUser.isSuperAdmin ? "Super Admin" : currentUser.role?.name || "Administrator"})
               </span>
             )}
 
@@ -229,7 +313,7 @@ export default function CompliancePromptsAdminPage() {
               className="flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-teal-700 disabled:opacity-50 transition"
             >
               {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              <span>Save & Publish Prompts</span>
+              <span>{editScope === "global" ? "Publish Global Defaults" : "Save Organization Overrides"}</span>
             </button>
           </div>
         </div>
@@ -264,185 +348,77 @@ export default function CompliancePromptsAdminPage() {
               Prompts and statutory disclaimers are scoped per hospital network for multi-tenancy isolation.
             </p>
           </div>
-          <select
-            value={selectedOrgId}
-            onChange={(e) => setSelectedOrgId(e.target.value)}
-            className="w-full sm:w-80 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-800 focus:border-teal-500 focus:bg-white focus:outline-hidden"
-          >
-            {organizations.map((org) => (
-              <option key={org.id} value={org.id}>
-                {org.name}
-              </option>
-            ))}
-          </select>
+          <div className="flex w-full flex-col gap-2 sm:w-80">
+            <select
+              value={selectedOrgId}
+              onChange={(e) => { setSelectedOrgId(e.target.value); setEditScope("organization"); }}
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-800 focus:border-teal-500 focus:bg-white focus:outline-hidden"
+            >
+              {organizations.map((org) => (
+                <option key={org.id} value={org.id}>
+                  {org.name}
+                </option>
+              ))}
+            </select>
+            <div className="grid grid-cols-2 rounded-lg border border-slate-200 bg-slate-50 p-1 text-[11px] font-semibold">
+              <button type="button" onClick={() => changeEditScope("organization")} className={`rounded px-2 py-1.5 ${editScope === "organization" ? "bg-white text-teal-700 shadow-xs" : "text-slate-500"}`}>Organization overrides</button>
+              <button type="button" disabled={!canEditGlobal} onClick={() => changeEditScope("global")} title={canEditGlobal ? "Edit defaults inherited by every organization" : "Only Super Admin can edit global defaults"} className={`rounded px-2 py-1.5 ${editScope === "global" ? "bg-white text-teal-700 shadow-xs" : "text-slate-500"} disabled:cursor-not-allowed disabled:opacity-40`}>Global defaults</button>
+            </div>
+          </div>
         </div>
 
         {/* Two-Column Editor & Interactive Sandbox */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Left Column: Prompt Navigation & Code Editors */}
           <div className="lg:col-span-7 space-y-4">
-            {/* Category Tabs */}
             <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xs">
-              <button
-                type="button"
-                onClick={() => setActiveTab("synthesizer")}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                  activeTab === "synthesizer"
-                    ? "bg-teal-600 text-white"
-                    : "text-slate-600 hover:bg-slate-100"
-                }`}
-              >
-                <Sparkles className="h-3.5 w-3.5" /> Clinical Synthesizer
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab("refiner")}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                  activeTab === "refiner"
-                    ? "bg-teal-600 text-white"
-                    : "text-slate-600 hover:bg-slate-100"
-                }`}
-              >
-                <Cpu className="h-3.5 w-3.5" /> Stage 2 Refiner
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab("disclaimer")}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                  activeTab === "disclaimer"
-                    ? "bg-teal-600 text-white"
-                    : "text-slate-600 hover:bg-slate-100"
-                }`}
-              >
-                <FileCheck className="h-3.5 w-3.5" /> NMC Disclaimer
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab("channels")}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                  activeTab === "channels"
-                    ? "bg-teal-600 text-white"
-                    : "text-slate-600 hover:bg-slate-100"
-                }`}
-              >
-                <Layers className="h-3.5 w-3.5" /> Channel Prompts
-              </button>
-
-              <button type="button" onClick={() => setActiveTab("imageGeneration")} className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${activeTab === "imageGeneration" ? "bg-teal-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}><Image className="h-3.5 w-3.5" /> Image Generation</button>
-              <button type="button" onClick={() => setActiveTab("imageSafety")} className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${activeTab === "imageSafety" ? "bg-teal-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}><ShieldAlert className="h-3.5 w-3.5" /> Image Safety</button>
+              <button type="button" onClick={() => setActiveTab("governed")} className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold ${activeTab === "governed" ? "bg-teal-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}><Sparkles className="h-3.5 w-3.5" /> Governed AI Prompts ({governedPrompts.length})</button>
+              <button type="button" disabled={editScope === "global"} onClick={() => setActiveTab("organization")} className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold ${activeTab === "organization" ? "bg-teal-600 text-white" : "text-slate-600 hover:bg-slate-100"} disabled:cursor-not-allowed disabled:opacity-40`}><Sliders className="h-3.5 w-3.5" /> Publishing Settings</button>
+              <button type="button" onClick={() => setActiveTab("channels")} className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold ${activeTab === "channels" ? "bg-teal-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}><Layers className="h-3.5 w-3.5" /> Channel Prompts ({channels.length})</button>
             </div>
 
-            {/* Tab Editor Views */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs space-y-3">
-              {activeTab === "synthesizer" && (
-                <div>
-                  <div className="mb-2 flex items-center justify-between">
-                    <div>
-                      <h3 className="text-xs font-bold text-slate-800">
-                        Master Clinical Synthesizer System Prompt
-                      </h3>
-                      <p className="text-[11px] text-slate-500">
-                        Controls formatting into 5-part master records and enforces DPDP PHI redaction rules.
-                      </p>
-                    </div>
-                    <span className="rounded-md bg-teal-50 px-2 py-0.5 text-[10px] font-mono text-teal-800 border border-teal-200">
-                      model: gpt-4o
-                    </span>
-                  </div>
-                  <textarea
-                    rows={16}
-                    value={customSystemPrompt}
-                    onChange={(e) => setCustomSystemPrompt(e.target.value)}
-                    placeholder="Enter Master Synthesizer System Prompt..."
-                    className="w-full rounded-xl border border-slate-200 bg-slate-900 p-4 font-mono text-xs leading-relaxed text-teal-300 focus:border-teal-500 focus:outline-hidden"
-                  />
-                </div>
-              )}
-
-              {activeTab === "refiner" && (
-                <div>
-                  <div className="mb-2 flex items-center justify-between">
-                    <div>
-                      <h3 className="text-xs font-bold text-slate-800">
-                        Clinical Speech-to-Text Refiner Prompt
-                      </h3>
-                      <p className="text-[11px] text-slate-500">
-                        Instructs the model on correcting pharmacological nomenclature without altering clinical intent.
-                      </p>
-                    </div>
-                    <span className="rounded-md bg-amber-50 px-2 py-0.5 text-[10px] font-mono text-amber-800 border border-amber-200">
-                      temperature: 0.1
-                    </span>
-                  </div>
-                  <textarea
-                    rows={16}
-                    value={clinicalRefinerPrompt}
-                    onChange={(e) => setClinicalRefinerPrompt(e.target.value)}
-                    placeholder="Enter Clinical Refiner Prompt..."
-                    className="w-full rounded-xl border border-slate-200 bg-slate-900 p-4 font-mono text-xs leading-relaxed text-amber-300 focus:border-teal-500 focus:outline-hidden"
-                  />
-                </div>
-              )}
-
-              {activeTab === "disclaimer" && (
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs">
+              {activeTab === "governed" && selectedGovernedPrompt && (
                 <div className="space-y-4">
-                  <div>
-                    <h3 className="text-xs font-bold text-slate-800">
-                      Mandatory NMC Statutory Disclaimer
-                    </h3>
-                    <p className="text-[11px] text-slate-500">
-                      Appended to all public and educational assets to satisfy NMC Medical Ethics Regulations.
-                    </p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {governedPrompts.map((prompt) => <button key={prompt.promptKey} type="button" onClick={() => setSelectedPromptKey(prompt.promptKey)} className={`rounded-lg border p-3 text-left ${selectedGovernedPrompt.promptKey === prompt.promptKey ? "border-teal-500 bg-teal-50" : "border-slate-200 hover:border-teal-300"}`}><span className="block text-xs font-bold text-slate-800">{prompt.name}</span><span className="mt-1 block text-[10px] text-slate-500">v{prompt.version} · {prompt.source === "organization" ? "Organization override" : "Global default"}</span></button>)}
                   </div>
-                  <textarea
-                    rows={6}
-                    value={defaultDisclaimer}
-                    onChange={(e) => setDefaultDisclaimer(e.target.value)}
-                    placeholder="Enter statutory disclaimer..."
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 p-4 font-mono text-xs text-slate-800 focus:border-teal-500 focus:bg-white focus:outline-hidden"
-                  />
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-sm font-bold text-slate-900">{selectedGovernedPrompt.name}</h3><p className="mt-1 text-xs text-slate-600">{selectedGovernedPrompt.description}</p></div><span className="rounded bg-white px-2 py-1 text-[10px] font-semibold text-teal-700">{editScope === "global" ? "Global default" : selectedGovernedPrompt.source === "organization" ? "Organization override" : "Inherited global default"} · v{selectedGovernedPrompt.version}</span></div>
+                    <div className="mt-3 rounded border border-teal-200 bg-teal-50 p-3 text-xs text-teal-900"><strong>Used during:</strong> {PROMPT_STAGE_HELP[selectedGovernedPrompt.promptKey]}</div>
+                  </div>
+                  <textarea rows={18} value={selectedGovernedPrompt.content} onChange={(event) => updateSelectedPrompt(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-900 p-4 font-mono text-xs leading-relaxed text-teal-300 focus:border-teal-500 focus:outline-hidden" />
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <span className="text-[11px] text-slate-500">History: {selectedGovernedPrompt.history.map((entry) => `v${entry.version} ${entry.source}`).join(" · ")}</span>
+                    {editScope === "organization" && <button type="button" onClick={resetSelectedPrompt} className="flex items-center gap-1.5 rounded border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-teal-500"><RefreshCw className="h-3.5 w-3.5" /> Reset to global default</button>}
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "organization" && (
+                <div className="space-y-4">
+                  <div className="rounded border border-teal-200 bg-teal-50 p-3 text-xs text-teal-900"><strong>Used during:</strong> The synthesis addendum is appended during Master Clinical Record creation. Disclaimer, tone, and CTA are applied when publishing assets are generated.</div>
+                  <label className="block text-xs font-bold text-slate-800">Clinical synthesis addendum<textarea rows={7} value={customSystemPrompt} onChange={(event) => setCustomSystemPrompt(event.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-900 p-4 font-mono text-xs text-teal-300" /></label>
+                  <label className="block text-xs font-bold text-slate-800">Clinical disclaimer<textarea rows={4} value={defaultDisclaimer} onChange={(event) => setDefaultDisclaimer(event.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs" /></label>
+                  <div className="grid gap-4 sm:grid-cols-2"><label className="block text-xs font-bold text-slate-800">Publishing tone<input value={preferredTone} onChange={(event) => setPreferredTone(event.target.value)} className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-xs" /></label><label className="block text-xs font-bold text-slate-800">Default call to action<input value={callToAction} onChange={(event) => setCallToAction(event.target.value)} className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-xs" /></label></div>
                 </div>
               )}
 
               {activeTab === "channels" && (
                 <div className="space-y-4">
-                  <div>
-                    <h3 className="text-xs font-bold text-slate-800">
-                      Channel-Specific Generation Prompts
-                    </h3>
-                    <p className="text-[11px] text-slate-500">
-                      Defines the tone, vocabulary, and audience level for downstream publishing formats.
-                    </p>
-                  </div>
-                  {channels.map((ch, idx) => (
-                    <div key={ch.id} className="rounded-xl border border-slate-200 p-4 space-y-2 bg-slate-50/50">
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold text-xs text-slate-800">
-                          {ch.displayName} ({ch.channelKey})
-                        </span>
-                        <span className="text-[10px] text-slate-500">Target: {ch.targetAudience}</span>
-                      </div>
-                      <textarea
-                        rows={5}
-                        value={ch.systemPrompt}
-                        onChange={(e) => {
-                          const updated = [...channels];
-                          updated[idx].systemPrompt = e.target.value;
-                          setChannels(updated);
-                        }}
-                        className="w-full rounded-lg border border-slate-200 bg-slate-900 p-3 font-mono text-xs text-teal-300 focus:outline-hidden"
-                      />
-                    </div>
-                  ))}
+                  <div className="rounded border border-teal-200 bg-teal-50 p-3 text-xs text-teal-900"><strong>Used during:</strong> After case approval, each prompt adapts the Master Clinical Record for one publishing format, audience, and duration.</div>
+                  {channels.map((channel, index) => <div key={channel.channelKey} className="rounded-xl border border-slate-200 bg-slate-50/50 p-4"><div className="flex flex-wrap items-start justify-between gap-2"><div><span className="text-xs font-bold text-slate-800">{channel.displayName}</span><span className="ml-2 text-[10px] text-slate-500">{channel.channelKey} · Target: {channel.targetAudience}</span></div><span className="rounded bg-white px-2 py-1 text-[10px] font-semibold text-teal-700">{editScope === "global" ? "Global default" : channel.source === "organization" ? "Organization override" : "Inherited global default"} · v{channel.promptVersion}</span></div><textarea rows={6} value={channel.systemPrompt} onChange={(event) => { const updated = [...channels]; updated[index] = { ...channel, systemPrompt: event.target.value, resetToGlobal: false }; setChannels(updated); }} className="mt-3 w-full rounded-lg border border-slate-200 bg-slate-900 p-3 font-mono text-xs text-teal-300" />{editScope === "organization" && <div className="mt-2 text-right"><button type="button" onClick={() => { const updated = [...channels]; updated[index] = { ...channel, systemPrompt: channel.globalSystemPrompt, source: "global", resetToGlobal: true }; setChannels(updated); }} className="text-[11px] font-semibold text-teal-700 hover:underline">Reset to global default</button></div>}</div>)}
                 </div>
               )}
-
-              {activeTab === "imageGeneration" && <div><h3 className="text-xs font-bold text-slate-800">Image Generation Prompt</h3><p className="mb-2 text-[11px] text-slate-500">Versioned prompt used for AI-generated clinical education images.</p><textarea rows={16} value={imageGenerationPrompt} onChange={(e) => setImageGenerationPrompt(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-900 p-4 font-mono text-xs leading-relaxed text-teal-300 focus:border-teal-500 focus:outline-hidden" /></div>}
-              {activeTab === "imageSafety" && <div><h3 className="text-xs font-bold text-slate-800">Image Safety Screening Prompt</h3><p className="mb-2 text-[11px] text-slate-500">Versioned vision prompt used to screen images for faces and patient-identifying content.</p><textarea rows={16} value={imageSafetyPrompt} onChange={(e) => setImageSafetyPrompt(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-900 p-4 font-mono text-xs leading-relaxed text-amber-300 focus:border-teal-500 focus:outline-hidden" /></div>}
             </div>
+
+            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs" aria-label="Prompt audit trail">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2"><History className="h-4 w-4 text-teal-600" /><h2 className="text-sm font-bold text-slate-900">Recent prompt changes</h2></div>
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Last {promptAuditTrail.length}</span>
+              </div>
+              {promptAuditTrail.length === 0 ? <p className="mt-3 text-xs text-slate-500">No prompt changes have been recorded for this organization.</p> : <div className="mt-3 divide-y divide-slate-100">{promptAuditTrail.slice(0, 12).map((event) => <div key={event.id} className="py-3"><div className="flex flex-wrap items-center justify-between gap-2"><span className="text-xs font-semibold text-slate-800">{event.metadata?.promptKey || event.metadata?.channelKey || event.targetType.replaceAll("_", " ")}</span><span className="text-[10px] text-slate-400">{formatDateTime(event.createdAt)}</span></div><p className="mt-1 text-[11px] text-slate-600">{event.detail || event.action.replaceAll("_", " ")}</p><p className="mt-1 text-[10px] text-slate-400">{event.actorName || "System"} · {event.metadata?.scope || "organization"} scope · {event.action.replaceAll("_", " ").toLowerCase()}</p></div>)}</div>}
+            </section>
           </div>
 
           {/* Right Column: Live Testing Sandbox */}

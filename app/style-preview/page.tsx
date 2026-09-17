@@ -12,7 +12,7 @@ export default function StylePreviewPage() {
     <div className="max-w-4xl mx-auto p-8">
       <div className="flex items-center justify-between pb-4 border-b border-slate-200 mb-6">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center text-white font-medium text-sm">M</div>
+          <div className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center text-white font-medium text-sm">A</div>
           <div>
             <p className="font-medium text-sm">Accumedia</p>
             <p className="text-xs text-slate-400">Sunrise Eye Hospital</p>

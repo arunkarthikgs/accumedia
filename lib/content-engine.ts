@@ -69,6 +69,7 @@ interface GenerateOptions {
   channel: any;
   skipAssetQuota?: boolean;
   skipTokenQuota?: boolean;
+  persistAsset?: boolean;
   generationContext?: {
     platformCharacterLimit: number;
     seoKeywordSet: any;
@@ -113,6 +114,7 @@ export async function generateChannelAsset({
   channel,
   skipAssetQuota,
   skipTokenQuota,
+  persistAsset = true,
   generationContext,
 }: GenerateOptions) {
   if (!skipAssetQuota) await assertAssetQuota(organization.id);
@@ -151,6 +153,19 @@ export async function generateChannelAsset({
   const raw = response.choices?.[0]?.message?.content || "";
   const content = outputType === "VIDEO_SCRIPT" ? { script: raw } : safeJsonParse(raw);
   const validation = validateGeneratedContent(content, channel);
+
+  if (!persistAsset) {
+    return {
+      content,
+      status: validation.valid ? "DRAFT" : "REVIEW",
+      validationWarnings: validation.warnings || [],
+      validationWordCount: validation.wordCount,
+      validationCharacterCount: validation.characterCount,
+      validationDurationSeconds: validation.estimatedDurationSeconds || null,
+      promptTemplateVersion,
+      modelUsed: "gpt-4o",
+    };
+  }
 
   const { rows } = await query(`INSERT INTO macula.generated_assets (id, "caseId", "channelKey", "channelName", "outputType", variant, content, status, "validationWarnings", "validationWordCount", "validationCharacterCount", "validationDurationSeconds", version, "promptTemplateId", "promptTemplateVersion", "modelUsed") VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9::jsonb, $10, $11, $12, 1, $13, $14, 'gpt-4o') ON CONFLICT ("caseId", "channelKey") DO NOTHING RETURNING *`, [crypto.randomUUID(), caseId, channel.channelKey, channel.displayName, outputType, channel.durationLabel || null, JSON.stringify(content), validation.valid ? "DRAFT" : "REVIEW", JSON.stringify(validation.warnings || []), validation.wordCount, validation.characterCount, validation.estimatedDurationSeconds, channel.id, promptTemplateVersion]);
   if (rows[0]) return rows[0];

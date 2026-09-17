@@ -19,7 +19,7 @@ export async function PATCH(
   props: { params: Promise<{ id: string; assetId: string }> }
 ) {
   try {
-    const { assetId } = await props.params;
+    const { id: caseId, assetId } = await props.params;
     const body = await req.json();
     const { action, content, editedBy } = body as {
       action: "manual_edit" | "regenerate" | "approve" | "transform";
@@ -27,7 +27,7 @@ export async function PATCH(
       editedBy?: string;
     };
 
-    const assetResult = await query<any>(`SELECT ga.*, c."organizationId", c."masterRecord", o.name AS organization_name, o."brandingHex" AS branding_hex, o."defaultDisclaimer", o."logoUrl" FROM macula.generated_assets ga JOIN macula.cases c ON c.id = ga."caseId" JOIN macula.organizations o ON o.id = c."organizationId" WHERE ga.id = $1 LIMIT 1`, [assetId]);
+    const assetResult = await query<any>(`SELECT ga.*, c."organizationId", c."masterRecord", o.name AS organization_name, o."brandingHex" AS branding_hex, o."defaultDisclaimer", o."logoUrl" FROM macula.generated_assets ga JOIN macula.cases c ON c.id = ga."caseId" JOIN macula.organizations o ON o.id = c."organizationId" WHERE ga.id = $1 AND ga."caseId" = $2 LIMIT 1`, [assetId, caseId]);
     const row = assetResult.rows[0];
     const asset = row ? { ...row, case: { organizationId: row.organizationId, masterRecord: row.masterRecord, organization: { name: row.organization_name, brandingHex: row.branding_hex, defaultDisclaimer: row.defaultDisclaimer, logoUrl: row.logoUrl } } } : null;
     if (!asset) {
@@ -52,12 +52,10 @@ export async function PATCH(
     }
 
     if (action === "regenerate") {
-      return NextResponse.json({ error: "Asset regeneration requires the external AI/content processor. It is not executed inside the Cloudflare Worker." }, { status: 501 });
-      /*
       // Find the ChannelDefinition this asset was generated from so the
       // regeneration uses the same prompt/output-type contract.
       const channel = asset.promptTemplateId
-        ? await db.channelDefinition.findUnique({ where: { id: asset.promptTemplateId } })
+        ? (await query<any>(`SELECT * FROM macula.channel_definitions WHERE id = $1 AND ("organizationId" IS NULL OR "organizationId" = $2) LIMIT 1`, [asset.promptTemplateId, asset.organizationId])).rows[0]
         : null;
 
       if (!channel) {
@@ -74,26 +72,13 @@ export async function PATCH(
         masterRecord: asset.case.masterRecord as Record<string, any>,
         organization: asset.case.organization,
         channel,
+        persistAsset: false,
       });
 
-      // Fold the freshly generated content into the existing asset row
-      // (bump version) rather than creating a duplicate asset — this only
-      // ever touches this one asset, never siblings for other channels.
-      const updated = await db.generatedAsset.update({
-        where: { id: assetId },
-        data: {
-          content: regenerated.content,
-          version: asset.version + 1,
-          status: "DRAFT",
-        },
-      });
-
-      // Clean up the throwaway row generateChannelAsset created, since we
-      // folded its content into the original asset instead of keeping two.
-      await db.generatedAsset.delete({ where: { id: regenerated.id } });
+      const { rows } = await query(`UPDATE macula.generated_assets SET content = $1::jsonb, version = $2, status = $3, "validationWarnings" = $4::jsonb, "validationWordCount" = $5, "validationCharacterCount" = $6, "validationDurationSeconds" = $7, "promptTemplateVersion" = $8, "modelUsed" = $9, "updatedAt" = NOW() WHERE id = $10 AND "caseId" = $11 RETURNING *`, [JSON.stringify(regenerated.content), asset.version + 1, regenerated.status, JSON.stringify(regenerated.validationWarnings), regenerated.validationWordCount, regenerated.validationCharacterCount, regenerated.validationDurationSeconds, regenerated.promptTemplateVersion, regenerated.modelUsed, assetId, caseId]);
+      const updated = rows[0];
 
       return NextResponse.json({ success: true, asset: updated });
-      */
     }
 
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });
@@ -108,8 +93,8 @@ export async function GET(
   props: { params: Promise<{ id: string; assetId: string }> }
 ) {
   try {
-    const { assetId } = await props.params;
-    const { rows } = await query<any>(`SELECT ga.*, c."organizationId", COALESCE((SELECT json_agg(av ORDER BY av.version DESC) FROM macula.asset_versions av WHERE av."assetId" = ga.id), '[]') AS versions FROM macula.generated_assets ga JOIN macula.cases c ON c.id = ga."caseId" WHERE ga.id = $1 GROUP BY ga.id, c."organizationId" LIMIT 1`, [assetId]);
+    const { id: caseId, assetId } = await props.params;
+    const { rows } = await query<any>(`SELECT ga.*, c."organizationId", COALESCE((SELECT json_agg(av ORDER BY av.version DESC) FROM macula.asset_versions av WHERE av."assetId" = ga.id), '[]') AS versions FROM macula.generated_assets ga JOIN macula.cases c ON c.id = ga."caseId" WHERE ga.id = $1 AND ga."caseId" = $2 GROUP BY ga.id, c."organizationId" LIMIT 1`, [assetId, caseId]);
     const asset = rows[0];
     if (!asset) return NextResponse.json({ error: "Asset not found" }, { status: 404 });
     await requireOrganizationAccess(asset.organizationId);

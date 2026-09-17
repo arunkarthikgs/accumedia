@@ -31,14 +31,14 @@ export async function GET(req: Request) {
              c."createdAt" AS "createdAt", c."updatedAt" AS "updatedAt",
              json_build_object('id', u.id, 'name', u.name, 'email', u.email, 'registrationNo', u."registrationNo", 'specialty', u.specialty) AS physician,
              json_build_object('id', o.id, 'name', o.name, 'slug', o.slug) AS organization,
-             COALESCE((SELECT json_agg(json_build_object('id', ar.id, 'r2Key', ar."r2Key", 'fileName', ar."fileName", 'durationSeconds', ar."durationSeconds", 'transcriptionStatus', ar."transcriptionStatus", 'transcriptionAgent', ar."transcriptionAgent", 'recordedAt', ar."recordedAt") ORDER BY ar."recordedAt" DESC) FROM macula.macula_audio_recordings ar WHERE ar."caseId" = c.id), '[]') AS recordings,
-             COALESCE((SELECT json_agg(json_build_object('id', ga.id, 'channelKey', ga."channelKey", 'channelName', ga."channelName") ORDER BY ga."createdAt" DESC) FROM macula.macula_generated_assets ga WHERE ga."caseId" = c.id), '[]') AS assets
-      FROM macula.macula_cases c
-      JOIN macula.macula_users u ON u.id = c."physicianId"
-      JOIN macula.macula_organizations o ON o.id = c."organizationId"
+             COALESCE((SELECT json_agg(json_build_object('id', ar.id, 'r2Key', ar."r2Key", 'fileName', ar."fileName", 'durationSeconds', ar."durationSeconds", 'transcriptionStatus', ar."transcriptionStatus", 'transcriptionAgent', ar."transcriptionAgent", 'recordedAt', ar."recordedAt") ORDER BY ar."recordedAt" DESC) FROM macula.audio_recordings ar WHERE ar."caseId" = c.id), '[]') AS recordings,
+             COALESCE((SELECT json_agg(json_build_object('id', ga.id, 'channelKey', ga."channelKey", 'channelName', ga."channelName") ORDER BY ga."createdAt" DESC) FROM macula.generated_assets ga WHERE ga."caseId" = c.id), '[]') AS assets
+      FROM macula.cases c
+      JOIN macula.users u ON u.id = c."physicianId"
+      JOIN macula.organizations o ON o.id = c."organizationId"
       WHERE ${filterSql}
       ORDER BY c."createdAt" DESC OFFSET $${values.length + 1} LIMIT $${values.length + 2}`;
-    const countQuery = `SELECT COUNT(*)::int AS count FROM macula.macula_cases c WHERE ${filterSql}`;
+    const countQuery = `SELECT COUNT(*)::int AS count FROM macula.cases c WHERE ${filterSql}`;
     values.push(offset, limit);
 
     const [cases, totalCount] = await Promise.all([
@@ -83,9 +83,9 @@ export async function POST(req: Request) {
 
     let targetPhysicianId = physicianId;
     const physician = targetPhysicianId
-      ? (await query(`SELECT id FROM macula.macula_users WHERE id = $1 AND "organizationId" = $2 LIMIT 1`, [targetPhysicianId, organizationId])).rows[0]
+      ? (await query(`SELECT id FROM macula.users WHERE id = $1 AND "organizationId" = $2 LIMIT 1`, [targetPhysicianId, organizationId])).rows[0]
       : null;
-    if (!physician) targetPhysicianId = (await query<{ id: string }>(`SELECT id FROM macula.macula_users WHERE "organizationId" = $1 ORDER BY name ASC LIMIT 1`, [organizationId])).rows[0]?.id || null;
+    if (!physician) targetPhysicianId = (await query<{ id: string }>(`SELECT id FROM macula.users WHERE "organizationId" = $1 ORDER BY name ASC LIMIT 1`, [organizationId])).rows[0]?.id || null;
 
     if (!targetPhysicianId) {
       return NextResponse.json(
@@ -103,8 +103,8 @@ export async function POST(req: Request) {
 
     const caseId = crypto.randomUUID();
     const safetyAudit = { auditLoggedAt: new Date().toISOString(), source: "MANUAL_ENTRY", status: "AWAITING_SYNTHESIS" };
-    const { rows } = await query(`INSERT INTO macula.macula_cases (id, title, raw_input, status, "organizationId", "physicianId", "masterRecord", "safetyAudit") VALUES ($1, $2, $3, 'PENDING_REVIEW', $4, $5, '{}'::jsonb, $6::jsonb) RETURNING *`, [caseId, defaultTitle, rawInput?.trim() || "", organizationId, targetPhysicianId, JSON.stringify(safetyAudit)]);
-    const newCase = { ...rows[0], physician: (await query(`SELECT * FROM macula.macula_users WHERE id = $1`, [targetPhysicianId])).rows[0], organization: (await query(`SELECT * FROM macula.macula_organizations WHERE id = $1`, [organizationId])).rows[0] };
+    const { rows } = await query(`INSERT INTO macula.cases (id, title, raw_input, status, "organizationId", "physicianId", "masterRecord", "safetyAudit") VALUES ($1, $2, $3, 'PENDING_REVIEW', $4, $5, '{}'::jsonb, $6::jsonb) RETURNING *`, [caseId, defaultTitle, rawInput?.trim() || "", organizationId, targetPhysicianId, JSON.stringify(safetyAudit)]);
+    const newCase = { ...rows[0], physician: (await query(`SELECT * FROM macula.users WHERE id = $1`, [targetPhysicianId])).rows[0], organization: (await query(`SELECT * FROM macula.organizations WHERE id = $1`, [organizationId])).rows[0] };
 
     return NextResponse.json({
       success: true,

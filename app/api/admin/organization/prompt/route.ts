@@ -11,8 +11,8 @@ export async function GET(req: Request) {
     await requireOrganizationAccess(orgId);
 
     const [{ rows: defaults }, { rows: organizations }] = await Promise.all([
-      query<{ content: string }>(`SELECT content FROM macula.macula_platform_templates WHERE slug = 'CLINICAL_SYNTHESIS_DEFAULT' LIMIT 1`),
-      query<any>(`SELECT * FROM macula.macula_organizations WHERE id = $1 LIMIT 1`, [orgId]),
+      query<{ content: string }>(`SELECT content FROM macula.platform_templates WHERE slug = 'CLINICAL_SYNTHESIS_DEFAULT' LIMIT 1`),
+      query<any>(`SELECT * FROM macula.organizations WHERE id = $1 LIMIT 1`, [orgId]),
     ]);
     const globalDefault = defaults[0];
     const organization = organizations[0];
@@ -47,7 +47,7 @@ export async function POST(req: Request) {
     }
     await requireOrganizationAccess(orgId);
 
-    const { rows } = await query(`UPDATE macula.macula_organizations SET "customSystemPrompt" = $1, "updatedAt" = NOW() WHERE id = $2 RETURNING "customSystemPrompt"`, [prompt, orgId]);
+    const { rows } = await query(`UPDATE macula.organizations SET "customSystemPrompt" = $1, "updatedAt" = NOW() WHERE id = $2 RETURNING "customSystemPrompt"`, [prompt, orgId]);
     const updated = rows[0];
 
     return NextResponse.json({ success: true, prompt: updated.customSystemPrompt });

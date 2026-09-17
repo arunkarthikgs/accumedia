@@ -9,7 +9,7 @@ export async function GET(
 ) {
   try {
     const { id, imageId } = await props.params;
-    const image = (await query<any>(`SELECT ia."r2Key", ia."caseId", c."organizationId" FROM macula.macula_image_assets ia JOIN macula.macula_cases c ON c.id = ia."caseId" WHERE ia.id = $1 LIMIT 1`, [imageId])).rows[0];
+    const image = (await query<any>(`SELECT ia."r2Key", ia."caseId", c."organizationId" FROM macula.image_assets ia JOIN macula.cases c ON c.id = ia."caseId" WHERE ia.id = $1 LIMIT 1`, [imageId])).rows[0];
     if (!image || image.caseId !== id) return NextResponse.json({ error: "Image not found." }, { status: 404 });
     await requireOrganizationAccess(image.organizationId);
     if (!image.r2Key) return NextResponse.json({ error: "Image storage key is missing." }, { status: 404 });

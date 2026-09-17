@@ -34,15 +34,15 @@ export async function GET(req: Request) {
     const adminCaseQuery = `SELECT c.id, c.title, c.status, c.rejection_reason AS "rejectionReason", c.reviewed_by AS "reviewedBy", c.reviewed_at AS "reviewedAt", c."createdAt" AS "createdAt", COUNT(*) OVER()::int AS "totalCount"${includeContent ? ', c."masterRecord" AS "masterRecord", c."safetyAudit" AS "safetyAudit"' : ''},
       json_build_object('id', u.id, 'name', u.name, 'email', u.email, 'registrationNo', u."registrationNo", 'specialty', u.specialty) AS physician,
       json_build_object('id', o.id, 'name', o.name) AS organization,
-      COALESCE((SELECT json_agg(${recordingSelect}) FROM macula.macula_audio_recordings ar WHERE ar."caseId" = c.id), '[]') AS recordings,
-      COALESCE((SELECT json_agg(${assetSelect}) FROM macula.macula_generated_assets ga WHERE ga."caseId" = c.id), '[]') AS assets,
-      (SELECT COUNT(*)::int FROM macula.macula_generated_assets ga WHERE ga."caseId" = c.id) AS "_count_assets",
-      COALESCE((SELECT json_agg(json_build_object('id', sf.id, 'flagType', sf."flagType", 'detail', sf.detail, 'confidence', sf.confidence)) FROM macula.macula_safety_flags sf WHERE sf."caseId" = c.id AND sf.status = 'OPEN'), '[]') AS "safetyFlags"
-      FROM macula.macula_cases c JOIN macula.macula_users u ON u.id = c."physicianId" JOIN macula.macula_organizations o ON o.id = c."organizationId"
+      COALESCE((SELECT json_agg(${recordingSelect}) FROM macula.audio_recordings ar WHERE ar."caseId" = c.id), '[]') AS recordings,
+      COALESCE((SELECT json_agg(${assetSelect}) FROM macula.generated_assets ga WHERE ga."caseId" = c.id), '[]') AS assets,
+      (SELECT COUNT(*)::int FROM macula.generated_assets ga WHERE ga."caseId" = c.id) AS "_count_assets",
+      COALESCE((SELECT json_agg(json_build_object('id', sf.id, 'flagType', sf."flagType", 'detail', sf.detail, 'confidence', sf.confidence)) FROM macula.safety_flags sf WHERE sf."caseId" = c.id AND sf.status = 'OPEN'), '[]') AS "safetyFlags"
+      FROM macula.cases c JOIN macula.users u ON u.id = c."physicianId" JOIN macula.organizations o ON o.id = c."organizationId"
       WHERE ${filterSql} ORDER BY c."createdAt" DESC OFFSET $${values.length + 1} LIMIT $${values.length + 2}`;
     const listValues = [...values, (page - 1) * pageSize, pageSize];
     const organizationQuery = user?.isSuperAdmin
-      ? query(`SELECT id, name, slug FROM macula.macula_organizations ORDER BY name ASC`)
+      ? query(`SELECT id, name, slug FROM macula.organizations ORDER BY name ASC`)
       : user?.organizationId
         ? Promise.resolve({
             rows: [
@@ -99,11 +99,11 @@ export async function PATCH(req: Request) {
       );
     }
 
-    const existingCase = (await query<{ organizationId: string }>(`SELECT "organizationId" FROM macula.macula_cases WHERE id = $1 LIMIT 1`, [caseId])).rows[0];
+    const existingCase = (await query<{ organizationId: string }>(`SELECT "organizationId" FROM macula.cases WHERE id = $1 LIMIT 1`, [caseId])).rows[0];
     if (!existingCase) return NextResponse.json({ error: "Case not found." }, { status: 404 });
     await requireOrganizationAccess(existingCase.organizationId);
 
-    const { rows: updatedRows } = await query(`UPDATE macula.macula_cases SET status = $1, rejection_reason = $2, reviewed_by = $3, reviewed_at = NOW(), "updatedAt" = NOW() WHERE id = $4 RETURNING *`, [status, status === "REJECTED" ? rejectionReason : null, reviewedBy || "Admin / Compliance Officer", caseId]);
+    const { rows: updatedRows } = await query(`UPDATE macula.cases SET status = $1, rejection_reason = $2, reviewed_by = $3, reviewed_at = NOW(), "updatedAt" = NOW() WHERE id = $4 RETURNING *`, [status, status === "REJECTED" ? rejectionReason : null, reviewedBy || "Admin / Compliance Officer", caseId]);
     const updated = updatedRows[0];
     await recordAudit({ organizationId: updated.organizationId, caseId: updated.id, targetType: "CASE", targetId: updated.id, action: status === "REJECTED" ? "CASE_REJECTED" : "CASE_STATUS_CHANGED", detail: rejectionReason || undefined, metadata: { status } });
 

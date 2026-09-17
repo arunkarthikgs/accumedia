@@ -80,9 +80,9 @@ export async function generateChannelAsset({
   if (!skipAssetQuota) await assertAssetQuota(organization.id);
   const outputType = channel.outputType || "SEO_BLOG";
   const basePrompt = channel.systemPrompt?.trim() || DEFAULT_PROMPTS[outputType];
-  const platformLimit = (await query<{ maxCharacters: number | null }>(`SELECT "maxCharacters" FROM macula.macula_platform_limits WHERE platform = 'x' LIMIT 1`)).rows[0];
+  const platformLimit = (await query<{ maxCharacters: number | null }>(`SELECT "maxCharacters" FROM macula.platform_limits WHERE platform = 'x' LIMIT 1`)).rows[0];
   const seoKeywordSet = outputType === "SEO_BLOG"
-    ? (await query(`SELECT "primaryKeyword", "secondaryKeywords", "longTailKeywords", "localKeywords", "questionKeywords", "semanticKeywords", "searchIntent" FROM macula.macula_seo_keyword_sets WHERE "caseId" = $1 LIMIT 1`, [caseId])).rows[0]
+    ? (await query(`SELECT "primaryKeyword", "secondaryKeywords", "longTailKeywords", "localKeywords", "questionKeywords", "semanticKeywords", "searchIntent" FROM macula.seo_keyword_sets WHERE "caseId" = $1 LIMIT 1`, [caseId])).rows[0]
     : null;
 
   const systemPrompt = `${basePrompt}
@@ -127,7 +127,7 @@ Default call to action, where appropriate and non-promotional: ${organization.ca
   const content = outputType === "VIDEO_SCRIPT" ? { script: raw } : safeJsonParse(raw);
   const validation = validateGeneratedContent(content, channel);
 
-  const { rows } = await query(`INSERT INTO macula.macula_generated_assets (id, "caseId", "channelKey", "channelName", "outputType", variant, content, status, "validationWarnings", "validationWordCount", "validationCharacterCount", "validationDurationSeconds", version, "promptTemplateId", "promptTemplateVersion", "modelUsed") VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9::jsonb, $10, $11, $12, 1, $13, $14, 'gpt-4o') RETURNING *`, [crypto.randomUUID(), caseId, channel.channelKey, channel.displayName, outputType, channel.durationLabel || null, JSON.stringify(content), validation.valid ? "DRAFT" : "REVIEW", JSON.stringify(validation.warnings || []), validation.wordCount, validation.characterCount, validation.estimatedDurationSeconds, channel.id, promptTemplateVersion]);
+  const { rows } = await query(`INSERT INTO macula.generated_assets (id, "caseId", "channelKey", "channelName", "outputType", variant, content, status, "validationWarnings", "validationWordCount", "validationCharacterCount", "validationDurationSeconds", version, "promptTemplateId", "promptTemplateVersion", "modelUsed") VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9::jsonb, $10, $11, $12, 1, $13, $14, 'gpt-4o') RETURNING *`, [crypto.randomUUID(), caseId, channel.channelKey, channel.displayName, outputType, channel.durationLabel || null, JSON.stringify(content), validation.valid ? "DRAFT" : "REVIEW", JSON.stringify(validation.warnings || []), validation.wordCount, validation.characterCount, validation.estimatedDurationSeconds, channel.id, promptTemplateVersion]);
   return rows[0];
 }
 
@@ -146,16 +146,16 @@ function safeJsonParse(raw: string) {
  * ChannelDefinitions yet, so no org ships with zero required outputs.
  */
 export async function runAdaptationEngine(caseId: string) {
-  const kase = (await query<any>(`SELECT c.*, row_to_json(o) AS organization FROM macula.macula_cases c JOIN macula.macula_organizations o ON o.id = c."organizationId" WHERE c.id = $1 LIMIT 1`, [caseId])).rows[0];
+  const kase = (await query<any>(`SELECT c.*, row_to_json(o) AS organization FROM macula.cases c JOIN macula.organizations o ON o.id = c."organizationId" WHERE c.id = $1 LIMIT 1`, [caseId])).rows[0];
   if (!kase) throw new Error("Case not found.");
 
-  let channels = (await query<any>(`SELECT * FROM macula.macula_channel_definitions WHERE "isActive" = TRUE AND "outputType" IS NOT NULL AND ("organizationId" = $1 OR "organizationId" IS NULL)`, [kase.organizationId])).rows;
+  let channels = (await query<any>(`SELECT * FROM macula.channel_definitions WHERE "isActive" = TRUE AND "outputType" IS NOT NULL AND ("organizationId" = $1 OR "organizationId" IS NULL)`, [kase.organizationId])).rows;
 
   if (channels.length === 0) {
-    channels = (await query<any>(`SELECT * FROM macula.macula_channel_definitions WHERE "organizationId" IS NULL AND "outputType" IS NOT NULL`)).rows;
+    channels = (await query<any>(`SELECT * FROM macula.channel_definitions WHERE "organizationId" IS NULL AND "outputType" IS NOT NULL`)).rows;
   }
 
-  const existingAssets = (await query<{ channelKey: string }>(`SELECT "channelKey" FROM macula.macula_generated_assets WHERE "caseId" = $1`, [caseId])).rows;
+  const existingAssets = (await query<{ channelKey: string }>(`SELECT "channelKey" FROM macula.generated_assets WHERE "caseId" = $1`, [caseId])).rows;
   const existingChannelKeys = new Set(existingAssets.map((asset) => asset.channelKey));
   const missingChannels = channels.filter((channel) => !existingChannelKeys.has(channel.channelKey));
   await assertAssetQuota(kase.organizationId, missingChannels.length);

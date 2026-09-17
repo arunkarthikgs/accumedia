@@ -10,7 +10,7 @@ export async function GET() {
     const scopeId = user?.isSuperAdmin ? null : user?.organizationId;
     const { rows: organizations } = await query<{ id: string; name: string; slug: string }>(
       `SELECT id, name, slug
-       FROM macula.macula_organizations
+       FROM macula.organizations
        WHERE ($1::text IS NULL OR id = $1)
        ORDER BY name ASC`,
       [scopeId || null]

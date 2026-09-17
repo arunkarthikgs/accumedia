@@ -143,7 +143,7 @@ model Organization {
   @@index([createdAt])
 
   @@schema("macula")
-  @@map("macula_organizations")
+  @@map("organizations")
 }
 
 model Department {
@@ -156,7 +156,7 @@ model Department {
   updatedAt      DateTime      @default(now()) @updatedAt
 
   @@schema("macula")
-  @@map("macula_departments")
+  @@map("departments")
 }
 
 model Specialty {
@@ -170,7 +170,7 @@ model Specialty {
 
   @@index([isActive, sortOrder, name])
   @@schema("macula")
-  @@map("macula_specialties")
+  @@map("specialties")
 }
 
 model Role {
@@ -189,7 +189,7 @@ model Role {
   updatedAt       DateTime         @default(now()) @updatedAt
 
   @@schema("macula")
-  @@map("macula_roles")
+  @@map("roles")
 }
 
 model RoleDefinition {
@@ -204,7 +204,7 @@ model RoleDefinition {
   defaultPermissions RoleDefinitionPermission[]
 
   @@schema("macula")
-  @@map("macula_role_definitions")
+  @@map("role_definitions")
 }
 
 model Permission {
@@ -221,7 +221,7 @@ model Permission {
   updatedAt       DateTime         @default(now()) @updatedAt
 
   @@schema("macula")
-  @@map("macula_permissions")
+  @@map("permissions")
 }
 
 model TaskDefinition {
@@ -235,7 +235,7 @@ model TaskDefinition {
   permissions Permission[]
 
   @@schema("macula")
-  @@map("macula_task_definitions")
+  @@map("task_definitions")
 }
 
 model RolePermission {
@@ -247,7 +247,7 @@ model RolePermission {
 
   @@id([roleId, permissionId])
   @@schema("macula")
-  @@map("macula_role_permissions")
+  @@map("role_permissions")
 }
 
 model RoleDefinitionPermission {
@@ -259,7 +259,7 @@ model RoleDefinitionPermission {
 
   @@id([roleDefinitionId, permissionId])
   @@schema("macula")
-  @@map("macula_role_definition_permissions")
+  @@map("role_definition_permissions")
 }
 
 model User {
@@ -292,7 +292,7 @@ model User {
   @@index([organizationId, specialty])
 
   @@schema("macula")
-  @@map("macula_users")
+  @@map("users")
 }
 
 model Session {
@@ -306,7 +306,7 @@ model Session {
   @@index([userId])
   @@index([expiresAt])
   @@schema("macula")
-  @@map("macula_sessions")
+  @@map("sessions")
 }
 
 model Case {
@@ -358,7 +358,7 @@ model Case {
   @@index([speciality])
   @@index([organizationId, status, createdAt])
   @@schema("macula")
-  @@map("macula_cases")
+  @@map("cases")
 }
 
 model GeneratedAsset {
@@ -393,7 +393,7 @@ model GeneratedAsset {
 
   @@index([caseId])
   @@schema("macula")
-  @@map("macula_generated_assets")
+  @@map("generated_assets")
 }
 
 model CaseVersion {
@@ -413,7 +413,7 @@ model CaseVersion {
   @@unique([caseId, version])
   @@index([caseId])
   @@schema("macula")
-  @@map("macula_case_versions")
+  @@map("case_versions")
 }
 
 model AIUsageLog {
@@ -437,7 +437,7 @@ model AIUsageLog {
   @@index([caseId])
   @@index([operation])
   @@schema("macula")
-  @@map("macula_ai_usage_logs")
+  @@map("ai_usage_logs")
 }
 
 model PublicationJob {
@@ -467,7 +467,7 @@ model PublicationJob {
   @@index([status, nextAttemptAt])
   @@index([scheduledAt])
   @@schema("macula")
-  @@map("macula_publication_jobs")
+  @@map("publication_jobs")
 }
 
 model PublicationConnection {
@@ -489,7 +489,7 @@ model PublicationConnection {
   @@unique([organizationId, platform, externalAccountId])
   @@index([organizationId, platform, isActive])
   @@schema("macula")
-  @@map("macula_publication_connections")
+  @@map("publication_connections")
 }
 
 model Plan {
@@ -512,7 +512,7 @@ model Plan {
   subscriptions    Subscription[]
 
   @@schema("macula")
-  @@map("macula_plans")
+  @@map("plans")
 }
 
 model Subscription {
@@ -532,7 +532,7 @@ model Subscription {
 
   @@index([status, currentPeriodEnd])
   @@schema("macula")
-  @@map("macula_subscriptions")
+  @@map("subscriptions")
 }
 
 // RFP §17 — "Retain version history". A snapshot is written every time an
@@ -549,7 +549,7 @@ model AssetVersion {
 
   @@index([assetId])
   @@schema("macula")
-  @@map("macula_asset_versions")
+  @@map("asset_versions")
 }
 
 model ComplianceRule {
@@ -566,7 +566,7 @@ model ComplianceRule {
   organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@schema("macula")
-  @@map("macula_compliance_rules")
+  @@map("compliance_rules")
 }
 
 model ChannelDefinition {
@@ -588,7 +588,7 @@ model ChannelDefinition {
   organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@schema("macula")
-  @@map("macula_channel_definitions")
+  @@map("channel_definitions")
 }
 
 model PlatformTemplate {
@@ -601,7 +601,7 @@ model PlatformTemplate {
   updatedAt   DateTime @default(now()) @updatedAt
 
   @@schema("macula")
-  @@map("macula_platform_templates")
+  @@map("platform_templates")
 }
 
 model AiPromptTemplate {
@@ -621,7 +621,7 @@ model AiPromptTemplate {
   @@unique([organizationId, promptKey, version])
   @@index([organizationId, promptKey, isActive])
   @@schema("macula")
-  @@map("macula_ai_prompt_templates")
+  @@map("ai_prompt_templates")
 }
 
 model AiPromptDefinition {
@@ -635,7 +635,7 @@ model AiPromptDefinition {
   templates   AiPromptTemplate[]
 
   @@schema("macula")
-  @@map("macula_ai_prompt_definitions")
+  @@map("ai_prompt_definitions")
 }
 
 model PlatformLimit {
@@ -645,7 +645,7 @@ model PlatformLimit {
   updatedAt      DateTime @default(now()) @updatedAt
 
   @@schema("macula")
-  @@map("macula_platform_limits")
+  @@map("platform_limits")
 }
 
 model SeoKeywordSet {
@@ -669,7 +669,7 @@ model SeoKeywordSet {
   case              Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
 
   @@schema("macula")
-  @@map("macula_seo_keyword_sets")
+  @@map("seo_keyword_sets")
 }
 
 // RFP §16 — Medical Content Safety Layer. Flags are detected and recorded
@@ -699,7 +699,7 @@ model SafetyFlag {
   @@index([status, createdAt])
   @@index([caseId, status, createdAt])
   @@schema("macula")
-  @@map("macula_safety_flags")
+  @@map("safety_flags")
 }
 
 // RFP §14-15 — supporting/generated images per channel aspect ratio, with
@@ -730,7 +730,7 @@ model ImageAsset {
 
   @@index([caseId])
   @@schema("macula")
-  @@map("macula_image_assets")
+  @@map("image_assets")
 }
 
 model ImageGenerationJob {
@@ -751,7 +751,7 @@ model ImageGenerationJob {
   @@index([status, createdAt])
   @@index([caseId])
   @@schema("macula")
-  @@map("macula_image_generation_jobs")
+  @@map("image_generation_jobs")
 }
 
 model AuditLog {
@@ -774,7 +774,7 @@ model AuditLog {
   @@index([targetType, targetId])
   @@index([caseId, createdAt])
   @@schema("macula")
-  @@map("macula_audit_logs")
+  @@map("audit_logs")
 }
 
 model AudioRecording {
@@ -808,7 +808,7 @@ model AudioRecording {
   @@index([organizationId])
   @@index([userId])
   @@schema("macula")
-  @@map("macula_audio_recordings")
+  @@map("audio_recordings")
 }
 
 enum CaseSourceType {
@@ -851,5 +851,5 @@ model CaseSource {
   @@index([caseId])
   @@index([status])
   @@schema("macula")
-  @@map("macula_case_sources")
+  @@map("case_sources")
 }

@@ -14,7 +14,7 @@ export async function POST(req: Request) {
 
     const { rows } = await query<{ id: string; password_hash: string | null }>(
       `SELECT id, password_hash
-       FROM macula.macula_users
+       FROM macula.users
        WHERE email = $1 OR id = $1
        LIMIT 1`,
       [userId]
@@ -27,7 +27,7 @@ export async function POST(req: Request) {
     const token = crypto.randomBytes(32).toString("hex");
     const sessionId = crypto.randomUUID();
     await query(
-      `INSERT INTO macula.macula_sessions (id, "tokenHash", "userId", "expiresAt")
+      `INSERT INTO macula.sessions (id, "tokenHash", "userId", "expiresAt")
        VALUES ($1, $2, $3, $4)`,
       [sessionId, hashToken(token), user.id, new Date(Date.now() + 8 * 60 * 60 * 1000)]
     );

@@ -47,10 +47,10 @@ export async function POST(req: Request) {
     const { r2Key, storageUrl } = await uploadSourceToR2(buffer, file.name, file.type || "application/octet-stream", organizationId);
     const caseId = crypto.randomUUID();
     const safetyAudit = { source: sourceType, status: "AWAITING_PROCESSING" };
-    const { rows: caseRows } = await query(`INSERT INTO macula.macula_cases (id, title, raw_input, "masterRecord", "safetyAudit", status, "organizationId", "physicianId") VALUES ($1, $2, '', '{}'::jsonb, $3::jsonb, 'PENDING_REVIEW', $4, $5) RETURNING id`, [caseId, `${sourceType === "VIDEO" ? "Video" : "Document"} Case - ${new Date().toLocaleString("en-IN")}`, JSON.stringify(safetyAudit), organizationId, physicianId]);
+    const { rows: caseRows } = await query(`INSERT INTO macula.cases (id, title, raw_input, "masterRecord", "safetyAudit", status, "organizationId", "physicianId") VALUES ($1, $2, '', '{}'::jsonb, $3::jsonb, 'PENDING_REVIEW', $4, $5) RETURNING id`, [caseId, `${sourceType === "VIDEO" ? "Video" : "Document"} Case - ${new Date().toLocaleString("en-IN")}`, JSON.stringify(safetyAudit), organizationId, physicianId]);
     const createdCase = caseRows[0];
 
-    const { rows: sourceRows } = await query(`INSERT INTO macula.macula_case_sources (id, "sourceType", status, "fileName", "mimeType", "r2Key", "storageUrl", "organizationId", "userId", "caseId") VALUES ($1, $2, 'UPLOADED', $3, $4, $5, $6, $7, $8, $9) RETURNING *`, [crypto.randomUUID(), sourceType, file.name, file.type || "application/octet-stream", r2Key, storageUrl, organizationId, userId || null, createdCase.id]);
+    const { rows: sourceRows } = await query(`INSERT INTO macula.case_sources (id, "sourceType", status, "fileName", "mimeType", "r2Key", "storageUrl", "organizationId", "userId", "caseId") VALUES ($1, $2, 'UPLOADED', $3, $4, $5, $6, $7, $8, $9) RETURNING *`, [crypto.randomUUID(), sourceType, file.name, file.type || "application/octet-stream", r2Key, storageUrl, organizationId, userId || null, createdCase.id]);
     const source = sourceRows[0];
 
     if (sourceType) {

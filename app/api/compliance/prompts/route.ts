@@ -19,7 +19,7 @@ export async function GET(req: Request) {
     }
     await requireOrganizationAccess(orgId);
 
-    const organization = (await query<any>(`SELECT * FROM macula.macula_organizations WHERE id = $1 LIMIT 1`, [orgId])).rows[0];
+    const organization = (await query<any>(`SELECT * FROM macula.organizations WHERE id = $1 LIMIT 1`, [orgId])).rows[0];
 
     if (!organization) {
       return NextResponse.json({ error: "Organization not found" }, { status: 404 });
@@ -27,10 +27,10 @@ export async function GET(req: Request) {
 
     const [promptTemplates, promptDefinitions] = await Promise.all([
       getResolvedAiPrompts(organization.id),
-      query(`SELECT * FROM macula.macula_ai_prompt_definitions ORDER BY "promptKey" ASC`),
+      query(`SELECT * FROM macula.ai_prompt_definitions ORDER BY "promptKey" ASC`),
     ]);
-    const { rows: channelDefinitions } = await query(`SELECT * FROM macula.macula_channel_definitions WHERE "organizationId" = $1 ORDER BY "createdAt" ASC`, [orgId]);
-    const { rows: complianceRules } = await query(`SELECT * FROM macula.macula_compliance_rules WHERE "organizationId" = $1 AND "isActive" = TRUE`, [orgId]);
+    const { rows: channelDefinitions } = await query(`SELECT * FROM macula.channel_definitions WHERE "organizationId" = $1 ORDER BY "createdAt" ASC`, [orgId]);
+    const { rows: complianceRules } = await query(`SELECT * FROM macula.compliance_rules WHERE "organizationId" = $1 AND "isActive" = TRUE`, [orgId]);
     const imagePromptVersions = [...promptTemplates.values()];
     return NextResponse.json({
       success: true,
@@ -91,28 +91,28 @@ export async function PUT(req: Request) {
     }
 
     // Organization-level system prompt and disclaimer remain separate settings.
-    const { rows: updatedOrgRows } = await query(`UPDATE macula.macula_organizations SET "customSystemPrompt"=$1, "clinicalRefinerPrompt"=$2, "defaultDisclaimer"=$3, "updatedAt"=NOW() WHERE id=$4 RETURNING *`, [customSystemPrompt, clinicalRefinerPrompt?.trim() || null, defaultDisclaimer, orgId]);
+    const { rows: updatedOrgRows } = await query(`UPDATE macula.organizations SET "customSystemPrompt"=$1, "clinicalRefinerPrompt"=$2, "defaultDisclaimer"=$3, "updatedAt"=NOW() WHERE id=$4 RETURNING *`, [customSystemPrompt, clinicalRefinerPrompt?.trim() || null, defaultDisclaimer, orgId]);
     const updatedOrg = updatedOrgRows[0];
 
     for (const [promptKey, content] of [["CLINICAL_REFINER", clinicalRefinerPrompt], ["IMAGE_GENERATION", imageGenerationPrompt], ["IMAGE_SAFETY", imageSafetyPrompt]] as const) {
       if (typeof content !== "string" || !content.trim()) continue;
       const normalizedContent = content.trim();
-      const master = (await query<any>(`SELECT * FROM macula.macula_ai_prompt_templates WHERE "organizationId" IS NULL AND "promptKey"=$1 AND "isActive"=TRUE ORDER BY version DESC LIMIT 1`, [promptKey])).rows[0];
-      const current = (await query<any>(`SELECT * FROM macula.macula_ai_prompt_templates WHERE "organizationId"=$1 AND "promptKey"=$2 AND "isActive"=TRUE ORDER BY version DESC LIMIT 1`, [orgId, promptKey])).rows[0];
+      const master = (await query<any>(`SELECT * FROM macula.ai_prompt_templates WHERE "organizationId" IS NULL AND "promptKey"=$1 AND "isActive"=TRUE ORDER BY version DESC LIMIT 1`, [promptKey])).rows[0];
+      const current = (await query<any>(`SELECT * FROM macula.ai_prompt_templates WHERE "organizationId"=$1 AND "promptKey"=$2 AND "isActive"=TRUE ORDER BY version DESC LIMIT 1`, [orgId, promptKey])).rows[0];
       if (master?.content === normalizedContent) {
-        await query(`UPDATE macula.macula_ai_prompt_templates SET "isActive"=FALSE, "updatedAt"=NOW() WHERE "organizationId"=$1 AND "promptKey"=$2 AND "isActive"=TRUE`, [orgId, promptKey]);
+        await query(`UPDATE macula.ai_prompt_templates SET "isActive"=FALSE, "updatedAt"=NOW() WHERE "organizationId"=$1 AND "promptKey"=$2 AND "isActive"=TRUE`, [orgId, promptKey]);
         continue;
       }
       if (current?.content === normalizedContent) continue;
-      await query(`UPDATE macula.macula_ai_prompt_templates SET "isActive"=FALSE, "updatedAt"=NOW() WHERE "organizationId"=$1 AND "promptKey"=$2 AND "isActive"=TRUE`, [orgId, promptKey]);
-      await query(`INSERT INTO macula.macula_ai_prompt_templates (id, "promptKey", content, version, "isActive", "organizationId") VALUES ($1,$2,$3,$4,TRUE,$5)`, [crypto.randomUUID(), promptKey, normalizedContent, (current?.version || master?.version || 0) + 1, orgId]);
+      await query(`UPDATE macula.ai_prompt_templates SET "isActive"=FALSE, "updatedAt"=NOW() WHERE "organizationId"=$1 AND "promptKey"=$2 AND "isActive"=TRUE`, [orgId, promptKey]);
+      await query(`INSERT INTO macula.ai_prompt_templates (id, "promptKey", content, version, "isActive", "organizationId") VALUES ($1,$2,$3,$4,TRUE,$5)`, [crypto.randomUUID(), promptKey, normalizedContent, (current?.version || master?.version || 0) + 1, orgId]);
     }
 
     // Update channel definitions if provided
     if (Array.isArray(channels)) {
       for (const ch of channels) {
         if (ch.id) {
-          await query(`UPDATE macula.macula_channel_definitions SET "systemPrompt"=$1, "promptVersion"="promptVersion"+1, "displayName"=$2, "targetAudience"=$3, "isActive"=$4, "updatedAt"=NOW() WHERE id=$5 AND "organizationId"=$6`, [ch.systemPrompt, ch.displayName, ch.targetAudience, ch.isActive ?? true, ch.id, orgId]);
+          await query(`UPDATE macula.channel_definitions SET "systemPrompt"=$1, "promptVersion"="promptVersion"+1, "displayName"=$2, "targetAudience"=$3, "isActive"=$4, "updatedAt"=NOW() WHERE id=$5 AND "organizationId"=$6`, [ch.systemPrompt, ch.displayName, ch.targetAudience, ch.isActive ?? true, ch.id, orgId]);
         }
       }
     }

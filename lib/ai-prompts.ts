@@ -14,7 +14,7 @@ export async function getResolvedAiPrompts(organizationId: string, promptKeys?: 
   if (promptKeys?.length) values.push(promptKeys);
   const { rows: prompts } = await query<AiPromptRecord>(
     `SELECT id, "promptKey" AS "promptKey", content, version, "organizationId" AS "organizationId"
-     FROM macula.macula_ai_prompt_templates
+     FROM macula.ai_prompt_templates
      WHERE "isActive" = TRUE AND ("organizationId" = $1 OR "organizationId" IS NULL) ${keyFilter}
      ORDER BY "promptKey" ASC, "organizationId" DESC NULLS LAST, version DESC`,
     values

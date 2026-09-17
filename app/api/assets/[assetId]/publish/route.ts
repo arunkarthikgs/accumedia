@@ -18,10 +18,10 @@ export async function GET(
 ) {
   try {
     const { assetId } = await props.params;
-    const asset = (await query<any>(`SELECT ga.id, ga."status", ga."caseId", c."organizationId", c.status AS case_status FROM macula.macula_generated_assets ga JOIN macula.macula_cases c ON c.id=ga."caseId" WHERE ga.id=$1 LIMIT 1`, [assetId])).rows[0];
+    const asset = (await query<any>(`SELECT ga.id, ga."status", ga."caseId", c."organizationId", c.status AS case_status FROM macula.generated_assets ga JOIN macula.cases c ON c.id=ga."caseId" WHERE ga.id=$1 LIMIT 1`, [assetId])).rows[0];
     if (!asset) return NextResponse.json({ error: "Asset not found." }, { status: 404 });
     await requireOrganizationAccess(asset.case.organizationId);
-    const { rows: jobs } = await query(`SELECT * FROM macula.macula_publication_jobs WHERE "assetId"=$1 ORDER BY "createdAt" DESC`, [assetId]);
+    const { rows: jobs } = await query(`SELECT * FROM macula.publication_jobs WHERE "assetId"=$1 ORDER BY "createdAt" DESC`, [assetId]);
     return NextResponse.json({ jobs });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || "Failed to load publication jobs." }, { status: 500 });
@@ -45,22 +45,22 @@ export async function POST(
       return NextResponse.json({ error: "scheduledAt must be a valid date." }, { status: 400 });
     }
 
-    const asset = (await query<any>(`SELECT ga.id, ga."status", ga."caseId", c.id AS case_id, c."organizationId", c.status AS case_status FROM macula.macula_generated_assets ga JOIN macula.macula_cases c ON c.id=ga."caseId" WHERE ga.id=$1 LIMIT 1`, [assetId])).rows[0];
+    const asset = (await query<any>(`SELECT ga.id, ga."status", ga."caseId", c.id AS case_id, c."organizationId", c.status AS case_status FROM macula.generated_assets ga JOIN macula.cases c ON c.id=ga."caseId" WHERE ga.id=$1 LIMIT 1`, [assetId])).rows[0];
     if (!asset) return NextResponse.json({ error: "Asset not found." }, { status: 404 });
     await requireOrganizationAccess(asset.case.organizationId);
     if (asset.status !== "APPROVED" || asset.case_status !== "APPROVED") {
       return NextResponse.json({ error: "Only approved cases and assets can be queued for publishing." }, { status: 409 });
     }
 
-    const existingJob = (await query(`SELECT * FROM macula.macula_publication_jobs WHERE "assetId"=$1 AND platform=$2 AND status IN ('QUEUED','PROCESSING','PUBLISHED') ORDER BY "createdAt" DESC LIMIT 1`, [assetId, platform])).rows[0];
+    const existingJob = (await query(`SELECT * FROM macula.publication_jobs WHERE "assetId"=$1 AND platform=$2 AND status IN ('QUEUED','PROCESSING','PUBLISHED') ORDER BY "createdAt" DESC LIMIT 1`, [assetId, platform])).rows[0];
     if (existingJob) {
       return NextResponse.json({ error: "This asset already has an active or published job for that platform.", job: existingJob }, { status: 409 });
     }
 
-    const { rows: jobRows } = await query(`INSERT INTO macula.macula_publication_jobs (id, platform, "scheduledAt", "organizationId", "caseId", "assetId") VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`, [crypto.randomUUID(), platform, scheduledAt, asset.organizationId, asset.case_id, assetId]);
+    const { rows: jobRows } = await query(`INSERT INTO macula.publication_jobs (id, platform, "scheduledAt", "organizationId", "caseId", "assetId") VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`, [crypto.randomUUID(), platform, scheduledAt, asset.organizationId, asset.case_id, assetId]);
     const job = jobRows[0];
 
-    const connection = (await query(`SELECT id FROM macula.macula_publication_connections WHERE "organizationId"=$1 AND platform=$2 AND "isActive"=TRUE LIMIT 1`, [asset.organizationId, platform])).rows[0];
+    const connection = (await query(`SELECT id FROM macula.publication_connections WHERE "organizationId"=$1 AND platform=$2 AND "isActive"=TRUE LIMIT 1`, [asset.organizationId, platform])).rows[0];
 
     return NextResponse.json({
       success: true,

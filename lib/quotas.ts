@@ -3,8 +3,8 @@ import { query } from "@/lib/worker-db";
 export async function getOrganizationQuota(organizationId: string) {
   const subscriptionResult = await query<any>(
     `SELECT s.*, row_to_json(p) AS plan
-     FROM macula.macula_subscriptions s
-     JOIN macula.macula_plans p ON p.id = s."planId"
+     FROM macula.subscriptions s
+     JOIN macula.plans p ON p.id = s."planId"
      WHERE s."organizationId" = $1 LIMIT 1`,
     [organizationId]
   );
@@ -15,7 +15,7 @@ export async function getOrganizationQuota(organizationId: string) {
     const periodStart = new Date();
     const periodEnd = new Date(Date.now() + 30 * 86400000);
     const renewed = await query<any>(
-      `UPDATE macula.macula_subscriptions
+      `UPDATE macula.subscriptions
        SET "currentPeriodStart" = $1, "currentPeriodEnd" = $2, "updatedAt" = NOW()
        WHERE id = $3
        RETURNING *`,
@@ -26,10 +26,10 @@ export async function getOrganizationQuota(organizationId: string) {
 
   const { rows: usageRows } = await query<any>(
     `SELECT
-       (SELECT COUNT(*) FROM macula.macula_cases WHERE "organizationId" = $1 AND "createdAt" BETWEEN $2 AND $3) AS case_count,
-       (SELECT COALESCE(SUM("audioSeconds"), 0) FROM macula.macula_ai_usage_logs WHERE "organizationId" = $1 AND "createdAt" BETWEEN $2 AND $3) AS audio_seconds,
-       (SELECT COALESCE(SUM("inputTokens"), 0) + COALESCE(SUM("outputTokens"), 0) FROM macula.macula_ai_usage_logs WHERE "organizationId" = $1 AND "createdAt" BETWEEN $2 AND $3) AS ai_tokens,
-       (SELECT COUNT(*) FROM macula.macula_generated_assets ga JOIN macula.macula_cases c ON c.id = ga."caseId" WHERE c."organizationId" = $1 AND ga."createdAt" BETWEEN $2 AND $3) AS asset_count`,
+       (SELECT COUNT(*) FROM macula.cases WHERE "organizationId" = $1 AND "createdAt" BETWEEN $2 AND $3) AS case_count,
+       (SELECT COALESCE(SUM("audioSeconds"), 0) FROM macula.ai_usage_logs WHERE "organizationId" = $1 AND "createdAt" BETWEEN $2 AND $3) AS audio_seconds,
+       (SELECT COALESCE(SUM("inputTokens"), 0) + COALESCE(SUM("outputTokens"), 0) FROM macula.ai_usage_logs WHERE "organizationId" = $1 AND "createdAt" BETWEEN $2 AND $3) AS ai_tokens,
+       (SELECT COUNT(*) FROM macula.generated_assets ga JOIN macula.cases c ON c.id = ga."caseId" WHERE c."organizationId" = $1 AND ga."createdAt" BETWEEN $2 AND $3) AS asset_count`,
     [organizationId, subscription.currentPeriodStart, subscription.currentPeriodEnd]
   );
   const usage = usageRows[0];

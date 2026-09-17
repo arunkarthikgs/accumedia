@@ -16,9 +16,9 @@ export async function PATCH(
       phiReviewStatus?: "PENDING" | "CLEAR" | "FLAGGED";
     };
 
-    const existing = (await query<any>(`SELECT * FROM macula.macula_image_assets WHERE id = $1 LIMIT 1`, [imageId])).rows[0];
+    const existing = (await query<any>(`SELECT * FROM macula.image_assets WHERE id = $1 LIMIT 1`, [imageId])).rows[0];
     if (!existing) return NextResponse.json({ error: "Image not found" }, { status: 404 });
-    const kase = (await query<{ organizationId: string }>(`SELECT "organizationId" FROM macula.macula_cases WHERE id = $1 LIMIT 1`, [existing.caseId])).rows[0];
+    const kase = (await query<{ organizationId: string }>(`SELECT "organizationId" FROM macula.cases WHERE id = $1 LIMIT 1`, [existing.caseId])).rows[0];
     if (!kase) return NextResponse.json({ error: "Case not found" }, { status: 404 });
     await requireOrganizationAccess(kase.organizationId);
 
@@ -41,11 +41,11 @@ export async function PATCH(
       );
     }
     if (nextPublicUse) {
-      const openImageFlags = Number((await query<{ count: number }>(`SELECT COUNT(*)::int AS count FROM macula.macula_safety_flags WHERE "imageAssetId" = $1 AND status = 'OPEN'`, [imageId])).rows[0]?.count || 0);
+      const openImageFlags = Number((await query<{ count: number }>(`SELECT COUNT(*)::int AS count FROM macula.safety_flags WHERE "imageAssetId" = $1 AND status = 'OPEN'`, [imageId])).rows[0]?.count || 0);
       if (openImageFlags > 0) return NextResponse.json({ error: "Resolve all open image safety flags before public approval." }, { status: 409 });
     }
 
-    const { rows: updatedRows } = await query(`UPDATE macula.macula_image_assets SET "consentConfirmed" = $1, "publicUseApproved" = $2, "phiReviewStatus" = $3, "updatedAt" = NOW() WHERE id = $4 RETURNING *`, [nextConsent, nextPublicUse, nextPhiStatus, imageId]);
+    const { rows: updatedRows } = await query(`UPDATE macula.image_assets SET "consentConfirmed" = $1, "publicUseApproved" = $2, "phiReviewStatus" = $3, "updatedAt" = NOW() WHERE id = $4 RETURNING *`, [nextConsent, nextPublicUse, nextPhiStatus, imageId]);
     const updated = updatedRows[0];
     await recordAudit({ organizationId: kase.organizationId, caseId: existing.caseId, targetType: "IMAGE_ASSET", targetId: imageId, action: phiReviewStatus ? "IMAGE_PHI_REVIEW_UPDATED" : "IMAGE_PUBLIC_USE_UPDATED", metadata: { phiReviewStatus: nextPhiStatus, publicUseApproved: nextPublicUse } });
 
@@ -69,10 +69,10 @@ export async function DELETE(
 ) {
   try {
     const { imageId } = await props.params;
-    const existing = (await query<any>(`SELECT ia.*, c."organizationId" FROM macula.macula_image_assets ia JOIN macula.macula_cases c ON c.id = ia."caseId" WHERE ia.id = $1 LIMIT 1`, [imageId])).rows[0];
+    const existing = (await query<any>(`SELECT ia.*, c."organizationId" FROM macula.image_assets ia JOIN macula.cases c ON c.id = ia."caseId" WHERE ia.id = $1 LIMIT 1`, [imageId])).rows[0];
     if (!existing) return NextResponse.json({ error: "Image not found" }, { status: 404 });
     await requireOrganizationAccess(existing.organizationId);
-    await query(`DELETE FROM macula.macula_image_assets WHERE id = $1`, [imageId]);
+    await query(`DELETE FROM macula.image_assets WHERE id = $1`, [imageId]);
     return NextResponse.json({ success: true });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

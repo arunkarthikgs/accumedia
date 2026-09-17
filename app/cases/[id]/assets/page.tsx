@@ -25,7 +25,7 @@ export default async function CaseAssetsPage(props: {
 
   try {
     const caseIdFilter = id === "active" ? "ORDER BY c.\"createdAt\" DESC LIMIT 1" : "WHERE c.id = $1 LIMIT 1";
-    const { rows } = await query<any>(`SELECT c.*, c.mccr_approved_at AS "mccrApprovedAt", row_to_json(u) AS physician, row_to_json(o) AS organization, COALESCE((SELECT json_agg(ga ORDER BY ga."createdAt" DESC) FROM macula.macula_generated_assets ga WHERE ga."caseId"=c.id), '[]') AS assets FROM macula.macula_cases c JOIN macula.macula_users u ON u.id=c."physicianId" JOIN macula.macula_organizations o ON o.id=c."organizationId" ${caseIdFilter}`, id === "active" ? [] : [id]);
+    const { rows } = await query<any>(`SELECT c.*, c.mccr_approved_at AS "mccrApprovedAt", row_to_json(u) AS physician, row_to_json(o) AS organization, COALESCE((SELECT json_agg(ga ORDER BY ga."createdAt" DESC) FROM macula.generated_assets ga WHERE ga."caseId"=c.id), '[]') AS assets FROM macula.cases c JOIN macula.users u ON u.id=c."physicianId" JOIN macula.organizations o ON o.id=c."organizationId" ${caseIdFilter}`, id === "active" ? [] : [id]);
     caseData = rows[0] || null;
   } catch (err: any) {
     console.error("Failed to load case data:", err);

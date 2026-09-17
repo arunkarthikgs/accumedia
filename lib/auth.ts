@@ -60,10 +60,10 @@ async function resolveCurrentUser(): Promise<SessionUser | null> {
               o.name AS organization_name, o."brandingHex" AS branding_hex,
               r.id AS role_id, r.name AS role_name, r.slug AS role_slug,
               '{}'::text[] AS permissions
-       FROM macula.macula_sessions s
-       JOIN macula.macula_users u ON u.id = s."userId"
-       LEFT JOIN macula.macula_roles r ON r.id = u."roleId"
-       LEFT JOIN macula.macula_organizations o ON o.id = u."organizationId"
+       FROM macula.sessions s
+       JOIN macula.users u ON u.id = s."userId"
+       LEFT JOIN macula.roles r ON r.id = u."roleId"
+       LEFT JOIN macula.organizations o ON o.id = u."organizationId"
        WHERE s."tokenHash" = $1 AND s."expiresAt" > NOW()
        LIMIT 1`,
       [tokenHash]
@@ -79,8 +79,8 @@ async function resolveCurrentUser(): Promise<SessionUser | null> {
       ? []
       : (await query<{ slug: string }>(
         `SELECT DISTINCT p.slug
-         FROM macula.macula_role_permissions rp
-         JOIN macula.macula_permissions p ON p.id = rp."permissionId"
+         FROM macula.role_permissions rp
+         JOIN macula.permissions p ON p.id = rp."permissionId"
          WHERE rp."roleId" = $1`,
         [session.role_id]
       )).rows.map((permission) => permission.slug);

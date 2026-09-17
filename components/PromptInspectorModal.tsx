@@ -237,7 +237,7 @@ export default function PromptInspectorModal({
                   {/* Audio Recording DB Table */}
                   <div>
                     <h4 className="mb-2 flex items-center gap-1.5 font-bold text-slate-800">
-                      <FileCode className="h-3.5 w-3.5 text-teal-600" /> PostgreSQL Table: `macula_audio_recordings`
+                      <FileCode className="h-3.5 w-3.5 text-teal-600" /> PostgreSQL Table: `audio_recordings`
                     </h4>
                     {data.databaseProperties?.audioRecording ? (
                       <div className="divide-y divide-slate-200 rounded-xl border border-slate-200 bg-white font-mono text-[11px]">
@@ -260,7 +260,7 @@ export default function PromptInspectorModal({
                   {/* Organization DB Table */}
                   <div>
                     <h4 className="mb-2 flex items-center gap-1.5 font-bold text-slate-800">
-                      <Layers className="h-3.5 w-3.5 text-teal-600" /> PostgreSQL Table: `macula_organizations`
+                      <Layers className="h-3.5 w-3.5 text-teal-600" /> PostgreSQL Table: `organizations`
                     </h4>
                     {data.databaseProperties?.organization ? (
                       <div className="divide-y divide-slate-200 rounded-xl border border-slate-200 bg-white font-mono text-[11px]">

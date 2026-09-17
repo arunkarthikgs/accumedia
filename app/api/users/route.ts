@@ -32,9 +32,9 @@ export async function GET(req: Request) {
               u.designation, u."profilePhotoUrl" AS profile_photo_url,
               o.id AS organization_id, o.name AS organization_name,
               r.name AS role_name, r.slug AS role_slug
-       FROM macula.macula_users u
-       LEFT JOIN macula.macula_organizations o ON o.id = u."organizationId"
-       LEFT JOIN macula.macula_roles r ON r.id = u."roleId"
+       FROM macula.users u
+       LEFT JOIN macula.organizations o ON o.id = u."organizationId"
+       LEFT JOIN macula.roles r ON r.id = u."roleId"
        WHERE ($1::text IS NULL OR u."organizationId" = $1)
        ORDER BY u.name ASC`,
       [scopeId || null]
@@ -55,7 +55,7 @@ export async function GET(req: Request) {
     }));
     const organizations = user?.isSuperAdmin
       ? (await query<{ id: string; name: string }>(
-        `SELECT id, name FROM macula.macula_organizations ORDER BY name ASC`
+        `SELECT id, name FROM macula.organizations ORDER BY name ASC`
       )).rows
       : [];
     return NextResponse.json({ success: true, users, organizations, isSuperAdmin: Boolean(user?.isSuperAdmin), canManageUsers: Boolean(user?.isSuperAdmin || user?.permissions.includes("USER_MANAGE")) });
@@ -82,11 +82,11 @@ export async function POST(req: Request) {
     if (!targetOrganizationId || !name || !email || password.length < 8) {
       return NextResponse.json({ error: "Organization, physician name, email, and a password of at least 8 characters are required." }, { status: 400 });
     }
-    const existingUser = (await query(`SELECT id FROM macula.macula_users WHERE email = $1 LIMIT 1`, [email])).rows[0];
+    const existingUser = (await query(`SELECT id FROM macula.users WHERE email = $1 LIMIT 1`, [email])).rows[0];
     if (existingUser) return NextResponse.json({ error: "A user with this email already exists." }, { status: 409 });
     if (currentUser?.isSuperAdmin || currentUser?.organizationId === targetOrganizationId) {
-      const defaultRole = (await query<{ id: string }>(`SELECT id FROM macula.macula_roles WHERE slug = 'attending-rmp' AND "organizationId" = $1 LIMIT 1`, [targetOrganizationId])).rows[0];
-      const { rows } = await query(`INSERT INTO macula.macula_users (id, name, email, password_hash, "organizationId", "registrationNo", specialty, qualifications, designation, "profilePhotoUrl", "roleId") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id, name, email, "registrationNo", specialty, qualifications, designation, "profilePhotoUrl", "organizationId"`, [crypto.randomUUID(), name, email, await bcrypt.hash(password, 12), targetOrganizationId, body.registrationNo?.trim() || null, body.specialty?.trim() || null, body.qualifications?.trim() || null, body.designation?.trim() || null, body.profilePhotoUrl?.trim() || null, defaultRole?.id || null]);
+      const defaultRole = (await query<{ id: string }>(`SELECT id FROM macula.roles WHERE slug = 'attending-rmp' AND "organizationId" = $1 LIMIT 1`, [targetOrganizationId])).rows[0];
+      const { rows } = await query(`INSERT INTO macula.users (id, name, email, password_hash, "organizationId", "registrationNo", specialty, qualifications, designation, "profilePhotoUrl", "roleId") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id, name, email, "registrationNo", specialty, qualifications, designation, "profilePhotoUrl", "organizationId"`, [crypto.randomUUID(), name, email, await bcrypt.hash(password, 12), targetOrganizationId, body.registrationNo?.trim() || null, body.specialty?.trim() || null, body.qualifications?.trim() || null, body.designation?.trim() || null, body.profilePhotoUrl?.trim() || null, defaultRole?.id || null]);
       const user = rows[0];
       return NextResponse.json({ success: true, user }, { status: 201 });
     }
@@ -104,17 +104,17 @@ export async function PATCH(req: Request) {
     }
     const body = await req.json();
     const userId = typeof body.userId === "string" ? body.userId : "";
-    const existing = (await query<any>(`SELECT id, name, "organizationId", email FROM macula.macula_users WHERE id = $1 LIMIT 1`, [userId])).rows[0];
+    const existing = (await query<any>(`SELECT id, name, "organizationId", email FROM macula.users WHERE id = $1 LIMIT 1`, [userId])).rows[0];
     if (!existing) return NextResponse.json({ error: "User not found." }, { status: 404 });
     if (!currentUser.isSuperAdmin && currentUser.organizationId !== existing.organizationId) {
       return NextResponse.json({ error: "Forbidden: organization access denied." }, { status: 403 });
     }
     const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : existing.email;
-    const duplicate = (await query(`SELECT id FROM macula.macula_users WHERE email = $1 AND id <> $2 LIMIT 1`, [email, userId])).rows[0];
+    const duplicate = (await query(`SELECT id FROM macula.users WHERE email = $1 AND id <> $2 LIMIT 1`, [email, userId])).rows[0];
     if (duplicate) return NextResponse.json({ error: "A user with this email already exists." }, { status: 409 });
     const password = typeof body.password === "string" ? body.password : "";
     if (password && password.length < 8) return NextResponse.json({ error: "Password must be at least 8 characters." }, { status: 400 });
-    const { rows } = await query(`UPDATE macula.macula_users SET name=$1, email=$2, "registrationNo"=$3, specialty=$4, qualifications=$5, designation=$6, "profilePhotoUrl"=$7, "passwordHash"=COALESCE($8, "passwordHash"), "updatedAt"=NOW() WHERE id=$9 RETURNING id, name, email, "registrationNo", specialty, qualifications, designation, "profilePhotoUrl", "organizationId"`, [typeof body.name === "string" ? body.name.trim() : existing.name, email, body.registrationNo?.trim() || null, body.specialty?.trim() || null, body.qualifications?.trim() || null, body.designation?.trim() || null, body.profilePhotoUrl?.trim() || null, password ? await bcrypt.hash(password, 12) : null, userId]);
+    const { rows } = await query(`UPDATE macula.users SET name=$1, email=$2, "registrationNo"=$3, specialty=$4, qualifications=$5, designation=$6, "profilePhotoUrl"=$7, "passwordHash"=COALESCE($8, "passwordHash"), "updatedAt"=NOW() WHERE id=$9 RETURNING id, name, email, "registrationNo", specialty, qualifications, designation, "profilePhotoUrl", "organizationId"`, [typeof body.name === "string" ? body.name.trim() : existing.name, email, body.registrationNo?.trim() || null, body.specialty?.trim() || null, body.qualifications?.trim() || null, body.designation?.trim() || null, body.profilePhotoUrl?.trim() || null, password ? await bcrypt.hash(password, 12) : null, userId]);
     const updated = rows[0];
     return NextResponse.json({ success: true, user: updated });
   } catch (error: any) {

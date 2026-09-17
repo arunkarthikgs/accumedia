@@ -11,7 +11,7 @@ export async function POST(
 ) {
   try {
     const { id } = await props.params;
-    const kase = (await query<{ organizationId: string; status: string; mccrApprovedAt: Date | null }>(`SELECT "organizationId", status, mccr_approved_at AS "mccrApprovedAt" FROM macula.macula_cases WHERE id = $1 LIMIT 1`, [id])).rows[0];
+    const kase = (await query<{ organizationId: string; status: string; mccrApprovedAt: Date | null }>(`SELECT "organizationId", status, mccr_approved_at AS "mccrApprovedAt" FROM macula.cases WHERE id = $1 LIMIT 1`, [id])).rows[0];
     if (!kase) return NextResponse.json({ error: "Case not found." }, { status: 404 });
     await requireOrganizationAccess(kase.organizationId);
     if (kase.status !== "APPROVED" || !kase.mccrApprovedAt) return NextResponse.json({ error: "Approve the clinical record before generating publishing assets." }, { status: 409 });

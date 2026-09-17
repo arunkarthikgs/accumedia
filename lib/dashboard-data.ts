@@ -9,15 +9,15 @@ export async function getDashboardSummary(organizationId: string | null) {
       COUNT(*) FILTER (WHERE c.status = 'PENDING_REVIEW')::int AS pending_cases,
       COUNT(*) FILTER (WHERE c.status = 'APPROVED')::int AS approved_cases,
       COUNT(*) FILTER (WHERE c.status = 'REJECTED')::int AS rejected_cases,
-      (SELECT COUNT(*)::int FROM macula.macula_safety_flags sf JOIN macula.macula_cases sc ON sc.id = sf."caseId" WHERE sf.status = 'OPEN' ${organizationId ? 'AND sc."organizationId" = $1' : ''}) AS open_safety_flags,
-      (SELECT COUNT(*)::int FROM macula.macula_organizations ${organizationId ? 'WHERE id = $1' : ''}) AS org_count
-      FROM macula.macula_cases c ${scope}`, params),
+      (SELECT COUNT(*)::int FROM macula.safety_flags sf JOIN macula.cases sc ON sc.id = sf."caseId" WHERE sf.status = 'OPEN' ${organizationId ? 'AND sc."organizationId" = $1' : ''}) AS open_safety_flags,
+      (SELECT COUNT(*)::int FROM macula.organizations ${organizationId ? 'WHERE id = $1' : ''}) AS org_count
+      FROM macula.cases c ${scope}`, params),
     query<any>(`SELECT c.id, c.title, c.status,
       json_build_object('name', o.name) AS organization,
       json_build_object('name', u.name, 'specialty', u.specialty) AS physician,
-      COALESCE((SELECT json_agg(json_build_object('id', ar.id, 'durationSeconds', ar."durationSeconds")) FROM macula.macula_audio_recordings ar WHERE ar."caseId" = c.id), '[]') AS recordings,
-      COALESCE((SELECT json_agg(json_build_object('detail', sf.detail)) FROM macula.macula_safety_flags sf WHERE sf."caseId" = c.id AND sf.status = 'OPEN'), '[]') AS "safetyFlags"
-      FROM macula.macula_cases c JOIN macula.macula_organizations o ON o.id = c."organizationId" JOIN macula.macula_users u ON u.id = c."physicianId"
+      COALESCE((SELECT json_agg(json_build_object('id', ar.id, 'durationSeconds', ar."durationSeconds")) FROM macula.audio_recordings ar WHERE ar."caseId" = c.id), '[]') AS recordings,
+      COALESCE((SELECT json_agg(json_build_object('detail', sf.detail)) FROM macula.safety_flags sf WHERE sf."caseId" = c.id AND sf.status = 'OPEN'), '[]') AS "safetyFlags"
+      FROM macula.cases c JOIN macula.organizations o ON o.id = c."organizationId" JOIN macula.users u ON u.id = c."physicianId"
       ${scope} ORDER BY c."createdAt" DESC LIMIT 6`, params),
   ]);
   const summary = summaryResult.rows[0] || {};

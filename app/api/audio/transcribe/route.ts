@@ -17,7 +17,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "recordingId is required." }, { status: 400 });
     }
 
-    const recording = (await query<any>(`SELECT ar.*, o.id AS organization_id, o."preferredAsrModel" AS preferred_asr_model FROM macula.macula_audio_recordings ar JOIN macula.macula_organizations o ON o.id = ar."organizationId" WHERE ar.id = $1 LIMIT 1`, [recordingId])).rows[0];
+    const recording = (await query<any>(`SELECT ar.*, o.id AS organization_id, o."preferredAsrModel" AS preferred_asr_model FROM macula.audio_recordings ar JOIN macula.organizations o ON o.id = ar."organizationId" WHERE ar.id = $1 LIMIT 1`, [recordingId])).rows[0];
     if (!recording) return NextResponse.json({ error: "Recording not found." }, { status: 404 });
     await requireOrganizationAccess(recording.organizationId);
 
@@ -64,7 +64,7 @@ export async function POST(req: Request) {
     });
 
     const redactionRules = recordingMeta
-      ? (await query<{ patternOrCheck: string; description: string }>(`SELECT "patternOrCheck", description FROM macula.macula_compliance_rules WHERE "ruleType" = 'DPDP_REDACTION' AND "isActive" = TRUE AND ("organizationId" IS NULL OR "organizationId" = $1)`, [recordingMeta.organizationId])).rows
+      ? (await query<{ patternOrCheck: string; description: string }>(`SELECT "patternOrCheck", description FROM macula.compliance_rules WHERE "ruleType" = 'DPDP_REDACTION' AND "isActive" = TRUE AND ("organizationId" IS NULL OR "organizationId" = $1)`, [recordingMeta.organizationId])).rows
       : [];
     const sanitizedTranscript = redactClinicalText(result.rawTranscript, redactionRules);
 
@@ -80,7 +80,7 @@ export async function POST(req: Request) {
     }
 
     // Update database record with the exact agent used
-    const { rows: updatedRows } = await query(`UPDATE macula.macula_audio_recordings SET "rawTranscript" = $1, "transcriptionStatus" = 'ASR_COMPLETED', "transcriptionAgent" = $2, "updatedAt" = NOW() WHERE id = $3 RETURNING id, "transcriptionStatus"`, [sanitizedTranscript, result.modelIdentifier, recordingId]);
+    const { rows: updatedRows } = await query(`UPDATE macula.audio_recordings SET "rawTranscript" = $1, "transcriptionStatus" = 'ASR_COMPLETED', "transcriptionAgent" = $2, "updatedAt" = NOW() WHERE id = $3 RETURNING id, "transcriptionStatus"`, [sanitizedTranscript, result.modelIdentifier, recordingId]);
     const updated = updatedRows[0];
 
     return NextResponse.json({

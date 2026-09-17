@@ -22,7 +22,7 @@ export async function GET(req: Request) {
     const cacheKey = `${scopedOrgId || "all"}:${status || "ALL"}`;
     let jobRows: any[];
     try {
-      const result = await timeDbOperation("admin publishing jobs", () => queryWithTimeout<any>(`SELECT id, platform, status, "scheduledAt", "publishedAt", "externalId", "failureReason", "attemptCount", "lastAttemptAt", "nextAttemptAt", "createdAt", "updatedAt", "organizationId", "caseId", "assetId" FROM macula.macula_publication_jobs pj ${filters.length ? `WHERE ${filters.join(" AND ")}` : ""} ORDER BY "createdAt" DESC LIMIT 25`, values));
+      const result = await timeDbOperation("admin publishing jobs", () => queryWithTimeout<any>(`SELECT id, platform, status, "scheduledAt", "publishedAt", "externalId", "failureReason", "attemptCount", "lastAttemptAt", "nextAttemptAt", "createdAt", "updatedAt", "organizationId", "caseId", "assetId" FROM macula.publication_jobs pj ${filters.length ? `WHERE ${filters.join(" AND ")}` : ""} ORDER BY "createdAt" DESC LIMIT 25`, values));
       jobRows = result.rows;
       publishingJobCache.set(cacheKey, { expiresAt: Date.now() + 30_000, jobs: jobRows });
     } catch (error) {
@@ -34,8 +34,8 @@ export async function GET(req: Request) {
     const caseIds = jobRows.map((job) => job.caseId).filter(Boolean);
     const assetIds = jobRows.map((job) => job.assetId).filter(Boolean);
     const [{ rows: cases }, { rows: assets }] = await Promise.all([
-      caseIds.length ? query<{ id: string; title: string }>(`SELECT id, title FROM macula.macula_cases WHERE id = ANY($1::text[])`, [caseIds]) : Promise.resolve({ rows: [] }),
-      assetIds.length ? query<{ id: string; channelName: string; status: string }>(`SELECT id, "channelName", status FROM macula.macula_generated_assets WHERE id = ANY($1::text[])`, [assetIds]) : Promise.resolve({ rows: [] }),
+      caseIds.length ? query<{ id: string; title: string }>(`SELECT id, title FROM macula.cases WHERE id = ANY($1::text[])`, [caseIds]) : Promise.resolve({ rows: [] }),
+      assetIds.length ? query<{ id: string; channelName: string; status: string }>(`SELECT id, "channelName", status FROM macula.generated_assets WHERE id = ANY($1::text[])`, [assetIds]) : Promise.resolve({ rows: [] }),
     ]);
     const caseById = new Map(cases.map((item) => [item.id, item]));
     const assetById = new Map(assets.map((item) => [item.id, item]));

@@ -222,7 +222,7 @@ model Organization {
   cases              Case[]
   roles              Role[]
 
-  @@map("macula_organizations")
+  @@map("organizations")
   @@schema("macula")
 }
 
@@ -234,7 +234,7 @@ model Permission {
   description String
   roles       RolePermission[]
 
-  @@map("macula_permissions")
+  @@map("permissions")
   @@schema("macula")
 }
 
@@ -250,7 +250,7 @@ model Role {
   permissions    RolePermission[]
 
   @@unique([slug, organizationId])
-  @@map("macula_roles")
+  @@map("roles")
   @@schema("macula")
 }
 
@@ -261,7 +261,7 @@ model RolePermission {
   permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
   @@id([roleId, permissionId])
-  @@map("macula_role_permissions")
+  @@map("role_permissions")
   @@schema("macula")
 }
 
@@ -279,7 +279,7 @@ model User {
   role           Role         @relation(fields: [roleId], references: [id])
   cases          Case[]
 
-  @@map("macula_users")
+  @@map("users")
   @@schema("macula")
 }
 
@@ -298,7 +298,7 @@ model Case {
   organization   Organization     @relation(fields: [organizationId], references: [id])
   assets         GeneratedAsset[]
 
-  @@map("macula_cases")
+  @@map("cases")
   @@schema("macula")
 }
 
@@ -311,7 +311,7 @@ model GeneratedAsset {
 
   case      Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
 
-  @@map("macula_generated_assets")
+  @@map("generated_assets")
   @@schema("macula")
 }
 EOF

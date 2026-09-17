@@ -14,7 +14,7 @@ export async function recordAudit(input: {
 }) {
   const actorId = input.actorId === undefined ? (await getCurrentUser())?.id || null : input.actorId;
   const { rows } = await query(
-    `INSERT INTO macula.macula_audit_logs (id, "organizationId", action, "targetType", "targetId", "caseId", "actorId", detail, metadata)
+    `INSERT INTO macula.audit_logs (id, "organizationId", action, "targetType", "targetId", "caseId", "actorId", detail, metadata)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb) RETURNING *`,
     [crypto.randomUUID(), input.organizationId, input.action, input.targetType, input.targetId, input.caseId || null, actorId, input.detail || null, JSON.stringify(input.metadata || {})]
   );

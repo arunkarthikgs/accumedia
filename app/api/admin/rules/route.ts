@@ -8,8 +8,8 @@ export async function GET() {
     const user = await requireAuthenticatedUser();
     const scope = user?.isSuperAdmin ? null : user?.organizationId;
     const [{ rows: rules }, { rows: channels }] = await Promise.all([
-      query(`SELECT * FROM macula.macula_compliance_rules WHERE ($1::text IS NULL OR "organizationId" IS NULL OR "organizationId" = $1) ORDER BY "createdAt" DESC`, [scope]),
-      query(`SELECT * FROM macula.macula_channel_definitions WHERE ($1::text IS NULL OR "organizationId" IS NULL OR "organizationId" = $1) ORDER BY "createdAt" DESC`, [scope]),
+      query(`SELECT * FROM macula.compliance_rules WHERE ($1::text IS NULL OR "organizationId" IS NULL OR "organizationId" = $1) ORDER BY "createdAt" DESC`, [scope]),
+      query(`SELECT * FROM macula.channel_definitions WHERE ($1::text IS NULL OR "organizationId" IS NULL OR "organizationId" = $1) ORDER BY "createdAt" DESC`, [scope]),
     ]);
     return NextResponse.json({ rules, channels });
   } catch (error: any) {
@@ -25,13 +25,13 @@ export async function POST(req: Request) {
     if (!organizationId && !user?.isSuperAdmin) return NextResponse.json({ error: "User is not assigned to an organization." }, { status: 400 });
 
     if (type === "RULE") {
-      const { rows } = await query(`INSERT INTO macula.macula_compliance_rules (id, "ruleType", "patternOrCheck", description, severity, "organizationId") VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`, [crypto.randomUUID(), data.ruleType, data.patternOrCheck, data.description, data.severity, organizationId]);
+      const { rows } = await query(`INSERT INTO macula.compliance_rules (id, "ruleType", "patternOrCheck", description, severity, "organizationId") VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`, [crypto.randomUUID(), data.ruleType, data.patternOrCheck, data.description, data.severity, organizationId]);
       const rule = rows[0];
       return NextResponse.json({ rule }, { status: 201 });
     }
 
     if (type === "CHANNEL") {
-      const { rows } = await query(`INSERT INTO macula.macula_channel_definitions (id, "channelKey", "displayName", "targetAudience", "systemPrompt", "organizationId") VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`, [crypto.randomUUID(), data.channelKey, data.displayName, data.targetAudience, data.systemPrompt, organizationId]);
+      const { rows } = await query(`INSERT INTO macula.channel_definitions (id, "channelKey", "displayName", "targetAudience", "systemPrompt", "organizationId") VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`, [crypto.randomUUID(), data.channelKey, data.displayName, data.targetAudience, data.systemPrompt, organizationId]);
       const channel = rows[0];
       return NextResponse.json({ channel }, { status: 201 });
     }

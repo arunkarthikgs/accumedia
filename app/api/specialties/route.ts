@@ -7,7 +7,7 @@ export async function GET() {
     await requireAuthenticatedUser();
     const { rows: specialties } = await query<{ id: string; name: string; category: string }>(
       `SELECT id, name, category
-       FROM macula.macula_specialties
+       FROM macula.specialties
        WHERE "isActive" = TRUE
        ORDER BY "sortOrder" ASC, name ASC`
     );

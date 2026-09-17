@@ -29,7 +29,7 @@ export async function GET(req: Request) {
     const [{ rows: usageRows }, quota] = await Promise.all([
       query<any>(`WITH filtered AS (
         SELECT l.*, c.id AS case_id, c.title AS case_title
-        FROM macula.macula_ai_usage_logs l LEFT JOIN macula.macula_cases c ON c.id = l."caseId"
+        FROM macula.ai_usage_logs l LEFT JOIN macula.cases c ON c.id = l."caseId"
         WHERE ${filter}
       )
       SELECT filtered.*, CASE WHEN case_id IS NULL THEN NULL ELSE json_build_object('id', case_id, 'title', case_title) END AS case,

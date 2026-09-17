@@ -22,7 +22,7 @@ export async function POST(
     const body = await req.json().catch(() => ({}));
     const approvedBy: string | undefined = body?.approvedBy;
 
-    const existingCase = (await query<any>(`SELECT id, "organizationId", status FROM macula.macula_cases WHERE id = $1 LIMIT 1`, [id])).rows[0];
+    const existingCase = (await query<any>(`SELECT id, "organizationId", status FROM macula.cases WHERE id = $1 LIMIT 1`, [id])).rows[0];
 
     if (!existingCase) {
       return NextResponse.json({ error: "Case not found" }, { status: 404 });
@@ -33,7 +33,7 @@ export async function POST(
       return NextResponse.json({ success: true, case: existingCase, assetsGenerated: 0, assetsGenerationQueued: true });
     }
 
-    const { rows: openFlags } = await query<any>(`SELECT id, "flagType", detail FROM macula.macula_safety_flags WHERE "caseId" = $1 AND status = 'OPEN' ORDER BY "createdAt" DESC`, [id]);
+    const { rows: openFlags } = await query<any>(`SELECT id, "flagType", detail FROM macula.safety_flags WHERE "caseId" = $1 AND status = 'OPEN' ORDER BY "createdAt" DESC`, [id]);
     if (openFlags.length > 0) {
       return NextResponse.json(
         {
@@ -44,7 +44,7 @@ export async function POST(
       );
     }
 
-    const { rows: updatedRows } = await query(`UPDATE macula.macula_cases SET status = 'APPROVED', mccr_approved_at = NOW(), mccr_approved_by = $1, "updatedAt" = NOW() WHERE id = $2 RETURNING *`, [approvedBy || "Attending physician", id]);
+    const { rows: updatedRows } = await query(`UPDATE macula.cases SET status = 'APPROVED', mccr_approved_at = NOW(), mccr_approved_by = $1, "updatedAt" = NOW() WHERE id = $2 RETURNING *`, [approvedBy || "Attending physician", id]);
     const updatedCase = updatedRows[0];
 
     await recordAudit({ organizationId: existingCase.organizationId, caseId: id, targetType: "CASE", targetId: id, action: "CASE_APPROVED", detail: `Approved by ${approvedBy || "Attending physician"}.`, metadata: { assetsGeneration: "queued_for_explicit_action" } });

@@ -11,7 +11,7 @@ import crypto from "node:crypto";
  * the case.
  */
 async function snapshotCurrentVersion(assetId: string, content: any, version: number, changeType: string) {
-  await query(`INSERT INTO macula.macula_asset_versions (id, version, content, "changeType", "assetId") VALUES ($1, $2, $3::jsonb, $4, $5)`, [crypto.randomUUID(), version, JSON.stringify(content), changeType, assetId]);
+  await query(`INSERT INTO macula.asset_versions (id, version, content, "changeType", "assetId") VALUES ($1, $2, $3::jsonb, $4, $5)`, [crypto.randomUUID(), version, JSON.stringify(content), changeType, assetId]);
 }
 
 export async function PATCH(
@@ -27,7 +27,7 @@ export async function PATCH(
       editedBy?: string;
     };
 
-    const assetResult = await query<any>(`SELECT ga.*, c."organizationId", c."masterRecord", o.name AS organization_name, o."brandingHex" AS branding_hex, o."defaultDisclaimer", o."logoUrl" FROM macula.macula_generated_assets ga JOIN macula.macula_cases c ON c.id = ga."caseId" JOIN macula.macula_organizations o ON o.id = c."organizationId" WHERE ga.id = $1 LIMIT 1`, [assetId]);
+    const assetResult = await query<any>(`SELECT ga.*, c."organizationId", c."masterRecord", o.name AS organization_name, o."brandingHex" AS branding_hex, o."defaultDisclaimer", o."logoUrl" FROM macula.generated_assets ga JOIN macula.cases c ON c.id = ga."caseId" JOIN macula.organizations o ON o.id = c."organizationId" WHERE ga.id = $1 LIMIT 1`, [assetId]);
     const row = assetResult.rows[0];
     const asset = row ? { ...row, case: { organizationId: row.organizationId, masterRecord: row.masterRecord, organization: { name: row.organization_name, brandingHex: row.branding_hex, defaultDisclaimer: row.defaultDisclaimer, logoUrl: row.logoUrl } } } : null;
     if (!asset) {
@@ -36,7 +36,7 @@ export async function PATCH(
     await requireOrganizationAccess(asset.organizationId);
 
     if (action === "approve") {
-      const { rows } = await query(`UPDATE macula.macula_generated_assets SET status = 'APPROVED', "updatedAt" = NOW() WHERE id = $1 RETURNING *`, [assetId]);
+      const { rows } = await query(`UPDATE macula.generated_assets SET status = 'APPROVED', "updatedAt" = NOW() WHERE id = $1 RETURNING *`, [assetId]);
       const updated = rows[0];
       return NextResponse.json({ success: true, asset: updated });
     }
@@ -46,7 +46,7 @@ export async function PATCH(
         return NextResponse.json({ error: "content is required for manual_edit" }, { status: 400 });
       }
       await snapshotCurrentVersion(asset.id, asset.content, asset.version, "manual_edit");
-      const { rows } = await query(`UPDATE macula.macula_generated_assets SET content = $1::jsonb, version = $2, status = 'DRAFT', "updatedAt" = NOW() WHERE id = $3 RETURNING *`, [JSON.stringify(content), asset.version + 1, assetId]);
+      const { rows } = await query(`UPDATE macula.generated_assets SET content = $1::jsonb, version = $2, status = 'DRAFT', "updatedAt" = NOW() WHERE id = $3 RETURNING *`, [JSON.stringify(content), asset.version + 1, assetId]);
       const updated = rows[0];
       return NextResponse.json({ success: true, asset: updated });
     }
@@ -109,7 +109,7 @@ export async function GET(
 ) {
   try {
     const { assetId } = await props.params;
-    const { rows } = await query<any>(`SELECT ga.*, c."organizationId", COALESCE((SELECT json_agg(av ORDER BY av.version DESC) FROM macula.macula_asset_versions av WHERE av."assetId" = ga.id), '[]') AS versions FROM macula.macula_generated_assets ga JOIN macula.macula_cases c ON c.id = ga."caseId" WHERE ga.id = $1 GROUP BY ga.id, c."organizationId" LIMIT 1`, [assetId]);
+    const { rows } = await query<any>(`SELECT ga.*, c."organizationId", COALESCE((SELECT json_agg(av ORDER BY av.version DESC) FROM macula.asset_versions av WHERE av."assetId" = ga.id), '[]') AS versions FROM macula.generated_assets ga JOIN macula.cases c ON c.id = ga."caseId" WHERE ga.id = $1 GROUP BY ga.id, c."organizationId" LIMIT 1`, [assetId]);
     const asset = rows[0];
     if (!asset) return NextResponse.json({ error: "Asset not found" }, { status: 404 });
     await requireOrganizationAccess(asset.organizationId);

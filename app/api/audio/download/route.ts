@@ -13,7 +13,7 @@ export async function GET(req: Request) {
     }
 
     const recording = (await query<{ r2Key: string; mimeType: string; organizationId: string }>(
-      `SELECT "r2Key", "mimeType", "organizationId" FROM macula.macula_audio_recordings WHERE id = $1 LIMIT 1`,
+      `SELECT "r2Key", "mimeType", "organizationId" FROM macula.audio_recordings WHERE id = $1 LIMIT 1`,
       [recordingId],
     )).rows[0];
     if (!recording) {

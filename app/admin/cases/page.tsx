@@ -16,6 +16,8 @@ import {
   FileText,
   Search,
   RefreshCw,
+  ChevronLeft,
+  ChevronRight,
   ShieldCheck,
   Mic,
   Calendar,
@@ -92,6 +94,9 @@ export default function AdminCasesPage() {
   const [selectedStatus, setSelectedStatus] = useState<string>("ALL");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const pageSize = 10;
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
 
@@ -115,7 +120,7 @@ export default function AdminCasesPage() {
   const [isLoadingPlayback, setIsLoadingPlayback] = useState(false);
 
   const loadCases = async () => {
-    const cacheKey = `macula:case-list:${selectedOrgId}:${selectedStatus}:${fromDate}:${toDate}`;
+    const cacheKey = `macula:case-list:${selectedOrgId}:${selectedStatus}:${fromDate}:${toDate}:${currentPage}`;
     let servedCache = false;
     try {
       const cached = sessionStorage.getItem(cacheKey);
@@ -146,13 +151,14 @@ export default function AdminCasesPage() {
     }
     setIsLoading(!servedCache);
     try {
-      let url = `/api/admin/cases?status=${selectedStatus}&pageSize=10`;
+      let url = `/api/admin/cases?status=${selectedStatus}&page=${currentPage}&pageSize=${pageSize}`;
       if (selectedOrgId !== "ALL") url += `&orgId=${selectedOrgId}`;
       if (fromDate) url += `&fromDate=${fromDate}`;
       if (toDate) url += `&toDate=${toDate}`;
       try {
         const data = await fetchJsonOnce<any>(url, { cache: "no-store" });
         setCases(data.cases || []);
+        setTotalPages(Math.max(1, data.pagination?.totalPages || 1));
         setOrganizations(data.organizations || []);
         try {
           sessionStorage.setItem(
@@ -179,6 +185,10 @@ export default function AdminCasesPage() {
 
   useEffect(() => {
     loadCases();
+  }, [selectedOrgId, selectedStatus, fromDate, toDate, currentPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
   }, [selectedOrgId, selectedStatus, fromDate, toDate]);
 
   const filteredCases = useMemo(() => {
@@ -810,6 +820,30 @@ export default function AdminCasesPage() {
               )}
             </tbody>
           </table>
+        </div>
+        <div className="flex flex-col gap-3 text-xs text-muted sm:flex-row sm:items-center sm:justify-between">
+          <span>
+            Page <strong className="text-ink">{currentPage}</strong> of{" "}
+            <strong className="text-ink">{totalPages}</strong>
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+              disabled={currentPage === 1 || isLoading}
+              className="inline-flex items-center gap-1 rounded border border-line bg-surface px-3 py-1.5 font-semibold text-ink hover:border-pine disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" /> Previous
+            </button>
+            <button
+              type="button"
+              onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+              disabled={currentPage >= totalPages || isLoading}
+              className="inline-flex items-center gap-1 rounded border border-line bg-surface px-3 py-1.5 font-semibold text-ink hover:border-pine disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Next <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
       </main>
 

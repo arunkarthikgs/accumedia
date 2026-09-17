@@ -420,14 +420,16 @@ export default function OrgSettingsPage() {
             {planMessage && <p className="text-xs text-muted">{planMessage}</p>}
           </div>
         )}
-        <button
-          type="submit"
-          disabled={!org}
-          className="inline-flex items-center gap-1.5 rounded bg-pine px-4 py-2 text-xs font-semibold text-white disabled:opacity-50"
-        >
-          <Save className="h-3.5 w-3.5" />
-          {saveButtonLabel[activeTab]}
-        </button>
+        {activeTab !== "commercial" && (
+          <button
+            type="submit"
+            disabled={!org}
+            className="inline-flex items-center gap-1.5 rounded bg-pine px-4 py-2 text-xs font-semibold text-white disabled:opacity-50"
+          >
+            <Save className="h-3.5 w-3.5" />
+            {saveButtonLabel[activeTab]}
+          </button>
+        )}
         {message && <p className="text-xs text-muted">{message}</p>}
       </form>
     </div>

@@ -9,9 +9,11 @@ export async function GET(req: Request) {
   try {
     const user = await requireAuthenticatedUser();
     const requestedOrganizationId = new URL(req.url).searchParams.get("organizationId");
-    const scopeId = await requireOrganizationScope(
-      requestedOrganizationId || (user?.isSuperAdmin ? null : user?.organizationId) || null,
-    );
+    const scopeId = user?.isSuperAdmin && !requestedOrganizationId
+      ? null
+      : await requireOrganizationScope(
+        requestedOrganizationId || user?.organizationId || null,
+      );
     const { rows: userRows } = await timeDbOperation("user list", () => query<{
       id: string;
       name: string;

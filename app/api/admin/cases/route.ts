@@ -23,7 +23,11 @@ export async function GET(req: Request) {
       : user?.isSuperAdmin
         ? null
         : user?.organizationId;
-    const scopedOrgId = user ? await requireOrganizationScope(requestedOrgId) : null;
+    const scopedOrgId = user?.isSuperAdmin && requestedOrgId === null
+      ? null
+      : user
+        ? await requireOrganizationScope(requestedOrgId)
+        : null;
     values.push(scopedOrgId); filters.push(`c."organizationId" = COALESCE($${values.length}::text, c."organizationId")`);
     if (status && status !== "ALL") { values.push(status); filters.push(`c.status = $${values.length}`); }
     if (fromDate) { values.push(new Date(`${fromDate}T00:00:00.000Z`)); filters.push(`c."createdAt" >= $${values.length}`); }

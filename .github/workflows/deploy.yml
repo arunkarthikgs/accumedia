@@ -40,7 +40,7 @@ jobs:
           echo "CLOUDFLARE_ACCOUNT_ID=$account_id" >> "$GITHUB_ENV"
 
       - name: Deploy renderer Worker and Container
-        run: npx wrangler deploy --config video-render-cloudflare/wrangler.jsonc
+        run: npx wrangler deploy --config video-render-cloudflare/wrangler.jsonc --containers-rollout=immediate
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

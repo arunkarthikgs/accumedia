@@ -275,7 +275,47 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: "Primary brand colour must be a valid hex value, such as #0f766e." }, { status: 400 });
     }
     await requireOrganizationAccess(body.organizationId);
-    const { rows } = await query(`UPDATE macula.organizations SET name=$1, "brandingHex"=$2, "logoUrl"=$3, "brandFont"=$4, "brandTagline"=$5, location=$6, "websiteUrl"=$7, "linkedinUrl"=$8, "facebookUrl"=$9, "instagramUrl"=$10, "xUrl"=$11, "youtubeUrl"=$12, "contactEmail"=$13, "contactPhone"=$14, "preferredTone"=$15, "callToAction"=$16, "hospitalPhotoUrls"=$17::jsonb, "preferredAsrModel"=COALESCE($18, "preferredAsrModel"), "customSystemPrompt"=$19, "defaultDisclaimer"=$20, "updatedAt"=NOW() WHERE id=$21 RETURNING *`, [body.name?.trim(), normalizeBrandColor(body.brandingHex), body.logoUrl?.trim() || null, body.brandFont?.trim() || "Arial", body.brandTagline?.trim() || null, body.location?.trim() || null, body.websiteUrl?.trim() || null, body.linkedinUrl?.trim() || null, body.facebookUrl?.trim() || null, body.instagramUrl?.trim() || null, body.xUrl?.trim() || null, body.youtubeUrl?.trim() || null, body.contactEmail?.trim() || null, body.contactPhone?.trim() || null, body.preferredTone?.trim() || null, body.callToAction?.trim() || null, JSON.stringify(Array.isArray(body.hospitalPhotoUrls) ? body.hospitalPhotoUrls : null), body.preferredAsrModel?.trim() || null, body.customSystemPrompt?.trim() || null, body.defaultDisclaimer?.trim(), body.organizationId]);
+    const assignments: string[] = [];
+    const values: unknown[] = [];
+    const hasOwn = (key: string) => Object.prototype.hasOwnProperty.call(body, key);
+    const setText = (column: string, key: string, fallback?: string) => {
+      if (!hasOwn(key)) return;
+      values.push(typeof body[key] === "string" ? body[key].trim() || fallback || null : fallback || null);
+      assignments.push(`${column}=$${values.length}`);
+    };
+    const setJson = (column: string, key: string) => {
+      if (!hasOwn(key)) return;
+      values.push(JSON.stringify(Array.isArray(body[key]) ? body[key] : null));
+      assignments.push(`${column}=$${values.length}::jsonb`);
+    };
+
+    setText("name", "name");
+    if (hasOwn("brandingHex")) {
+      values.push(normalizeBrandColor(body.brandingHex));
+      assignments.push(`"brandingHex"=$${values.length}`);
+    }
+    setText('"logoUrl"', "logoUrl");
+    setText('"brandFont"', "brandFont", "Arial");
+    setText('"brandTagline"', "brandTagline");
+    setText("location", "location");
+    setText('"websiteUrl"', "websiteUrl");
+    setText('"linkedinUrl"', "linkedinUrl");
+    setText('"facebookUrl"', "facebookUrl");
+    setText('"instagramUrl"', "instagramUrl");
+    setText('"xUrl"', "xUrl");
+    setText('"youtubeUrl"', "youtubeUrl");
+    setText('"contactEmail"', "contactEmail");
+    setText('"contactPhone"', "contactPhone");
+    setText('"preferredTone"', "preferredTone");
+    setText('"callToAction"', "callToAction");
+    setJson('"hospitalPhotoUrls"', "hospitalPhotoUrls");
+    if (user?.isSuperAdmin) setText('"preferredAsrModel"', "preferredAsrModel", "whisper-1");
+    setText('"customSystemPrompt"', "customSystemPrompt");
+    setText('"defaultDisclaimer"', "defaultDisclaimer");
+
+    if (assignments.length === 0) return NextResponse.json({ error: "No organization fields were provided." }, { status: 400 });
+    values.push(body.organizationId);
+    const { rows } = await query(`UPDATE macula.organizations SET ${assignments.join(", ")}, "updatedAt"=NOW() WHERE id=$${values.length} RETURNING *`, values);
     const updated = rows[0];
     organizationCache.clear();
     return NextResponse.json({ success: true, organization: updated });

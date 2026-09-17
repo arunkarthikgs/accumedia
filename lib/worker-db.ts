@@ -1,5 +1,5 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
-import { Pool, type QueryResultRow } from "pg";
+import { Pool, type PoolClient, type QueryResultRow } from "pg";
 
 let localPool: Pool | undefined;
 const requestPools = new WeakMap<object, Pool>();
@@ -76,4 +76,14 @@ export function query<T extends QueryResultRow>(text: string, values: unknown[] 
 
 export function queryWithTimeout<T extends QueryResultRow>(text: string, values: unknown[] = [], timeoutMs = 1500) {
   return (getPool() as any).query({ text, values, query_timeout: timeoutMs }) as Promise<{ rows: T[] }>;
+}
+
+export async function withDatabaseClient<T>(callback: (client: PoolClient) => Promise<T>) {
+  const activePool = getPool();
+  const client = await activePool.connect();
+  try {
+    return await callback(client);
+  } finally {
+    client.release();
+  }
 }

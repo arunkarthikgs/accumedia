@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { query } from "@/lib/worker-db";
+import { query, withDatabaseClient } from "@/lib/worker-db";
 import { createOpenAIChatCompletion } from "@/lib/openai-fetch";
 import { validateGeneratedContent } from "./content-validation";
 import { logAIUsage } from "./ai-usage";
@@ -152,8 +152,9 @@ export async function generateChannelAsset({
   const content = outputType === "VIDEO_SCRIPT" ? { script: raw } : safeJsonParse(raw);
   const validation = validateGeneratedContent(content, channel);
 
-  const { rows } = await query(`INSERT INTO macula.generated_assets (id, "caseId", "channelKey", "channelName", "outputType", variant, content, status, "validationWarnings", "validationWordCount", "validationCharacterCount", "validationDurationSeconds", version, "promptTemplateId", "promptTemplateVersion", "modelUsed") VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9::jsonb, $10, $11, $12, 1, $13, $14, 'gpt-4o') RETURNING *`, [crypto.randomUUID(), caseId, channel.channelKey, channel.displayName, outputType, channel.durationLabel || null, JSON.stringify(content), validation.valid ? "DRAFT" : "REVIEW", JSON.stringify(validation.warnings || []), validation.wordCount, validation.characterCount, validation.estimatedDurationSeconds, channel.id, promptTemplateVersion]);
-  return rows[0];
+  const { rows } = await query(`INSERT INTO macula.generated_assets (id, "caseId", "channelKey", "channelName", "outputType", variant, content, status, "validationWarnings", "validationWordCount", "validationCharacterCount", "validationDurationSeconds", version, "promptTemplateId", "promptTemplateVersion", "modelUsed") VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9::jsonb, $10, $11, $12, 1, $13, $14, 'gpt-4o') ON CONFLICT ("caseId", "channelKey") DO NOTHING RETURNING *`, [crypto.randomUUID(), caseId, channel.channelKey, channel.displayName, outputType, channel.durationLabel || null, JSON.stringify(content), validation.valid ? "DRAFT" : "REVIEW", JSON.stringify(validation.warnings || []), validation.wordCount, validation.characterCount, validation.estimatedDurationSeconds, channel.id, promptTemplateVersion]);
+  if (rows[0]) return rows[0];
+  return (await query(`SELECT * FROM macula.generated_assets WHERE "caseId" = $1 AND "channelKey" = $2 LIMIT 1`, [caseId, channel.channelKey])).rows[0];
 }
 
 function safeJsonParse(raw: string) {
@@ -173,6 +174,11 @@ function safeJsonParse(raw: string) {
 export async function runAdaptationEngine(caseId: string, loadedCase?: any) {
   const kase = loadedCase || (await query<any>(`SELECT c.*, row_to_json(o) AS organization FROM macula.cases c JOIN macula.organizations o ON o.id = c."organizationId" WHERE c.id = $1 LIMIT 1`, [caseId])).rows[0];
   if (!kase) throw new Error("Case not found.");
+
+  return withDatabaseClient(async (client) => {
+    const lock = (await client.query<{ acquired: boolean }>(`SELECT pg_try_advisory_lock(hashtextextended($1, 0)) AS acquired`, [`publishing-assets:${caseId}`])).rows[0];
+    if (!lock?.acquired) return [];
+    try {
 
   const channelResult = await query<any>(`SELECT * FROM macula.channel_definitions WHERE "isActive" = TRUE AND "outputType" IS NOT NULL AND ("organizationId" = $1 OR "organizationId" IS NULL) ORDER BY ("organizationId" IS NOT NULL) DESC`, [kase.organizationId]);
   const existingAssetResult = await query<{ channelKey: string }>(`SELECT "channelKey" FROM macula.generated_assets WHERE "caseId" = $1`, [caseId]);
@@ -200,7 +206,7 @@ export async function runAdaptationEngine(caseId: string, loadedCase?: any) {
   );
   await assertPublishingGenerationQuota(kase.organizationId, missingChannels.length, estimatedTokens);
 
-  return mapWithConcurrency(missingChannels, 3, (channel) =>
+  return await mapWithConcurrency(missingChannels, 3, (channel) =>
     generateChannelAsset({
       caseId,
       masterRecord: kase.masterRecord as Record<string, any>,
@@ -211,6 +217,10 @@ export async function runAdaptationEngine(caseId: string, loadedCase?: any) {
       generationContext,
     })
   );
+    } finally {
+      await client.query(`SELECT pg_advisory_unlock(hashtextextended($1, 0))`, [`publishing-assets:${caseId}`]).catch(() => undefined);
+    }
+  });
 }
 
 async function mapWithConcurrency<T, R>(items: T[], concurrency: number, mapper: (item: T) => Promise<R>) {

@@ -8,6 +8,7 @@ WORKDIR /app
 COPY video-render-service/package.json ./package.json
 RUN npm install
 COPY video-render-service/server.ts ./video-render-service/server.ts
+COPY video-render-service/image-renderer.ts ./video-render-service/image-renderer.ts
 COPY lib ./lib
 RUN npm run build
 

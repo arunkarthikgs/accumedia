@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireOrganizationAccess } from "@/lib/tenant-auth";
 import { recordAudit } from "@/lib/audit";
 import { query } from "@/lib/worker-db";
+import crypto from "node:crypto";
 
 export async function PATCH(
   req: Request,
@@ -57,10 +58,28 @@ export async function PATCH(
 
 /** Regenerate an AI-generated image in place (doctor-uploaded images can't be "regenerated" — delete + re-upload instead). */
 export async function POST(
-  req: Request,
+  _req: Request,
   props: { params: Promise<{ id: string; imageId: string }> }
 ) {
-  return NextResponse.json({ error: "Image regeneration requires an external image-processing worker." }, { status: 501 });
+  try {
+    const { id, imageId } = await props.params;
+    const existing = (await query<any>(
+      `SELECT ia.channel, ia."sourceType", c."organizationId" FROM macula.image_assets ia
+       JOIN macula.cases c ON c.id = ia."caseId" WHERE ia.id = $1 AND ia."caseId" = $2 LIMIT 1`,
+      [imageId, id]
+    )).rows[0];
+    if (!existing) return NextResponse.json({ error: "Image not found." }, { status: 404 });
+    await requireOrganizationAccess(existing.organizationId);
+    if (existing.sourceType !== "ai_generated") return NextResponse.json({ error: "Only AI-generated images can be regenerated." }, { status: 409 });
+    const jobId = crypto.randomUUID();
+    await query(
+      `INSERT INTO macula.image_generation_jobs (id, channel, status, "caseId", "organizationId") VALUES ($1, $2, 'QUEUED', $3, $4)`,
+      [jobId, existing.channel, id, existing.organizationId]
+    );
+    return NextResponse.json({ success: true, jobId, status: "QUEUED" }, { status: 202 });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message || "Unable to queue image regeneration." }, { status: 500 });
+  }
 }
 
 export async function DELETE(

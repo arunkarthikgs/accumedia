@@ -4,7 +4,7 @@ import type { NextRequest } from "next/server";
 export function middleware(request: NextRequest) {
   const authRequired = process.env.AUTH_REQUIRED !== "false";
   if (!authRequired) return NextResponse.next();
-  if (request.nextUrl.pathname.startsWith("/api/auth") || request.nextUrl.pathname === "/login" || request.nextUrl.pathname === "/icon.png" || request.nextUrl.pathname.startsWith("/_next") || request.nextUrl.pathname === "/api/internal/video-render/callback") {
+  if (request.nextUrl.pathname.startsWith("/api/auth") || request.nextUrl.pathname === "/login" || request.nextUrl.pathname === "/icon.png" || request.nextUrl.pathname.startsWith("/_next") || request.nextUrl.pathname === "/api/internal/video-render/callback" || request.nextUrl.pathname === "/api/internal/image-render/callback") {
     return NextResponse.next();
   }
   if (!request.cookies.get("macula_session")) {

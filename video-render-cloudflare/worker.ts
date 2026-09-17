@@ -11,8 +11,8 @@ export default {
   async fetch(request: Request, environment: typeof env) {
     const url = new URL(request.url);
     if (url.pathname === "/health") return new Response("ok");
-    if (url.pathname !== "/jobs") return new Response("Not found", { status: 404 });
-    const container = getContainer(environment.VIDEO_RENDERER, "video-renderer-v6");
+    if (url.pathname !== "/jobs" && url.pathname !== "/image-jobs") return new Response("Not found", { status: 404 });
+    const container = getContainer(environment.VIDEO_RENDERER, "video-renderer-v7");
     await container.startAndWaitForPorts({
       ports: [8080],
       startOptions: {
@@ -29,7 +29,7 @@ export default {
       },
       cancellationOptions: { portReadyTimeoutMS: 60_000 },
     });
-    const containerRequest = new Request("http://container/jobs", request);
+    const containerRequest = new Request(`http://container${url.pathname}`, request);
     return container.fetch(containerRequest);
   },
 };

@@ -391,6 +391,7 @@ model GeneratedAsset {
   safetyFlags SafetyFlag[]
   publicationJobs PublicationJob[]
 
+  @@unique([caseId, channelKey])
   @@index([caseId])
   @@schema("macula")
   @@map("generated_assets")

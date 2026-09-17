@@ -1,6 +1,7 @@
 import express from "express";
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { renderClinicalVideo } from "../lib/video-renderer.js";
+import { renderClinicalImage } from "./image-renderer.js";
 
 const app = express();
 app.use(express.json({ limit: "32kb" }));
@@ -34,12 +35,60 @@ app.post("/jobs", async (req, res) => {
   return res.status(202).json({ jobId: job.jobId, status: "PROCESSING" });
 });
 
+type ImageJob = {
+  jobId: string; caseId: string; organizationId: string; channel: string;
+  prompt: string; size: "1024x1024" | "1536x1024" | "1024x1536"; safetyPrompt: string;
+  title: string; accent: string; logoUrl?: string; tagline?: string; disclaimer?: string; font?: string;
+  generationPromptTemplateId?: string; generationPromptVersion?: number;
+  safetyPromptTemplateId?: string; safetyPromptVersion?: number; callbackUrl: string;
+};
+
+app.post("/image-jobs", async (req, res) => {
+  if (!authorized(req)) return res.status(401).json({ error: "Unauthorized." });
+  const job = req.body as ImageJob;
+  if (!job.jobId || !job.caseId || !job.organizationId || !job.channel || !job.prompt || !job.safetyPrompt || !job.callbackUrl) {
+    return res.status(400).json({ error: "Invalid image generation job." });
+  }
+  await imageCallback(job, { status: "PROCESSING" });
+  void processImageJob(job);
+  return res.status(202).json({ jobId: job.jobId, status: "PROCESSING" });
+});
+
 async function callback(job: { callbackUrl: string; assetId: string }, body: Record<string, unknown>) {
   await fetch(job.callbackUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-Render-Secret": callbackSecret },
     body: JSON.stringify({ assetId: job.assetId, ...body }),
   });
+}
+
+async function imageCallback(job: ImageJob, body: Record<string, unknown>) {
+  const response = await fetch(job.callbackUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Render-Secret": callbackSecret },
+    body: JSON.stringify({ jobId: job.jobId, caseId: job.caseId, organizationId: job.organizationId, channel: job.channel, ...body }),
+  });
+  if (!response.ok) throw new Error(`Image callback failed (${response.status}): ${(await response.text()).slice(0, 180)}`);
+}
+
+async function processImageJob(job: ImageJob) {
+  try {
+    const rendered = await renderClinicalImage(job);
+    const r2Key = `${job.organizationId}/images/${job.caseId}/${job.channel}-${job.jobId}.png`;
+    await r2.send(new PutObjectCommand({ Bucket: bucket, Key: r2Key, Body: rendered.buffer, ContentType: "image/png" }));
+    await imageCallback(job, {
+      status: "COMPLETED",
+      r2Key,
+      faceDetected: rendered.faceDetected,
+      findings: rendered.findings,
+      generationPromptTemplateId: job.generationPromptTemplateId,
+      generationPromptVersion: job.generationPromptVersion,
+      safetyPromptTemplateId: job.safetyPromptTemplateId,
+      safetyPromptVersion: job.safetyPromptVersion,
+    });
+  } catch (error) {
+    await imageCallback(job, { status: "FAILED", error: error instanceof Error ? error.message : String(error) }).catch(() => undefined);
+  }
 }
 
 async function processJob(job: { jobId: string; caseId: string; assetId: string; script: string; title: string; accent: string; disclaimer?: string; logoUrl?: string; callbackUrl: string }, processingAlreadyReported = false) {

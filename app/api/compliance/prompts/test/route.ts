@@ -1,10 +1,6 @@
 import { NextResponse } from "next/server";
-import OpenAI from "openai";
 import { requirePermission } from "@/lib/auth";
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import { createOpenAIChatCompletion } from "@/lib/openai-fetch";
 
 export async function POST(req: Request) {
   try {
@@ -20,7 +16,7 @@ export async function POST(req: Request) {
 
     const startTime = Date.now();
 
-    const completion = await openai.chat.completions.create({
+    const completion = await createOpenAIChatCompletion({
       model: "gpt-4o",
       temperature: Number(temperature) || 0.1,
       messages: [
@@ -43,7 +39,7 @@ export async function POST(req: Request) {
       output,
       executionTimeMs,
       tokensUsed: completion.usage?.total_tokens || 0,
-      model: completion.model,
+      model: "gpt-4o",
     });
   } catch (error: any) {
     console.error("Prompt test execution failed:", error);

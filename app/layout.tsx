@@ -34,7 +34,7 @@ const manrope = Manrope({
 });
 
 export const metadata: Metadata = {
-  title: "Macula Healthcare | Clinical Intelligence & Governance",
+  title: "Accumedia | Clinical Intelligence & Governance",
   description:
     "Enterprise clinical transcription, master synthesis, and DPDP/NMC compliance supervision platform.",
 };
@@ -76,7 +76,7 @@ export default async function RootLayout({
           <div className="mx-auto max-w-7xl px-6 flex flex-col sm:flex-row items-center justify-between gap-2">
             <div className="flex items-center gap-1.5">
               <FileCheck className="h-3.5 w-3.5 text-pine" />
-              <span>Macula Clinical Intelligence Platform &copy; {new Date().getFullYear()}</span>
+              <span>Accumedia Clinical Intelligence Platform &copy; {new Date().getFullYear()}</span>
             </div>
             <div className="flex items-center gap-4 text-[11px]">
               <span>NMC Code of Medical Ethics (2023)</span>

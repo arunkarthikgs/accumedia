@@ -54,7 +54,7 @@ put_secret() {
 RENDERER_CONFIG=video-render-cloudflare/wrangler.jsonc
 APP_CONFIG=wrangler.toml
 RENDERER_URL=$(read_env_value VIDEO_RENDER_SERVICE_URL)
-if [ -z "$RENDERER_URL" ]; then RENDERER_URL=https://macula-video-renderer.arunkarthikgs.workers.dev; fi
+if [ -z "$RENDERER_URL" ]; then RENDERER_URL=https://accumedia-video-renderer.arunkarthikgs.workers.dev; fi
 
 printf '%s\n' "Configuring provider and R2 secrets on the renderer Worker..."
 put_secret OPENAI_API_KEY "$OPENAI_API_KEY" "$RENDERER_CONFIG"

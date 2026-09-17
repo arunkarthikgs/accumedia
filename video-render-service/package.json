@@ -1,5 +1,5 @@
 {
-  "name": "macula-video-render-service",
+  "name": "accumedia-video-render-service",
   "private": true,
   "type": "module",
   "scripts": { "build": "tsc --outDir dist --module NodeNext --moduleResolution NodeNext --target ES2022 --esModuleInterop --skipLibCheck --types node video-render-service/server.ts lib/video-renderer.ts", "start": "node dist/video-render-service/server.js" },

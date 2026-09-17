@@ -324,7 +324,7 @@ export default function AssetActionsPanel({
             <span className="flex h-7 w-7 items-center justify-center rounded-full bg-pine text-white">
               M
             </span>
-            <span>Macula Healthcare</span>
+            <span>Accumedia</span>
             <span className="ml-auto text-[10px] text-muted">
               {previewPlatform === "youtube" ? "Video" : "Draft"}
             </span>

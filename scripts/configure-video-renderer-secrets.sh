@@ -47,7 +47,7 @@ done
 SERVICE_SECRET=$(read_env_value VIDEO_RENDER_SERVICE_SECRET)
 CALLBACK_SECRET=$(read_env_value VIDEO_RENDER_CALLBACK_SECRET)
 RENDERER_URL=$(read_env_value VIDEO_RENDER_SERVICE_URL)
-if [ -z "$RENDERER_URL" ]; then RENDERER_URL=https://macula-video-renderer.arunkarthikgs.workers.dev; fi
+if [ -z "$RENDERER_URL" ]; then RENDERER_URL=https://accumedia-video-renderer.arunkarthikgs.workers.dev; fi
 
 if [ -z "$SERVICE_SECRET" ]; then SERVICE_SECRET=$(openssl rand -hex 32); fi
 if [ -z "$CALLBACK_SECRET" ]; then CALLBACK_SECRET=$(openssl rand -hex 32); fi

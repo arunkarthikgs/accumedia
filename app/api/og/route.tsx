@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <div style={{ width: "16px", height: "16px", borderRadius: "50%", backgroundColor: "#059669" }} />
           <span style={{ fontSize: 20, fontWeight: 700, color: "#10b981", letterSpacing: "0.05em" }}>
-            MACULA HEALTHCARE • CLINICAL SPOTLIGHT
+            ACCUMEDIA • CLINICAL SPOTLIGHT
           </span>
         </div>
         <div style={{ fontSize: 48, fontWeight: 800, lineHeight: 1.2, color: "#f8fafc" }}>

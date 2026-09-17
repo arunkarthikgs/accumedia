@@ -169,7 +169,7 @@ export default function AppNavigation({ children }: { children: React.ReactNode 
         <header className="lg:hidden bg-surface text-ink border-b border-line px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="h-8 w-8 rounded-lg bg-pine text-white flex items-center justify-center font-bold text-sm">M</div>
-            <span className="font-bold text-xs tracking-tight">MACULA HEALTHCARE</span>
+            <span className="font-bold text-xs tracking-tight">ACCUMEDIA</span>
           </div>
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}

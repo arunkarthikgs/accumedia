@@ -1,6 +1,6 @@
 # Cloudflare Video Renderer
 
-This is the Cloudflare Containers deployment of the Macula ffmpeg renderer. It uses the same `POST /jobs` contract as the EC2-compatible service in `video-render-service`.
+This is the Cloudflare Containers deployment of the Accumedia ffmpeg renderer. It uses the same `POST /jobs` contract as the EC2-compatible service in `video-render-service`.
 
 ## Deploy
 
@@ -34,7 +34,7 @@ npx wrangler secret put VIDEO_RENDER_SERVICE_SECRET --config wrangler.toml
 npx wrangler secret put VIDEO_RENDER_CALLBACK_SECRET --config wrangler.toml
 ```
 
-Set `VIDEO_RENDER_SERVICE_URL` to the deployed `macula-video-renderer` Worker URL. Use the same service and callback secret values on both Workers.
+Set `VIDEO_RENDER_SERVICE_URL` to the deployed `accumedia-video-renderer` Worker URL. Use the same service and callback secret values on both Workers.
 
 ## Local development
 

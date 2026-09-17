@@ -26,8 +26,8 @@ Configure the application Worker with:
 From the repository root:
 
 ```sh
-docker build -f video-render-service/Dockerfile -t macula-video-renderer .
-docker run --rm -p 8080:8080 --env-file video-render-service/.env macula-video-renderer
+docker build -f video-render-service/Dockerfile -t accumedia-video-renderer .
+docker run --rm -p 8080:8080 --env-file video-render-service/.env accumedia-video-renderer
 ```
 
 The service accepts `POST /jobs`, returns `202`, renders asynchronously, uploads the MP4 to R2, and calls the Worker callback with `READY` or `FAILED`.

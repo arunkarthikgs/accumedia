@@ -4,7 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Macula Healthcare | Clinical Compliance & Synthesis",
+  title: "Accumedia | Clinical Compliance & Synthesis",
   description: "NMC & DPDP Compliant Clinical Automation for Indian Hospitals",
 };
 

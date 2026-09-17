@@ -56,7 +56,7 @@ export default function DashboardExample() {
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center text-white font-medium text-sm">M</div>
           <div>
-            <p className="font-medium text-sm">Macula Healthcare</p>
+            <p className="font-medium text-sm">Accumedia</p>
             <p className="text-xs text-slate-400">Sunrise Eye Hospital</p>
           </div>
         </div>

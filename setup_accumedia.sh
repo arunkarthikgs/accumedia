@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-PROJECT_NAME="macula-healthcare"
+PROJECT_NAME="accumedia"
 
 echo "Initializing complete deployment package for ${PROJECT_NAME}..."
 
@@ -27,7 +27,7 @@ mkdir -p app/api/settings/roles/matrix
 
 cat << 'EOF' > package.json
 {
-  "name": "macula-healthcare",
+  "name": "accumedia",
   "version": "1.0.0",
   "private": true,
   "scripts": {
@@ -101,7 +101,7 @@ cat << 'EOF' > tsconfig.json
 EOF
 
 cat << 'EOF' > wrangler.toml
-name = "macula-healthcare"
+name = "accumedia"
 main = ".open-next/worker.js"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
@@ -964,7 +964,7 @@ import { getCurrentUser } from "@/lib/auth";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Macula Healthcare | Clinical Compliance & Synthesis",
+  title: "Accumedia | Clinical Compliance & Synthesis",
   description: "NMC & DPDP Compliant Clinical Automation for Indian Hospitals",
 };
 

@@ -14,7 +14,6 @@ import {
   Terminal,
   RefreshCw,
   Sparkles,
-  Sliders,
   Layers,
   History,
 } from "lucide-react";
@@ -82,15 +81,11 @@ export default function CompliancePromptsAdminPage() {
   const [selectedPromptKey, setSelectedPromptKey] = useState("MASTER_SYNTHESIS");
   const [editScope, setEditScope] = useState<"organization" | "global">("organization");
   const [canEditGlobal, setCanEditGlobal] = useState(false);
-  const [customSystemPrompt, setCustomSystemPrompt] = useState("");
-  const [defaultDisclaimer, setDefaultDisclaimer] = useState("");
-  const [preferredTone, setPreferredTone] = useState("");
-  const [callToAction, setCallToAction] = useState("");
   const [channels, setChannels] = useState<ChannelDefinition[]>([]);
   const [promptAuditTrail, setPromptAuditTrail] = useState<PromptAuditEvent[]>([]);
 
   // Testing Sandbox State
-  const [activeTab, setActiveTab] = useState<"governed" | "organization" | "channels">("governed");
+  const [activeTab, setActiveTab] = useState<"governed" | "channels">("governed");
   const [testInput, setTestInput] = useState(
     "Patient 45yo male presents with severe epigastric pain radiating to back since 6 hours. Hx of alcohol intake. BP 130/80, PR 102. Serum amylase 840, lipase 1200. USG abdomen shows bulky pancreas. Started on IV fluids, analgesics."
   );
@@ -105,7 +100,6 @@ export default function CompliancePromptsAdminPage() {
 
   const changeEditScope = (scope: "organization" | "global") => {
     setEditScope(scope);
-    if (scope === "global" && activeTab === "organization") setActiveTab("governed");
     setGovernedPrompts((current) => current.map((prompt) => ({
       ...prompt,
       content: scope === "global" ? prompt.globalContent : prompt.organizationContent || prompt.globalContent,
@@ -127,10 +121,6 @@ export default function CompliancePromptsAdminPage() {
       version: scope === "global" ? prompt.globalVersion : prompt.organizationVersion || prompt.globalVersion,
       source: scope === "global" || !prompt.organizationContent ? "global" : "organization",
     })));
-    setCustomSystemPrompt(data.customSystemPrompt || "");
-    setDefaultDisclaimer(data.defaultDisclaimer || "");
-    setPreferredTone(data.preferredTone || "");
-    setCallToAction(data.callToAction || "");
     setCanEditGlobal(Boolean(data.canEditGlobal));
     setChannels((data.channelDefinitions || []).map((channel: ChannelDefinition) => ({
       ...channel,
@@ -207,10 +197,6 @@ export default function CompliancePromptsAdminPage() {
         body: JSON.stringify({
           orgId: selectedOrgId,
           scope: editScope,
-          customSystemPrompt,
-          defaultDisclaimer,
-          preferredTone,
-          callToAction,
           governedPrompts: governedPrompts.map(({ promptKey, content, resetToGlobal }) => ({ promptKey, content, resetToGlobal })),
           channels: channels.map(({ resetToGlobal, ...channel }) => ({ ...channel, resetToGlobal })),
         }),
@@ -239,8 +225,7 @@ export default function CompliancePromptsAdminPage() {
     setTestStats(null);
 
     let activePrompt = governedPrompts.find((prompt) => prompt.promptKey === selectedPromptKey)?.content || "";
-    if (activeTab === "organization") activePrompt = `${customSystemPrompt}\n\nDisclaimer: ${defaultDisclaimer}\nTone: ${preferredTone}\nCall to action: ${callToAction}`;
-    else if (activeTab === "channels" && channels.length > 0) activePrompt = channels[0].systemPrompt;
+    if (activeTab === "channels" && channels.length > 0) activePrompt = channels[0].systemPrompt;
 
     try {
       const res = await fetch("/api/compliance/prompts/test", {
@@ -373,7 +358,6 @@ export default function CompliancePromptsAdminPage() {
           <div className="lg:col-span-7 space-y-4">
             <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xs">
               <button type="button" onClick={() => setActiveTab("governed")} className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold ${activeTab === "governed" ? "bg-teal-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}><Sparkles className="h-3.5 w-3.5" /> Governed AI Prompts ({governedPrompts.length})</button>
-              <button type="button" disabled={editScope === "global"} onClick={() => setActiveTab("organization")} className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold ${activeTab === "organization" ? "bg-teal-600 text-white" : "text-slate-600 hover:bg-slate-100"} disabled:cursor-not-allowed disabled:opacity-40`}><Sliders className="h-3.5 w-3.5" /> Publishing Settings</button>
               <button type="button" onClick={() => setActiveTab("channels")} className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold ${activeTab === "channels" ? "bg-teal-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}><Layers className="h-3.5 w-3.5" /> Channel Prompts ({channels.length})</button>
             </div>
 
@@ -392,15 +376,6 @@ export default function CompliancePromptsAdminPage() {
                     <span className="text-[11px] text-slate-500">History: {selectedGovernedPrompt.history.map((entry) => `v${entry.version} ${entry.source}`).join(" · ")}</span>
                     {editScope === "organization" && <button type="button" onClick={resetSelectedPrompt} className="flex items-center gap-1.5 rounded border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-teal-500"><RefreshCw className="h-3.5 w-3.5" /> Reset to global default</button>}
                   </div>
-                </div>
-              )}
-
-              {activeTab === "organization" && (
-                <div className="space-y-4">
-                  <div className="rounded border border-teal-200 bg-teal-50 p-3 text-xs text-teal-900"><strong>Used during:</strong> The synthesis addendum is appended during Master Clinical Record creation. Disclaimer, tone, and CTA are applied when publishing assets are generated.</div>
-                  <label className="block text-xs font-bold text-slate-800">Clinical synthesis addendum<textarea rows={7} value={customSystemPrompt} onChange={(event) => setCustomSystemPrompt(event.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-900 p-4 font-mono text-xs text-teal-300" /></label>
-                  <label className="block text-xs font-bold text-slate-800">Clinical disclaimer<textarea rows={4} value={defaultDisclaimer} onChange={(event) => setDefaultDisclaimer(event.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs" /></label>
-                  <div className="grid gap-4 sm:grid-cols-2"><label className="block text-xs font-bold text-slate-800">Publishing tone<input value={preferredTone} onChange={(event) => setPreferredTone(event.target.value)} className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-xs" /></label><label className="block text-xs font-bold text-slate-800">Default call to action<input value={callToAction} onChange={(event) => setCallToAction(event.target.value)} className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-xs" /></label></div>
                 </div>
               )}
 

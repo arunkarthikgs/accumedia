@@ -12,7 +12,7 @@ import { assertAssetQuota, assertPublishingGenerationQuota, assertTokenQuota } f
  * touching this code, but if systemPrompt is blank we fall back to these
  * defaults so every org gets the six required outputs out of the box.
  */
-const DEFAULT_PROMPTS: Record<string, string> = {
+export const DEFAULT_CHANNEL_PROMPTS: Record<string, string> = {
   VIDEO_SCRIPT: `Write a spoken video script a doctor can read on camera or use as a
 teleprompter, based only on the approved clinical record below.
 Structure: Hook -> Case/context -> Clinical challenge -> Decision -> Learning -> Takeaway.
@@ -82,7 +82,7 @@ function prepareChannelPrompt(
   generationContext: { platformCharacterLimit: number; seoKeywordSet: any }
 ) {
   const outputType = channel.outputType || "SEO_BLOG";
-  const basePrompt = channel.systemPrompt?.trim() || DEFAULT_PROMPTS[outputType];
+  const basePrompt = channel.systemPrompt?.trim() || DEFAULT_CHANNEL_PROMPTS[outputType];
   const systemPrompt = `${basePrompt}
 
 Never include anything listed under the record's confidentialityFlags or confidentiality_flags.

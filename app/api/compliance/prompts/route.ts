@@ -3,6 +3,7 @@ import { DEFAULT_CLINICAL_REFINER_PROMPT } from "@/lib/clinical-refiner";
 import { DEFAULT_IMAGE_GENERATION_PROMPT, DEFAULT_IMAGE_SAFETY_PROMPT } from "@/lib/image-prompts";
 import { MANDATORY_CLINICAL_SYNTHESIS_PROMPT } from "@/lib/prompts/clinical-synthesis";
 import { DEFAULT_SEO_KEYWORD_PROMPT } from "@/lib/seo-keyword-engine";
+import { DEFAULT_CHANNEL_PROMPTS } from "@/lib/content-engine";
 import { getResolvedAiPrompts } from "@/lib/ai-prompts";
 import { requirePermission } from "@/lib/auth";
 import { recordAudit } from "@/lib/audit";
@@ -34,7 +35,7 @@ export async function GET(req: Request) {
     const promptHistory = await query<any>(`SELECT apt.id, apt."promptKey", apt.content, apt.version, apt."isActive", apt."organizationId", apt."createdAt" FROM macula.ai_prompt_templates apt WHERE apt."organizationId" IS NULL OR apt."organizationId" = $1 ORDER BY apt."promptKey", apt.version DESC`, [orgId]);
     const { rows: channelRows } = await query<any>(`SELECT * FROM macula.channel_definitions WHERE "isActive" = TRUE AND "outputType" IS NOT NULL AND ("organizationId" IS NULL OR "organizationId" = $1) ORDER BY "channelKey", ("organizationId" IS NOT NULL) DESC`, [orgId]);
     const { rows: complianceRules } = await query(`SELECT * FROM macula.compliance_rules WHERE "organizationId" = $1 AND "isActive" = TRUE`, [orgId]);
-    const { rows: promptAuditTrail } = await query(`SELECT al.id, al.action, al."targetType", al."targetId", al.detail, al.metadata, al."createdAt", u.name AS "actorName" FROM macula.audit_logs al LEFT JOIN macula.users u ON u.id = al."actorId" WHERE al."organizationId" = $1 AND al."targetType" IN ('AI_PROMPT', 'CHANNEL_PROMPT', 'PROMPT_SETTINGS') ORDER BY al."createdAt" DESC LIMIT 50`, [orgId]);
+    const { rows: promptAuditTrail } = await query(`SELECT al.id, al.action, al."targetType", al."targetId", al.detail, al.metadata, al."createdAt", u.name AS "actorName" FROM macula.audit_logs al LEFT JOIN macula.users u ON u.id = al."actorId" WHERE al."organizationId" = $1 AND al."targetType" IN ('AI_PROMPT', 'CHANNEL_PROMPT') ORDER BY al."createdAt" DESC LIMIT 50`, [orgId]);
     const fallbackPrompts: Record<string, string> = {
       MASTER_SYNTHESIS: MANDATORY_CLINICAL_SYNTHESIS_PROMPT,
       SEO_KEYWORDS: DEFAULT_SEO_KEYWORD_PROMPT,
@@ -65,27 +66,25 @@ export async function GET(req: Request) {
     const organizationChannels = new Map(channelRows.filter((channel: any) => channel.organizationId === orgId).map((channel: any) => [channel.channelKey, channel]));
     const effectiveChannels = new Map<string, any>();
     for (const channel of channelRows) if (!effectiveChannels.has(channel.channelKey)) effectiveChannels.set(channel.channelKey, channel);
-    const channelDefinitions = Array.from(effectiveChannels.values()).map((channel: any) => ({
+    const channelDefinitions = Array.from(effectiveChannels.values()).map((channel: any) => {
+      const globalChannel = globalChannels.get(channel.channelKey) as any;
+      const globalSystemPrompt = globalChannel?.systemPrompt?.trim() || DEFAULT_CHANNEL_PROMPTS[channel.outputType] || "";
+      const effectiveSystemPrompt = channel.systemPrompt?.trim() || DEFAULT_CHANNEL_PROMPTS[channel.outputType] || "";
+      return {
       ...channel,
+      systemPrompt: effectiveSystemPrompt,
       source: channel.organizationId ? "organization" : "global",
-      globalSystemPrompt: (globalChannels.get(channel.channelKey) as any)?.systemPrompt || channel.systemPrompt,
-      globalPromptVersion: (globalChannels.get(channel.channelKey) as any)?.promptVersion || channel.promptVersion,
+      globalSystemPrompt,
+      globalPromptVersion: globalChannel?.promptVersion || channel.promptVersion,
       organizationSystemPrompt: (organizationChannels.get(channel.channelKey) as any)?.systemPrompt || null,
       organizationPromptVersion: (organizationChannels.get(channel.channelKey) as any)?.promptVersion || null,
-    }));
+    }});
     return NextResponse.json({
       success: true,
       data: {
         orgId: organization.id,
         orgName: organization.name,
-        customSystemPrompt: organization.customSystemPrompt || "",
-        defaultDisclaimer: organization.defaultDisclaimer,
-        preferredTone: organization.preferredTone || "",
-        callToAction: organization.callToAction || "",
         canEditGlobal: Boolean(user?.isSuperAdmin),
-        clinicalRefinerPrompt: promptTemplates.get("CLINICAL_REFINER")?.content || DEFAULT_CLINICAL_REFINER_PROMPT,
-        imageGenerationPrompt: promptTemplates.get("IMAGE_GENERATION")?.content || DEFAULT_IMAGE_GENERATION_PROMPT,
-        imageSafetyPrompt: promptTemplates.get("IMAGE_SAFETY")?.content || DEFAULT_IMAGE_SAFETY_PROMPT,
         governedPrompts,
         promptDefinitions: promptDefinitions.rows,
         channelDefinitions,
@@ -109,13 +108,6 @@ export async function PUT(req: Request) {
     const {
       orgId,
       scope = "organization",
-      customSystemPrompt,
-      clinicalRefinerPrompt,
-      imageGenerationPrompt,
-      imageSafetyPrompt,
-      defaultDisclaimer,
-      preferredTone,
-      callToAction,
       governedPrompts,
       channels,
     } = body;
@@ -131,20 +123,7 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: "Only Super Admin can edit global prompts." }, { status: 403 });
     }
 
-    let updatedOrg: any = null;
-    if (scope === "organization") {
-      const previousOrg = (await query<any>(`SELECT "customSystemPrompt", "defaultDisclaimer", "preferredTone", "callToAction" FROM macula.organizations WHERE id=$1 LIMIT 1`, [orgId])).rows[0];
-      const { rows: updatedOrgRows } = await query(`UPDATE macula.organizations SET "customSystemPrompt"=$1, "defaultDisclaimer"=$2, "preferredTone"=$3, "callToAction"=$4, "updatedAt"=NOW() WHERE id=$5 RETURNING *`, [customSystemPrompt?.trim() || null, defaultDisclaimer, preferredTone?.trim() || null, callToAction?.trim() || null, orgId]);
-      updatedOrg = updatedOrgRows[0];
-      const changedFields = ["customSystemPrompt", "defaultDisclaimer", "preferredTone", "callToAction"].filter((field) => (previousOrg?.[field] || null) !== (updatedOrg?.[field] || null));
-      if (changedFields.length > 0) {
-        await recordAudit({ organizationId: orgId, actorId: sessionUser.id, action: "PROMPT_SETTINGS_UPDATED", targetType: "PROMPT_SETTINGS", targetId: orgId, detail: "Updated organization AI and publishing settings.", metadata: { scope, changedFields } });
-      }
-    }
-
-    const promptEntries = Array.isArray(governedPrompts)
-      ? governedPrompts
-      : [["CLINICAL_REFINER", clinicalRefinerPrompt], ["IMAGE_GENERATION", imageGenerationPrompt], ["IMAGE_SAFETY", imageSafetyPrompt]].map(([promptKey, content]) => ({ promptKey, content }));
+    const promptEntries = Array.isArray(governedPrompts) ? governedPrompts : [];
     for (const promptEntry of promptEntries) {
       const { promptKey, content, resetToGlobal } = promptEntry;
       if (typeof content !== "string" || !content.trim()) continue;
@@ -172,16 +151,18 @@ export async function PUT(req: Request) {
       for (const ch of channels) {
         if (!ch.channelKey || typeof ch.systemPrompt !== "string" || !ch.systemPrompt.trim()) continue;
         const globalChannel = (await query<any>(`SELECT * FROM macula.channel_definitions WHERE "organizationId" IS NULL AND "channelKey"=$1 ORDER BY "updatedAt" DESC LIMIT 1`, [ch.channelKey])).rows[0];
+        const globalEffectivePrompt = globalChannel?.systemPrompt?.trim() || DEFAULT_CHANNEL_PROMPTS[globalChannel?.outputType] || "";
         const targetOrganizationId = scope === "global" ? null : orgId;
         const current = (await query<any>(`SELECT * FROM macula.channel_definitions WHERE "organizationId" IS NOT DISTINCT FROM $1 AND "channelKey"=$2 ORDER BY "updatedAt" DESC LIMIT 1`, [targetOrganizationId, ch.channelKey])).rows[0];
-        if (scope === "organization" && (ch.resetToGlobal === true || globalChannel?.systemPrompt?.trim() === ch.systemPrompt.trim())) {
+        if (scope === "organization" && (ch.resetToGlobal === true || globalEffectivePrompt === ch.systemPrompt.trim())) {
           if (current) {
             await query(`DELETE FROM macula.channel_definitions WHERE id=$1`, [current.id]);
             await recordAudit({ organizationId: orgId, actorId: sessionUser.id, action: "CHANNEL_PROMPT_OVERRIDE_RESET", targetType: "CHANNEL_PROMPT", targetId: ch.channelKey, detail: `Reset ${ch.channelKey} to the global default.`, metadata: { scope, channelKey: ch.channelKey, previousVersion: current.promptVersion } });
           }
           continue;
         }
-        if (current?.systemPrompt?.trim() === ch.systemPrompt.trim()) continue;
+        const currentEffectivePrompt = current?.systemPrompt?.trim() || (scope === "global" ? globalEffectivePrompt : "");
+        if (currentEffectivePrompt === ch.systemPrompt.trim()) continue;
         const nextVersion = (current?.promptVersion || globalChannel?.promptVersion || 0) + 1;
         let targetId = current?.id;
         if (current) {
@@ -197,7 +178,6 @@ export async function PUT(req: Request) {
     return NextResponse.json({
       success: true,
       message: "Compliance system prompts successfully persisted to database.",
-      updatedOrg,
     });
   } catch (error: any) {
     console.error("Failed to update compliance prompts:", error);

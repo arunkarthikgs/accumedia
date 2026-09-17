@@ -1,0 +1,33 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "macula-video-renderer",
+  "main": "./worker.ts",
+  "compatibility_date": "2026-09-16",
+  "compatibility_flags": ["nodejs_compat"],
+  "containers": [
+    {
+      "class_name": "VideoRenderer",
+      "image": "../video-render-service/Dockerfile",
+      "image_build_context": "..",
+      "instance_type": "basic",
+      "max_instances": 3
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "VIDEO_RENDERER",
+        "class_name": "VideoRenderer"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["VideoRenderer"]
+    }
+  ],
+  "dev": {
+    "enable_containers": true
+  }
+}

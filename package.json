@@ -10,6 +10,7 @@
     "deploy": "npm run build:worker && wrangler deploy --config wrangler.toml",
     "start": "next start",
     "deploy:scheduler": "wrangler deploy --config wrangler.scheduler.toml",
+    "deploy:video-renderer": "wrangler deploy --config video-render-cloudflare/wrangler.jsonc",
     "dev:scheduler": "wrangler dev --config wrangler.scheduler.toml",
     "lint": "next lint",
     "postinstall": "prisma generate"
@@ -17,6 +18,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.654.0",
     "@aws-sdk/s3-request-presigner": "^3.654.0",
+    "@cloudflare/containers": "^0.3.7",
     "@prisma/adapter-pg": "^6.19.3",
     "@prisma/client": "^6.19.3",
     "bcryptjs": "^3.0.3",

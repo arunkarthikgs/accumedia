@@ -27,7 +27,7 @@ export async function PATCH(
       editedBy?: string;
     };
 
-    const assetResult = await query<any>(`SELECT ga.*, c."organizationId", c."masterRecord", o.name AS organization_name, o.branding_hex, o."defaultDisclaimer", o."logoUrl" FROM macula.macula_generated_assets ga JOIN macula.macula_cases c ON c.id = ga."caseId" JOIN macula.macula_organizations o ON o.id = c."organizationId" WHERE ga.id = $1 LIMIT 1`, [assetId]);
+    const assetResult = await query<any>(`SELECT ga.*, c."organizationId", c."masterRecord", o.name AS organization_name, o."brandingHex" AS branding_hex, o."defaultDisclaimer", o."logoUrl" FROM macula.macula_generated_assets ga JOIN macula.macula_cases c ON c.id = ga."caseId" JOIN macula.macula_organizations o ON o.id = c."organizationId" WHERE ga.id = $1 LIMIT 1`, [assetId]);
     const row = assetResult.rows[0];
     const asset = row ? { ...row, case: { organizationId: row.organizationId, masterRecord: row.masterRecord, organization: { name: row.organization_name, brandingHex: row.branding_hex, defaultDisclaimer: row.defaultDisclaimer, logoUrl: row.logoUrl } } } : null;
     if (!asset) {

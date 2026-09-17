@@ -44,13 +44,6 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
-    if (inputMode !== "audio") {
-      const wordCount = rawText.trim().split(/\s+/).length;
-      if (wordCount < 200 || wordCount > 300) {
-        return NextResponse.json({ error: `Source content should be approximately 200–300 words. Current count: ${wordCount}.` }, { status: 422 });
-      }
-    }
-
     if (!organizationId) {
       return NextResponse.json(
         { error: "organizationId is required." },

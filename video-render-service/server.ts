@@ -1,0 +1,54 @@
+import express from "express";
+import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { renderClinicalVideo } from "../lib/video-renderer";
+
+const app = express();
+app.use(express.json({ limit: "32kb" }));
+
+const port = Number(process.env.PORT || 8080);
+const callbackSecret = process.env.VIDEO_RENDER_CALLBACK_SECRET || "";
+const bucket = process.env.R2_BUCKET_NAME || "";
+const accountId = (process.env.CLOUDFLARE_ACCOUNT_ID || "").replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+const r2 = new S3Client({
+  region: "auto",
+  endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+  credentials: { accessKeyId: process.env.R2_ACCESS_KEY_ID || "", secretAccessKey: process.env.R2_SECRET_ACCESS_KEY || "" },
+  forcePathStyle: true,
+});
+
+function authorized(req: express.Request) {
+  return req.header("x-render-secret") === process.env.VIDEO_RENDER_SERVICE_SECRET;
+}
+
+app.post("/jobs", (req, res) => {
+  if (!authorized(req)) return res.status(401).json({ error: "Unauthorized." });
+  const job = req.body as {
+    jobId: string; caseId: string; assetId: string; script: string; title: string;
+    accent: string; disclaimer?: string; logoUrl?: string; callbackUrl: string;
+  };
+  if (!job.jobId || !job.assetId || !job.script || !job.callbackUrl) return res.status(400).json({ error: "Invalid render job." });
+  void processJob(job);
+  return res.status(202).json({ jobId: job.jobId, status: "QUEUED" });
+});
+
+async function callback(job: { callbackUrl: string; assetId: string }, body: Record<string, unknown>) {
+  await fetch(job.callbackUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Render-Secret": callbackSecret },
+    body: JSON.stringify({ assetId: job.assetId, ...body }),
+  });
+}
+
+async function processJob(job: { jobId: string; caseId: string; assetId: string; script: string; title: string; accent: string; disclaimer?: string; logoUrl?: string; callbackUrl: string }) {
+  try {
+    await callback(job, { status: "PROCESSING" });
+    const rendered = await renderClinicalVideo({ script: job.script, title: job.title, accent: job.accent, disclaimer: job.disclaimer, logoUrl: job.logoUrl });
+    const r2Key = `${process.env.RENDER_ORGANIZATION_PREFIX || "rendered"}/videos/${job.caseId}/${job.assetId}-${Date.now()}.mp4`;
+    await r2.send(new PutObjectCommand({ Bucket: bucket, Key: r2Key, Body: rendered.buffer, ContentType: rendered.mimeType }));
+    await callback(job, { status: "READY", videoR2Key: r2Key, durationSeconds: rendered.durationSeconds });
+  } catch (error) {
+    await callback(job, { status: "FAILED", error: error instanceof Error ? error.message : String(error) });
+  }
+}
+
+app.listen(port, () => console.log(`Video render service listening on ${port}`));

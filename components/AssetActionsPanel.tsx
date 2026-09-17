@@ -148,6 +148,7 @@ export default function AssetActionsPanel({
   const [videoUrl, setVideoUrl] = useState<string | null>(
     asset.videoR2Key ? `/api/cases/${caseId}/assets/${asset.id}/video` : null,
   );
+  const [videoStatus, setVideoStatus] = useState(asset.videoStatus || (asset.videoR2Key ? "READY" : "IDLE"));
   const [isRenderingVideo, setIsRenderingVideo] = useState(false);
   const [voiceFile, setVoiceFile] = useState<File | null>(null);
   const [versions, setVersions] = useState<
@@ -219,18 +220,39 @@ export default function AssetActionsPanel({
   const renderVideo = async () => {
     setIsRenderingVideo(true);
     setError(null);
-    const form = new FormData();
-    if (voiceFile) form.append("voice", voiceFile);
-    const response = await fetch(
-      `/api/cases/${caseId}/assets/${asset.id}/render-video`,
-      { method: "POST", body: form },
-    );
-    const data = await response.json();
-    setIsRenderingVideo(false);
-    if (!response.ok) return setError(data.error || "Video rendering failed.");
-    setVideoUrl(
-      `/api/cases/${caseId}/assets/${asset.id}/video?ts=${Date.now()}`,
-    );
+    try {
+      const form = new FormData();
+      if (voiceFile) form.append("voice", voiceFile);
+      const response = await fetch(
+        `/api/cases/${caseId}/assets/${asset.id}/render-video`,
+        { method: "POST", body: form },
+      );
+      const data = await response.json();
+      if (!response.ok) {
+        setError(data.error || "Video rendering is unavailable in this deployment.");
+        return;
+      }
+      setVideoStatus(data.status || "QUEUED");
+      for (let attempt = 0; attempt < 120; attempt += 1) {
+        await new Promise((resolve) => window.setTimeout(resolve, 2000));
+        const statusResponse = await fetch(`/api/cases/${caseId}/assets/${asset.id}/render-video`, { cache: "no-store" });
+        const statusData = await statusResponse.json();
+        if (!statusResponse.ok) throw new Error(statusData.error || "Unable to read video render status.");
+        setVideoStatus(statusData.status);
+        if (statusData.status === "READY") {
+          setVideoUrl(`${statusData.videoUrl}?ts=${Date.now()}`);
+          return;
+        }
+        if (String(statusData.status).startsWith("FAILED")) {
+          throw new Error(statusData.status.replace(/^FAILED:\s*/, ""));
+        }
+      }
+      throw new Error("Video rendering is still in progress. Reopen this asset to check the status.");
+    } catch (err: any) {
+      setError(err.message || "Unable to contact the video rendering service.");
+    } finally {
+      setIsRenderingVideo(false);
+    }
   };
 
   const loadVersions = async () => {
@@ -364,7 +386,7 @@ export default function AssetActionsPanel({
                 ) : (
                   <Video className="h-3 w-3" />
                 )}
-                {isRenderingVideo ? "Rendering video…" : "Render MP4"}
+                {isRenderingVideo ? (videoStatus === "QUEUED" ? "Queued…" : "Rendering video…") : videoStatus === "PROCESSING" ? "Rendering video…" : "Render MP4"}
               </button>
             </div>
           </div>

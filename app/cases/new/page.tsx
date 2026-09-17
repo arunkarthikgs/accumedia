@@ -227,12 +227,9 @@ export default function NewCasePage() {
         setActiveTranscriberAgent(recording.transcriptionAgent || null);
         setCurrentDbStatus(resumedCase.status === "PENDING_REVIEW" ? "UPLOADED" : resumedCase.status);
 
-        const playbackResponse = await fetch(
-          `/api/audio/playback?recordingId=${encodeURIComponent(recording.id)}`,
+        const audioResponse = await fetch(
+          `/api/audio/download?recordingId=${encodeURIComponent(recording.id)}`,
         );
-        const playbackData = await playbackResponse.json();
-        if (!playbackResponse.ok) throw new Error(playbackData.error || "Unable to restore audio.");
-        const audioResponse = await fetch(playbackData.url);
         if (!audioResponse.ok) throw new Error("Unable to download the saved audio.");
         const audioBlob = await audioResponse.blob();
         if (cancelled) return;
@@ -557,8 +554,7 @@ export default function NewCasePage() {
     }
     const narrativeWords = countWords(finalNarrative);
     if (!audioBlob && (narrativeWords < 200 || narrativeWords > 300)) {
-      setErrorMessage(`Source content should be approximately 200–300 words. Current count: ${narrativeWords}.`);
-      return;
+      setErrorMessage(`Source content is ${narrativeWords} words; the recommended range is 200–300 words. You can continue.`);
     }
 
     setIsSynthesizing(true);

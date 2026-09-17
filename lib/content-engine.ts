@@ -1,11 +1,9 @@
-import OpenAI from "openai";
 import crypto from "node:crypto";
 import { query } from "@/lib/worker-db";
+import { createOpenAIChatCompletion } from "@/lib/openai-fetch";
 import { validateGeneratedContent } from "./content-validation";
 import { logAIUsage } from "./ai-usage";
 import { assertAssetQuota, assertTokenQuota } from "./quotas";
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 /**
  * RFP §7-12 output-type prompt library. Each entry is deliberately kept as
@@ -69,6 +67,7 @@ interface GenerateOptions {
   masterRecord: Record<string, any>;
   organization: any;
   channel: any;
+  skipAssetQuota?: boolean;
 }
 
 export async function generateChannelAsset({
@@ -76,8 +75,9 @@ export async function generateChannelAsset({
   masterRecord,
   organization,
   channel,
+  skipAssetQuota,
 }: GenerateOptions) {
-  await assertAssetQuota(organization.id);
+  if (!skipAssetQuota) await assertAssetQuota(organization.id);
   const outputType = channel.outputType || "SEO_BLOG";
   const basePrompt = channel.systemPrompt?.trim() || DEFAULT_PROMPTS[outputType];
   const platformLimit = (await query<{ maxCharacters: number | null }>(`SELECT "maxCharacters" FROM macula.macula_platform_limits WHERE platform = 'x' LIMIT 1`)).rows[0];
@@ -102,10 +102,10 @@ Default call to action, where appropriate and non-promotional: ${organization.ca
 
   await assertTokenQuota(organization.id, Math.ceil((resolvedPrompt.length + JSON.stringify(masterRecord).length) / 4) + 4096);
 
-  const response = await openai.chat.completions.create({
+  const response = await createOpenAIChatCompletion({
     model: "gpt-4o",
     temperature: 0.3,
-    response_format: outputType === "VIDEO_SCRIPT" ? undefined : { type: "json_object" },
+    jsonMode: outputType !== "VIDEO_SCRIPT",
     messages: [
       { role: "system", content: resolvedPrompt },
       { role: "user", content: `Approved Master Clinical Content Record:\n${JSON.stringify(masterRecord, null, 2)}` },
@@ -123,7 +123,7 @@ Default call to action, where appropriate and non-promotional: ${organization.ca
     metadata: { channelKey: channel.channelKey, outputType },
   });
 
-  const raw = response.choices[0]?.message?.content || "";
+  const raw = response.choices?.[0]?.message?.content || "";
   const content = outputType === "VIDEO_SCRIPT" ? { script: raw } : safeJsonParse(raw);
   const validation = validateGeneratedContent(content, channel);
 
@@ -157,14 +157,16 @@ export async function runAdaptationEngine(caseId: string) {
 
   const existingAssets = (await query<{ channelKey: string }>(`SELECT "channelKey" FROM macula.macula_generated_assets WHERE "caseId" = $1`, [caseId])).rows;
   const existingChannelKeys = new Set(existingAssets.map((asset) => asset.channelKey));
+  const missingChannels = channels.filter((channel) => !existingChannelKeys.has(channel.channelKey));
+  await assertAssetQuota(kase.organizationId, missingChannels.length);
   const created = [];
-  for (const channel of channels) {
-    if (existingChannelKeys.has(channel.channelKey)) continue;
+  for (const channel of missingChannels) {
     const asset = await generateChannelAsset({
       caseId,
       masterRecord: kase.masterRecord as Record<string, any>,
       organization: kase.organization,
       channel,
+      skipAssetQuota: true,
     });
     created.push(asset);
   }

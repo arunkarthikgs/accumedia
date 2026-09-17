@@ -12,16 +12,18 @@ import {
   BarChart3,
   CreditCard,
   Send,
+  Bot,
 } from "lucide-react";
 import BrandLogo from "@/components/BrandLogo";
 import type { SessionUser } from "@/lib/auth";
 
-const NAV_ITEMS = [
+const NAV_ITEMS: { href: string; label: string; icon: typeof Activity; permission?: string }[] = [
   { href: "/", label: "Home", icon: Activity },
   { href: "/cases/new", label: "New Case Ingestion", icon: PlusCircle },
   { href: "/admin/cases", label: "Case Management", icon: FolderKanban },
   { href: "/admin/organizations", label: "Hospital Networks", icon: Building2 },
   { href: "/admin/safety-queue", label: "Safety Queue", icon: ShieldAlert },
+  { href: "/admin/compliance/prompts", label: "Prompt Management", icon: Bot, permission: "PROMPT_MANAGE" },
   { href: "/settings/roles", label: "Role Task Matrix", icon: ShieldCheck },
   { href: "/admin/usage", label: "AI Usage", icon: BarChart3 },
   { href: "/admin/subscription", label: "Subscription", icon: CreditCard },
@@ -35,6 +37,7 @@ const NAV_ITEMS = [
  */
 export default function SidebarNav({ currentUser }: { currentUser: SessionUser | null }) {
   const pathname = usePathname();
+  const visibleItems = NAV_ITEMS.filter((item) => !item.permission || currentUser?.isSuperAdmin || currentUser?.permissions.includes(item.permission));
 
   if (pathname === "/login") return null;
 
@@ -47,7 +50,7 @@ export default function SidebarNav({ currentUser }: { currentUser: SessionUser |
       </div>
 
       <nav className="grid flex-1 grid-cols-2 gap-1 px-3 py-2 md:block md:space-y-1">
-        {NAV_ITEMS.map((item) => {
+        {visibleItems.map((item) => {
           const active = pathname === item.href;
           const Icon = item.icon;
           return (

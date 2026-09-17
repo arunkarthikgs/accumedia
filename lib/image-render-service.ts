@@ -21,7 +21,19 @@ export type ImageRenderJob = {
   callbackUrl: string;
 };
 
-export async function submitImageRenderJob(job: ImageRenderJob) {
+export type ImageRenderResult = {
+  status: "COMPLETED" | "FAILED";
+  r2Key?: string;
+  faceDetected?: boolean;
+  findings?: Array<{ type?: string; detail?: string; confidence?: string; region?: unknown }>;
+  generationPromptTemplateId?: string;
+  generationPromptVersion?: number;
+  safetyPromptTemplateId?: string;
+  safetyPromptVersion?: number;
+  error?: string;
+};
+
+export async function submitImageRenderJob(job: ImageRenderJob): Promise<ImageRenderResult> {
   const serviceUrl = (process.env.VIDEO_RENDER_SERVICE_URL || "https://accumedia-video-renderer.invalid").replace(/\/+$/, "");
   const request = new Request(`${serviceUrl}/image-jobs`, {
     method: "POST",
@@ -45,8 +57,12 @@ export async function submitImageRenderJob(job: ImageRenderJob) {
     throw new Error("Image rendering is not configured. Set VIDEO_RENDER_SERVICE_URL or bind VIDEO_RENDER_SERVICE.");
   }
   const response = serviceBinding ? await serviceBinding.fetch(request) : await fetch(request);
+  const responseText = await response.text();
+  const parsed: ImageRenderResult = responseText ? JSON.parse(responseText) as ImageRenderResult : { status: "FAILED", error: "Empty image renderer response." };
   if (!response.ok) {
-    const detail = (await response.text()).slice(0, 180);
+    const detail = responseText.slice(0, 180);
     throw new Error(`Image rendering service rejected the job (${response.status}): ${detail}`);
   }
+  if (parsed.status !== "COMPLETED" || !parsed.r2Key) throw new Error(parsed.error || "Image renderer did not return a completed image.");
+  return parsed;
 }

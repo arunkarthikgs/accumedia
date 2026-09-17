@@ -39,8 +39,32 @@ function parseSafetyResponse(content: string) {
   const parsed = JSON.parse(content.replace(/^```json\s*|\s*```$/g, "")) as { faceDetected?: boolean; findings?: Finding[] };
   return {
     faceDetected: Boolean(parsed.faceDetected),
-    findings: Array.isArray(parsed.findings) ? parsed.findings : [],
+    findings: filterSafetyFindings(Array.isArray(parsed.findings) ? parsed.findings : []),
   };
+}
+
+const IDENTIFIER_PATTERNS = [
+  /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i,
+  /(?<!\d)(?:\+?91[-\s]?)?[6-9]\d{9}(?!\d)/,
+  /(?<!\d)\d{4}[\s-]?\d{4}[\s-]?\d{4}(?!\d)/,
+  /\b(?:UHID|MRN|IPD|OPD|ABHA|Aadhaar|policy|insurance|card)\b\s*(?:no\.?|number|#)?\s*[:=-]?\s*[A-Z0-9-]{4,}\b/i,
+  /\b(?:DOB|date\s+of\s+birth)\b\s*[:=-]?\s*(?:\d{1,2}[/-])?(?:\d{1,2}[/-])\d{2,4}\b/i,
+  /\b\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+\d{4}\b/i,
+  /\b\d{1,2}:\d{2}\s*(?:am|pm)\b/i,
+  /\b(?:Mr|Mrs|Ms|Miss|Dr)\.?\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2}\b/,
+];
+
+function containsIdentifier(value: string) {
+  return IDENTIFIER_PATTERNS.some((pattern) => pattern.test(value));
+}
+
+function filterSafetyFindings(findings: Finding[]) {
+  return findings.filter((finding) => {
+    const type = finding.type.toLowerCase();
+    const detail = finding.detail || "";
+    const textOnlyFinding = type.includes("text") || type.includes("clinical") || type.includes("readable");
+    return !textOnlyFinding || containsIdentifier(detail);
+  });
 }
 
 export async function renderClinicalImage(input: {

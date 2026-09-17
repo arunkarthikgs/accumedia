@@ -1,6 +1,7 @@
 declare module "cloudflare:workers" {
   export const env: {
     VIDEO_RENDERER: DurableObjectNamespace;
+    IMAGE_RENDERER: DurableObjectNamespace;
     VIDEO_RENDER_SERVICE_SECRET: string;
     VIDEO_RENDER_CALLBACK_SECRET: string;
     OPENAI_API_KEY: string;

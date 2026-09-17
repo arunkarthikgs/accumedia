@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { assertCaseQuota } from "@/lib/quotas";
-import { requireAuthenticatedUser, requireOrganizationAccess } from "@/lib/tenant-auth";
+import { requireAuthenticatedUser, requireOrganizationAccess, requireOrganizationScope } from "@/lib/tenant-auth";
 import { query } from "@/lib/worker-db";
 import crypto from "node:crypto";
 
@@ -16,11 +16,10 @@ export async function GET(req: Request) {
     const offset = parseInt(searchParams.get("offset") || "0", 10);
 
     const requestedOrgId = orgId && orgId !== "ALL" ? orgId : null;
-    const scopedOrgId = user?.isSuperAdmin ? requestedOrgId : user?.organizationId;
+    const scopedOrgId = await requireOrganizationScope(requestedOrgId);
     if (!scopedOrgId) {
       return NextResponse.json({ error: "An organization scope is required." }, { status: 400 });
     }
-    await requireOrganizationAccess(scopedOrgId);
     const filters = ["c.\"organizationId\" = $1"];
     const values: unknown[] = [scopedOrgId];
     if (physicianId) { values.push(physicianId); filters.push(`c."physicianId" = $${values.length}`); }
@@ -68,24 +67,22 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { title, rawInput, organizationId, physicianId } = body;
 
-    if (!organizationId) {
+    const targetOrganizationId = await requireOrganizationScope(organizationId || user?.organizationId || null);
+    if (!targetOrganizationId) {
       return NextResponse.json(
         { error: "organizationId is required." },
         { status: 400 }
       );
     }
 
-    if (!user?.isSuperAdmin && user?.organizationId !== organizationId) {
-      return NextResponse.json({ error: "Forbidden: organization access denied." }, { status: 403 });
-    }
-    await assertCaseQuota(organizationId);
-    await requireOrganizationAccess(organizationId);
+    await assertCaseQuota(targetOrganizationId);
+    await requireOrganizationAccess(targetOrganizationId);
 
     let targetPhysicianId = physicianId;
     const physician = targetPhysicianId
-      ? (await query(`SELECT id FROM macula.users WHERE id = $1 AND "organizationId" = $2 LIMIT 1`, [targetPhysicianId, organizationId])).rows[0]
+      ? (await query(`SELECT id FROM macula.users WHERE id = $1 AND "organizationId" = $2 LIMIT 1`, [targetPhysicianId, targetOrganizationId])).rows[0]
       : null;
-    if (!physician) targetPhysicianId = (await query<{ id: string }>(`SELECT id FROM macula.users WHERE "organizationId" = $1 ORDER BY name ASC LIMIT 1`, [organizationId])).rows[0]?.id || null;
+    if (!physician) targetPhysicianId = (await query<{ id: string }>(`SELECT id FROM macula.users WHERE "organizationId" = $1 ORDER BY name ASC LIMIT 1`, [targetOrganizationId])).rows[0]?.id || null;
 
     if (!targetPhysicianId) {
       return NextResponse.json(
@@ -103,8 +100,8 @@ export async function POST(req: Request) {
 
     const caseId = crypto.randomUUID();
     const safetyAudit = { auditLoggedAt: new Date().toISOString(), source: "MANUAL_ENTRY", status: "AWAITING_SYNTHESIS" };
-    const { rows } = await query(`INSERT INTO macula.cases (id, title, raw_input, status, "organizationId", "physicianId", "masterRecord", "safetyAudit") VALUES ($1, $2, $3, 'PENDING_REVIEW', $4, $5, '{}'::jsonb, $6::jsonb) RETURNING *`, [caseId, defaultTitle, rawInput?.trim() || "", organizationId, targetPhysicianId, JSON.stringify(safetyAudit)]);
-    const newCase = { ...rows[0], physician: (await query(`SELECT * FROM macula.users WHERE id = $1`, [targetPhysicianId])).rows[0], organization: (await query(`SELECT * FROM macula.organizations WHERE id = $1`, [organizationId])).rows[0] };
+    const { rows } = await query(`INSERT INTO macula.cases (id, title, raw_input, status, "organizationId", "physicianId", "masterRecord", "safetyAudit") VALUES ($1, $2, $3, 'PENDING_REVIEW', $4, $5, '{}'::jsonb, $6::jsonb) RETURNING *`, [caseId, defaultTitle, rawInput?.trim() || "", targetOrganizationId, targetPhysicianId, JSON.stringify(safetyAudit)]);
+    const newCase = { ...rows[0], physician: (await query(`SELECT * FROM macula.users WHERE id = $1`, [targetPhysicianId])).rows[0], organization: (await query(`SELECT * FROM macula.organizations WHERE id = $1`, [targetOrganizationId])).rows[0] };
 
     return NextResponse.json({
       success: true,

@@ -11,6 +11,13 @@
       "image_build_context": "..",
       "instance_type": "basic",
       "max_instances": 3
+    },
+    {
+      "class_name": "ImageRenderer",
+      "image": "../video-render-service/Dockerfile",
+      "image_build_context": "..",
+      "instance_type": "basic",
+      "max_instances": 2
     }
   ],
   "durable_objects": {
@@ -18,6 +25,10 @@
       {
         "name": "VIDEO_RENDERER",
         "class_name": "VideoRenderer"
+      },
+      {
+        "name": "IMAGE_RENDERER",
+        "class_name": "ImageRenderer"
       }
     ]
   },
@@ -25,6 +36,10 @@
     {
       "tag": "v1",
       "new_sqlite_classes": ["VideoRenderer"]
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": ["ImageRenderer"]
     }
   ],
   "dev": {

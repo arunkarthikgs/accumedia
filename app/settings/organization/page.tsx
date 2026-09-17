@@ -2,6 +2,28 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import {
+  ArrowLeft,
+  BriefcaseBusiness,
+  Building2,
+  FileText,
+  Palette,
+  Save,
+  Settings2,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+
+const profileTabs: Array<{
+  key: "details" | "brand" | "content" | "advanced" | "commercial";
+  label: string;
+  icon: LucideIcon;
+}> = [
+  { key: "details", label: "Organisation details", icon: Building2 },
+  { key: "brand", label: "Brand identity", icon: Palette },
+  { key: "content", label: "Content preferences", icon: FileText },
+  { key: "advanced", label: "Advanced configuration", icon: Settings2 },
+  { key: "commercial", label: "Commercial plan", icon: BriefcaseBusiness },
+];
 
 export default function OrgSettingsPage() {
   const [org, setOrg] = useState<any>(null);
@@ -15,6 +37,13 @@ export default function OrgSettingsPage() {
   const [subscription, setSubscription] = useState<any>(null);
   const [selectedPlanId, setSelectedPlanId] = useState("");
   const [planMessage, setPlanMessage] = useState<string | null>(null);
+  const saveButtonLabel: Record<typeof activeTab, string> = {
+    details: "Save organisation details",
+    brand: "Save brand settings",
+    content: "Save content preferences",
+    advanced: "Save advanced configuration",
+    commercial: "Save organisation profile",
+  };
   useEffect(() => {
     const selectedOrgId =
       new URLSearchParams(window.location.search).get("orgId") || "";
@@ -86,13 +115,13 @@ export default function OrgSettingsPage() {
   };
 
   return (
-    <div className="readable-route max-w-3xl space-y-6">
+    <div className="readable-route max-w-6xl space-y-6">
       <div>
         <Link
           href="/admin/organizations"
-          className="text-xs font-semibold text-pine hover:underline"
+          className="inline-flex items-center gap-1 text-xs font-semibold text-pine hover:underline"
         >
-          ← Hospital Networks
+          <ArrowLeft className="h-3.5 w-3.5" /> Hospital Networks
         </Link>
         <h1 className="text-2xl font-extrabold text-ink tracking-tight">
           Organisation Profile
@@ -113,23 +142,18 @@ export default function OrgSettingsPage() {
           role="tablist"
           aria-label="Organisation profile sections"
         >
-          {(
-            [
-              ["details", "Organisation details"],
-              ["brand", "Brand identity"],
-              ["content", "Content preferences"],
-              ["advanced", "Advanced configuration"],
-              ...(isSuperAdmin ? [["commercial", "Commercial plan"]] : []),
-            ] as const
-          ).map(([tab, label]) => (
+          {profileTabs
+            .filter(({ key }) => key !== "commercial" || isSuperAdmin)
+            .map(({ key: tab, label, icon: Icon }) => (
             <button
               key={tab}
               type="button"
               role="tab"
               aria-selected={activeTab === tab}
               onClick={() => setActiveTab(tab as typeof activeTab)}
-              className={`whitespace-nowrap border-b-2 px-3 py-2 text-xs font-semibold transition ${activeTab === tab ? "border-pine text-pine" : "border-transparent text-muted hover:text-ink"}`}
+              className={`inline-flex items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2 text-xs font-semibold transition ${activeTab === tab ? "border-pine text-pine" : "border-transparent text-muted hover:text-ink"}`}
             >
+              <Icon className="h-3.5 w-3.5" />
               {label}
             </button>
           ))}
@@ -344,17 +368,18 @@ export default function OrgSettingsPage() {
             Custom clinical prompt
             <textarea
               name="customSystemPrompt"
-              rows={5}
+              rows={14}
               defaultValue={org?.customSystemPrompt || ""}
               placeholder="Optional organisation-specific clinical instructions"
-              className="mt-1 w-full rounded border border-line bg-paper p-3 font-mono text-xs text-ink"
+              className="mt-1 min-h-[360px] w-full rounded border border-line bg-paper p-3 font-mono text-xs leading-relaxed text-ink"
             />
           </label>
         </div>
         {isSuperAdmin && (
           <div className={activeTab === "commercial" ? "space-y-5" : "hidden"}>
             <div>
-              <h2 className="text-sm font-bold text-ink">
+              <h2 className="flex items-center gap-2 text-sm font-bold text-ink">
+                <BriefcaseBusiness className="h-4 w-4 text-pine" />
                 RFP commercial plan
               </h2>
               <p className="mt-1 text-xs text-muted">
@@ -387,8 +412,9 @@ export default function OrgSettingsPage() {
               type="button"
               disabled={!selectedPlanId}
               onClick={savePlan}
-              className="rounded bg-pine px-4 py-2 text-xs font-semibold text-white disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded bg-pine px-4 py-2 text-xs font-semibold text-white disabled:opacity-50"
             >
+              <Save className="h-3.5 w-3.5" />
               Save commercial plan
             </button>
             {planMessage && <p className="text-xs text-muted">{planMessage}</p>}
@@ -397,9 +423,10 @@ export default function OrgSettingsPage() {
         <button
           type="submit"
           disabled={!org}
-          className="rounded bg-pine px-4 py-2 text-xs font-semibold text-white disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 rounded bg-pine px-4 py-2 text-xs font-semibold text-white disabled:opacity-50"
         >
-          Save brand settings
+          <Save className="h-3.5 w-3.5" />
+          {saveButtonLabel[activeTab]}
         </button>
         {message && <p className="text-xs text-muted">{message}</p>}
       </form>

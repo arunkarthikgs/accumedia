@@ -7,12 +7,18 @@ export class VideoRenderer extends Container {
   enableInternet = true;
 }
 
+export class ImageRenderer extends Container {
+  defaultPort = 8080;
+  sleepAfter = "10m";
+  enableInternet = true;
+}
+
 export default {
   async fetch(request: Request, environment: typeof env) {
     const url = new URL(request.url);
     if (url.pathname === "/health") return new Response("ok");
     if (url.pathname !== "/jobs" && url.pathname !== "/image-jobs") return new Response("Not found", { status: 404 });
-    const container = getContainer(environment.VIDEO_RENDERER, "video-renderer-v7");
+    const container = getContainer(url.pathname === "/image-jobs" ? environment.IMAGE_RENDERER : environment.VIDEO_RENDERER, url.pathname === "/image-jobs" ? "image-renderer-v1" : "video-renderer-v12");
     await container.startAndWaitForPorts({
       ports: [8080],
       startOptions: {

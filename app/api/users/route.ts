@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { requireAuthenticatedUser } from "@/lib/tenant-auth";
+import { requireAuthenticatedUser, requireOrganizationScope } from "@/lib/tenant-auth";
 import { timeDbOperation } from "@/lib/perf";
 import { query } from "@/lib/worker-db";
 import crypto from "node:crypto";
@@ -9,10 +9,7 @@ export async function GET(req: Request) {
   try {
     const user = await requireAuthenticatedUser();
     const requestedOrganizationId = new URL(req.url).searchParams.get("organizationId");
-    const organizationScope = user?.isSuperAdmin
-      ? requestedOrganizationId ? { organizationId: requestedOrganizationId } : undefined
-      : { organizationId: user?.organizationId || "__no_organization__" };
-    const scopeId = user?.isSuperAdmin ? requestedOrganizationId : user?.organizationId;
+    const scopeId = await requireOrganizationScope(requestedOrganizationId || user?.organizationId || null);
     const { rows: userRows } = await timeDbOperation("user list", () => query<{
       id: string;
       name: string;

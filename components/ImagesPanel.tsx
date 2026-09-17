@@ -87,6 +87,7 @@ export default function ImagesPanel({ caseId, mccrApproved }: { caseId: string; 
       const processData = await processResponse.json();
       if (!processResponse.ok) setError(processData.error || "Image generation could not be started.");
       else if (processData.results?.some((result: { status: string }) => result.status === "FAILED")) setError("Image generation could not be submitted. See the job status below.");
+      else if (processData.results?.some((result: { status: string }) => result.status === "COMPLETED")) setQueueMessage("Image generation finished. Your image is now available below.");
       else if ((processData.processed || 0) > 0) setQueueMessage("Image generation is processing. This panel will update when it is ready.");
       await load();
     } finally {
@@ -142,6 +143,8 @@ export default function ImagesPanel({ caseId, mccrApproved }: { caseId: string; 
       const processData = await processResponse.json();
       if (!processResponse.ok || processData.results?.some((result: { status: string }) => result.status === "FAILED")) {
         setError(processData.error || "Image regeneration could not be submitted.");
+      } else if (processData.results?.some((result: { status: string }) => result.status === "COMPLETED")) {
+        setQueueMessage("Replacement image is ready.");
       } else {
         setQueueMessage("Replacement image is processing. The current image remains available until it is ready.");
       }

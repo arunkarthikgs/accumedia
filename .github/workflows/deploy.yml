@@ -35,7 +35,9 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           test -n "$CLOUDFLARE_API_TOKEN" || { echo "Missing GitHub secret CLOUDFLARE_API_TOKEN"; exit 1; }
-          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "Missing GitHub secret CLOUDFLARE_ACCOUNT_ID"; exit 1; }
+          account_id=$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID" | tr -d '[:space:]' | sed 's/^"//; s/"$//; s/^'"'"'//; s/'"'"'$//')
+          printf '%s\n' "$account_id" | grep -Eq '^[A-Za-z0-9_-]+$' || { echo "CLOUDFLARE_ACCOUNT_ID must contain only letters, numbers, hyphens, or underscores"; exit 1; }
+          echo "CLOUDFLARE_ACCOUNT_ID=$account_id" >> "$GITHUB_ENV"
 
       - name: Deploy renderer Worker and Container
         run: npx wrangler deploy --config video-render-cloudflare/wrangler.jsonc
@@ -66,7 +68,9 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           test -n "$CLOUDFLARE_API_TOKEN" || { echo "Missing GitHub secret CLOUDFLARE_API_TOKEN"; exit 1; }
-          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "Missing GitHub secret CLOUDFLARE_ACCOUNT_ID"; exit 1; }
+          account_id=$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID" | tr -d '[:space:]' | sed 's/^"//; s/"$//; s/^'"'"'//; s/'"'"'$//')
+          printf '%s\n' "$account_id" | grep -Eq '^[A-Za-z0-9_-]+$' || { echo "CLOUDFLARE_ACCOUNT_ID must contain only letters, numbers, hyphens, or underscores"; exit 1; }
+          echo "CLOUDFLARE_ACCOUNT_ID=$account_id" >> "$GITHUB_ENV"
 
       - name: Build application Worker
         run: npm run build:worker

@@ -15,9 +15,9 @@ read_env_value() {
     index($0, key "=") == 1 {
       value = substr($0, length(key) + 2)
       if (value ~ /^".*"$/) { sub(/^"/, "", value); sub(/"$/, "", value) }
-      print value
-      exit
+      found = value
     }
+    END { if (found != "") print found }
   ' .env
 }
 

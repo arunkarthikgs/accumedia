@@ -1,12 +1,11 @@
-import OpenAI from "openai";
-import ffmpegPath from "ffmpeg-static";
+import ffmpegPathImport from "ffmpeg-static";
 import { spawn } from "node:child_process";
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import sharp from "sharp";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const ffmpegPath = ffmpegPathImport as unknown as string | null;
 
 function runFfmpeg(args: string[], input?: Buffer) {
   if (!ffmpegPath) throw new Error("ffmpeg is not available for video rendering.");
@@ -14,18 +13,36 @@ function runFfmpeg(args: string[], input?: Buffer) {
     const process = spawn(ffmpegPath, args);
     const chunks: Buffer[] = [];
     let stderr = "";
-    process.stdout.on("data", (chunk: Buffer) => chunks.push(chunk));
-    process.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
+    process.stdout?.on("data", (chunk: Buffer) => chunks.push(chunk));
+    process.stderr?.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
     process.on("error", reject);
     process.on("close", (code) => code === 0 ? resolve({ output: Buffer.concat(chunks), stderr }) : reject(new Error(stderr.slice(-1000) || "ffmpeg failed.")));
-    if (input) process.stdin.end(input);
+    if (input) process.stdin?.end(input);
   });
 }
 
 async function createNarration(script: string, voiceFile?: Buffer) {
   if (voiceFile) return voiceFile;
-  const response = await openai.audio.speech.create({ model: "gpt-4o-mini-tts", voice: "alloy", input: script.slice(0, 4096), response_format: "mp3" });
-  return Buffer.from(await response.arrayBuffer());
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 90_000);
+  try {
+    const response = await fetch("https://api.openai.com/v1/audio/speech", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY || ""}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ model: "gpt-4o-mini-tts", voice: "alloy", input: script.slice(0, 4096), response_format: "mp3" }),
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(`OpenAI narration failed (${response.status}): ${(await response.text()).slice(0, 300)}`);
+    return Buffer.from(await response.arrayBuffer());
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") throw new Error("OpenAI narration timed out after 90 seconds.");
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 function durationFromFfmpegOutput(stderr: string) {

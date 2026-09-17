@@ -6,9 +6,10 @@ RUN apt-get update \
 
 WORKDIR /app
 COPY video-render-service/package.json ./package.json
-RUN npm install --omit=dev
-COPY video-render-service/server.ts ./server.ts
+RUN npm install
+COPY video-render-service/server.ts ./video-render-service/server.ts
 COPY lib ./lib
+RUN npm run build
 
 ENV NODE_ENV=production
 EXPOSE 8080

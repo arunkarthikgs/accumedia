@@ -44,7 +44,7 @@ export async function POST(
       );
     }
 
-    const kase = (await query<any>(`SELECT * FROM macula.macula_cases WHERE id = $1 LIMIT 1`, [id])).rows[0];
+    const kase = (await query<any>(`SELECT c.*, c.mccr_approved_at AS "mccrApprovedAt" FROM macula.macula_cases c WHERE c.id = $1 LIMIT 1`, [id])).rows[0];
     if (!kase) return NextResponse.json({ error: "Case not found" }, { status: 404 });
     await requireOrganizationAccess(kase.organizationId);
     if (!kase.mccrApprovedAt) {

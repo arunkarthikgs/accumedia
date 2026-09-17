@@ -30,6 +30,7 @@ interface AssetActionsPanelProps {
     videoR2Key?: string | null;
     videoDurationSeconds?: number | null;
     videoStatus?: string | null;
+    updatedAt?: string;
   };
 }
 
@@ -378,7 +379,7 @@ export default function AssetActionsPanel({
               <button
                 type="button"
                 onClick={renderVideo}
-                disabled={isRenderingVideo}
+                disabled={isRenderingVideo || videoStatus === "QUEUED" || videoStatus === "PROCESSING"}
                 className="flex items-center gap-1 rounded bg-pine px-3 py-1.5 text-[11px] font-semibold text-white disabled:opacity-50"
               >
                 {isRenderingVideo ? (
@@ -386,7 +387,7 @@ export default function AssetActionsPanel({
                 ) : (
                   <Video className="h-3 w-3" />
                 )}
-                {isRenderingVideo ? (videoStatus === "QUEUED" ? "Queued…" : "Rendering video…") : videoStatus === "PROCESSING" ? "Rendering video…" : "Render MP4"}
+                {isRenderingVideo ? (videoStatus === "QUEUED" ? "Queued…" : "Rendering video…") : videoStatus === "QUEUED" ? "Queued…" : videoStatus === "PROCESSING" ? "Rendering video…" : "Render MP4"}
               </button>
             </div>
           </div>

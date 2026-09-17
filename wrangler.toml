@@ -15,3 +15,7 @@ id = "76deaf70d0a6448c82cac8598146eb26"
 NEXT_PUBLIC_APP_URL = "https://acumedia.arunkarthikgs.dev"
 AUTH_REQUIRED = "true"
 ALLOW_EXTERNAL_ASR = "true"
+
+[[services]]
+binding = "VIDEO_RENDER_SERVICE"
+service = "macula-video-renderer"

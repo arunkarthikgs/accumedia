@@ -32,7 +32,13 @@ async function createNarration(script: string, voiceFile?: Buffer) {
         Authorization: `Bearer ${process.env.OPENAI_API_KEY || ""}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ model: "gpt-4o-mini-tts", voice: "alloy", input: script.slice(0, 4096), response_format: "mp3" }),
+      body: JSON.stringify({
+        model: "gpt-4o-mini-tts",
+        voice: "alloy",
+        input: script.slice(0, 4096),
+        instructions: "Speak in clear, natural Indian English with a neutral Indian accent. Use a measured clinical-education pace, a warm professional tone, and precise pronunciation of medical terminology and Indian names. Do not imitate a specific person.",
+        response_format: "mp3",
+      }),
       signal: controller.signal,
     });
     if (!response.ok) throw new Error(`OpenAI narration failed (${response.status}): ${(await response.text()).slice(0, 300)}`);

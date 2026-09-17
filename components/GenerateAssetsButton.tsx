@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Loader2, Sparkles } from "lucide-react";
 
 export default function GenerateAssetsButton({ caseId }: { caseId: string }) {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [isError, setIsError] = useState(false);
@@ -22,7 +24,7 @@ export default function GenerateAssetsButton({ caseId }: { caseId: string }) {
         return;
       }
       setMessage(`${data.assetsGenerated} publishing asset${data.assetsGenerated === 1 ? "" : "s"} generated.`);
-      window.location.reload();
+      router.refresh();
     } catch (error: any) {
       setIsError(true);
       setMessage(error.message || "Unable to connect to the publishing asset service.");

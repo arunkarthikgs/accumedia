@@ -68,6 +68,21 @@ export async function assertTokenQuota(organizationId: string, additionalTokens:
   }
 }
 
+export async function assertPublishingGenerationQuota(
+  organizationId: string,
+  additionalAssets: number,
+  additionalTokens: number
+) {
+  const quota = await getOrganizationQuota(organizationId);
+  if (!quota) return;
+  if (quota.assets.limit && quota.assets.used + additionalAssets > quota.assets.limit) {
+    throw new Error(`Monthly asset quota exceeded (${quota.assets.limit} assets).`);
+  }
+  if (quota.aiTokens.limit && quota.aiTokens.used + Math.max(0, Math.ceil(additionalTokens)) > quota.aiTokens.limit) {
+    throw new Error(`Monthly AI token quota exceeded (${quota.aiTokens.limit} tokens).`);
+  }
+}
+
 export async function assertCaseQuota(organizationId: string) {
   const quota = await getOrganizationQuota(organizationId);
   if (!quota?.cases.limit) return;

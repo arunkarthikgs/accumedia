@@ -23,10 +23,12 @@ export async function createOpenAIChatCompletion(input: {
 
   let response: Response | null = null;
   let lastError: unknown;
+  const requestDeadline = AbortSignal.timeout(90_000);
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
       response = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
+        signal: requestDeadline,
         headers: {
           Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json",

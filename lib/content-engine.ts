@@ -3,7 +3,7 @@ import { query } from "@/lib/worker-db";
 import { createOpenAIChatCompletion } from "@/lib/openai-fetch";
 import { validateGeneratedContent } from "./content-validation";
 import { logAIUsage } from "./ai-usage";
-import { assertAssetQuota, assertTokenQuota } from "./quotas";
+import { assertAssetQuota, assertPublishingGenerationQuota, assertTokenQuota } from "./quotas";
 
 /**
  * RFP §7-12 output-type prompt library. Each entry is deliberately kept as
@@ -68,23 +68,21 @@ interface GenerateOptions {
   organization: any;
   channel: any;
   skipAssetQuota?: boolean;
+  skipTokenQuota?: boolean;
+  generationContext?: {
+    platformCharacterLimit: number;
+    seoKeywordSet: any;
+  };
 }
 
-export async function generateChannelAsset({
-  caseId,
-  masterRecord,
-  organization,
-  channel,
-  skipAssetQuota,
-}: GenerateOptions) {
-  if (!skipAssetQuota) await assertAssetQuota(organization.id);
+function prepareChannelPrompt(
+  masterRecord: Record<string, any>,
+  organization: any,
+  channel: any,
+  generationContext: { platformCharacterLimit: number; seoKeywordSet: any }
+) {
   const outputType = channel.outputType || "SEO_BLOG";
   const basePrompt = channel.systemPrompt?.trim() || DEFAULT_PROMPTS[outputType];
-  const platformLimit = (await query<{ maxCharacters: number | null }>(`SELECT "maxCharacters" FROM macula.platform_limits WHERE platform = 'x' LIMIT 1`)).rows[0];
-  const seoKeywordSet = outputType === "SEO_BLOG"
-    ? (await query(`SELECT "primaryKeyword", "secondaryKeywords", "longTailKeywords", "localKeywords", "questionKeywords", "semanticKeywords", "searchIntent" FROM macula.seo_keyword_sets WHERE "caseId" = $1 LIMIT 1`, [caseId])).rows[0]
-    : null;
-
   const systemPrompt = `${basePrompt}
 
 Never include anything listed under the record's confidentialityFlags or confidentiality_flags.
@@ -93,14 +91,41 @@ terminologyRetain, terminologySimplify, terminology_retain, and terminology_simp
 where applicable: "${organization.defaultDisclaimer}".
 Organization writing tone: ${organization.preferredTone || "clinically precise, educational, and respectful"}.
 Default call to action, where appropriate and non-promotional: ${organization.callToAction || "None configured"}.`;
-
+  const seoKeywordSet = outputType === "SEO_BLOG" ? generationContext.seoKeywordSet : null;
   const resolvedPrompt = systemPrompt
     .replace("{duration}", channel.durationLabel || "60 seconds")
-    .replace("{platform_char_limit}", String(platformLimit?.maxCharacters || 280)) +
+    .replace("{platform_char_limit}", String(generationContext.platformCharacterLimit)) +
     (seoKeywordSet ? `\nUse this approved keyword strategy; do not invent replacement keywords:\n${JSON.stringify(seoKeywordSet, null, 2)}` : "");
-  const promptTemplateVersion = `${channel.promptVersion}:${crypto.createHash("sha256").update(resolvedPrompt).digest("hex").slice(0, 12)}`;
+  const masterRecordJson = JSON.stringify(masterRecord, null, 2);
+  return {
+    outputType,
+    resolvedPrompt,
+    masterRecordJson,
+    estimatedTokens: Math.ceil((resolvedPrompt.length + masterRecordJson.length) / 4) + 4096,
+    promptTemplateVersion: `${channel.promptVersion}:${crypto.createHash("sha256").update(resolvedPrompt).digest("hex").slice(0, 12)}`,
+  };
+}
 
-  await assertTokenQuota(organization.id, Math.ceil((resolvedPrompt.length + JSON.stringify(masterRecord).length) / 4) + 4096);
+export async function generateChannelAsset({
+  caseId,
+  masterRecord,
+  organization,
+  channel,
+  skipAssetQuota,
+  skipTokenQuota,
+  generationContext,
+}: GenerateOptions) {
+  if (!skipAssetQuota) await assertAssetQuota(organization.id);
+  const context = generationContext || {
+    platformCharacterLimit: (await query<{ maxCharacters: number | null }>(`SELECT "maxCharacters" FROM macula.platform_limits WHERE platform = 'x' LIMIT 1`)).rows[0]?.maxCharacters || 280,
+    seoKeywordSet: channel.outputType === "SEO_BLOG"
+      ? (await query(`SELECT "primaryKeyword", "secondaryKeywords", "longTailKeywords", "localKeywords", "questionKeywords", "semanticKeywords", "searchIntent" FROM macula.seo_keyword_sets WHERE "caseId" = $1 LIMIT 1`, [caseId])).rows[0]
+      : null,
+  };
+  const prepared = prepareChannelPrompt(masterRecord, organization, channel, context);
+  const { outputType, resolvedPrompt, masterRecordJson, promptTemplateVersion } = prepared;
+
+  if (!skipTokenQuota) await assertTokenQuota(organization.id, prepared.estimatedTokens);
 
   const response = await createOpenAIChatCompletion({
     model: "gpt-4o",
@@ -108,7 +133,7 @@ Default call to action, where appropriate and non-promotional: ${organization.ca
     jsonMode: outputType !== "VIDEO_SCRIPT",
     messages: [
       { role: "system", content: resolvedPrompt },
-      { role: "user", content: `Approved Master Clinical Content Record:\n${JSON.stringify(masterRecord, null, 2)}` },
+      { role: "user", content: `Approved Master Clinical Content Record:\n${masterRecordJson}` },
     ],
   });
 
@@ -149,26 +174,63 @@ export async function runAdaptationEngine(caseId: string) {
   const kase = (await query<any>(`SELECT c.*, row_to_json(o) AS organization FROM macula.cases c JOIN macula.organizations o ON o.id = c."organizationId" WHERE c.id = $1 LIMIT 1`, [caseId])).rows[0];
   if (!kase) throw new Error("Case not found.");
 
-  let channels = (await query<any>(`SELECT * FROM macula.channel_definitions WHERE "isActive" = TRUE AND "outputType" IS NOT NULL AND ("organizationId" = $1 OR "organizationId" IS NULL)`, [kase.organizationId])).rows;
+  const [channelResult, existingAssetResult, platformLimitResult, seoKeywordResult] = await Promise.all([
+    query<any>(`SELECT * FROM macula.channel_definitions WHERE "isActive" = TRUE AND "outputType" IS NOT NULL AND ("organizationId" = $1 OR "organizationId" IS NULL) ORDER BY ("organizationId" IS NOT NULL) DESC`, [kase.organizationId]),
+    query<{ channelKey: string }>(`SELECT "channelKey" FROM macula.generated_assets WHERE "caseId" = $1`, [caseId]),
+    query<{ maxCharacters: number | null }>(`SELECT "maxCharacters" FROM macula.platform_limits WHERE platform = 'x' LIMIT 1`),
+    query(`SELECT "primaryKeyword", "secondaryKeywords", "longTailKeywords", "localKeywords", "questionKeywords", "semanticKeywords", "searchIntent" FROM macula.seo_keyword_sets WHERE "caseId" = $1 LIMIT 1`, [caseId]),
+  ]);
+  let channels = channelResult.rows;
 
   if (channels.length === 0) {
     channels = (await query<any>(`SELECT * FROM macula.channel_definitions WHERE "organizationId" IS NULL AND "outputType" IS NOT NULL`)).rows;
   }
+  channels = Array.from(new Map(channels.map((channel: any) => [channel.channelKey, channel])).values());
 
-  const existingAssets = (await query<{ channelKey: string }>(`SELECT "channelKey" FROM macula.generated_assets WHERE "caseId" = $1`, [caseId])).rows;
+  const existingAssets = existingAssetResult.rows;
   const existingChannelKeys = new Set(existingAssets.map((asset) => asset.channelKey));
   const missingChannels = channels.filter((channel) => !existingChannelKeys.has(channel.channelKey));
-  await assertAssetQuota(kase.organizationId, missingChannels.length);
-  const created = [];
-  for (const channel of missingChannels) {
-    const asset = await generateChannelAsset({
+  if (missingChannels.length === 0) return [];
+
+  const generationContext = {
+    platformCharacterLimit: platformLimitResult.rows[0]?.maxCharacters || 280,
+    seoKeywordSet: seoKeywordResult.rows[0] || null,
+  };
+  const estimatedTokens = missingChannels.reduce(
+    (total, channel) => total + prepareChannelPrompt(kase.masterRecord, kase.organization, channel, generationContext).estimatedTokens,
+    0
+  );
+  await assertPublishingGenerationQuota(kase.organizationId, missingChannels.length, estimatedTokens);
+
+  return mapWithConcurrency(missingChannels, 3, (channel) =>
+    generateChannelAsset({
       caseId,
       masterRecord: kase.masterRecord as Record<string, any>,
       organization: kase.organization,
       channel,
       skipAssetQuota: true,
-    });
-    created.push(asset);
-  }
-  return created;
+      skipTokenQuota: true,
+      generationContext,
+    })
+  );
+}
+
+async function mapWithConcurrency<T, R>(items: T[], concurrency: number, mapper: (item: T) => Promise<R>) {
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+  let firstError: unknown;
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (!firstError && nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      try {
+        results[index] = await mapper(items[index]);
+      } catch (error) {
+        firstError = error;
+      }
+    }
+  });
+  await Promise.all(workers);
+  if (firstError) throw firstError;
+  return results;
 }

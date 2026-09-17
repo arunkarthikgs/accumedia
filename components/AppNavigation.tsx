@@ -56,7 +56,7 @@ export default function AppNavigation({ children }: { children: React.ReactNode 
     },
     {
       name: "Omnichannel Studio",
-      href: "/cases/active/assets",
+      href: "/admin/cases",
       badge: "6 Formats",
       icon: (active) => (
         <svg className={`w-5 h-5 ${active ? "text-pine" : "text-muted"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">

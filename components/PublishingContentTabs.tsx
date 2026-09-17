@@ -1,10 +1,14 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useState } from "react";
 import FileText from "lucide-react/dist/esm/icons/file-text";
 import ImageIcon from "lucide-react/dist/esm/icons/image";
 import PublishingAssetWorkspace from "@/components/PublishingAssetWorkspace";
-import ImagesPanel from "@/components/ImagesPanel";
+
+const ImagesPanel = dynamic(() => import("@/components/ImagesPanel"), {
+  loading: () => <div className="h-32 animate-pulse rounded-lg border border-line bg-surface" />,
+});
 
 type Asset = {
   id: string;

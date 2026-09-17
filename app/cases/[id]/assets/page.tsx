@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { query } from "@/lib/worker-db";
+import { requireOrganizationAccess } from "@/lib/tenant-auth";
 import PublishingContentTabs from "@/components/PublishingContentTabs";
 import {
   ArrowLeft,
@@ -24,9 +25,34 @@ export default async function CaseAssetsPage(props: {
   let dbError: string | null = null;
 
   try {
-    const caseIdFilter = id === "active" ? "ORDER BY c.\"createdAt\" DESC LIMIT 1" : "WHERE c.id = $1 LIMIT 1";
-    const { rows } = await query<any>(`SELECT c.*, c.mccr_approved_at AS "mccrApprovedAt", row_to_json(u) AS physician, row_to_json(o) AS organization, COALESCE((SELECT json_agg(ga ORDER BY ga."createdAt" DESC) FROM macula.generated_assets ga WHERE ga."caseId"=c.id), '[]') AS assets FROM macula.cases c JOIN macula.users u ON u.id=c."physicianId" JOIN macula.organizations o ON o.id=c."organizationId" ${caseIdFilter}`, id === "active" ? [] : [id]);
+    const { rows } = await query<any>(`
+      SELECT c.id, c.title, c.status, c."organizationId", c.mccr_approved_at AS "mccrApprovedAt",
+             json_build_object('name', u.name, 'specialty', u.specialty) AS physician,
+             json_build_object('name', o.name) AS organization,
+             COALESCE((
+               SELECT json_agg(json_build_object(
+                 'id', ga.id,
+                 'channelKey', ga."channelKey",
+                 'channelName', ga."channelName",
+                 'outputType', ga."outputType",
+                 'variant', ga.variant,
+                 'status', ga.status,
+                 'version', ga.version,
+                 'content', ga.content,
+                 'videoR2Key', ga."videoR2Key",
+                 'videoDurationSeconds', ga."videoDurationSeconds",
+                 'videoStatus', ga."videoStatus"
+               ) ORDER BY ga."createdAt" DESC)
+               FROM macula.generated_assets ga
+               WHERE ga."caseId" = c.id
+             ), '[]'::json) AS assets
+      FROM macula.cases c
+      JOIN macula.users u ON u.id = c."physicianId"
+      JOIN macula.organizations o ON o.id = c."organizationId"
+      WHERE c.id = $1
+      LIMIT 1`, [id]);
     caseData = rows[0] || null;
+    if (caseData) await requireOrganizationAccess(caseData.organizationId);
   } catch (err: any) {
     console.error("Failed to load case data:", err);
     dbError = err.message || "Failed to retrieve case records.";
@@ -39,9 +65,9 @@ export default async function CaseAssetsPage(props: {
           <div className="mx-auto flex h-11 w-11 items-center justify-center rounded bg-pine-tint text-pine mb-4">
             <Share2 className="h-5 w-5" />
           </div>
-          <h2 className="font-serif text-lg font-semibold text-ink mb-1">No active case found</h2>
+          <h2 className="font-serif text-lg font-semibold text-ink mb-1">Case not found</h2>
           <p className="text-xs text-muted mb-6 leading-relaxed">
-            {dbError ? `Database notice: ${dbError}` : "There are currently no clinical cases recorded for the publishing studio."}
+            {dbError ? `Database notice: ${dbError}` : "The selected clinical case could not be found."}
           </p>
           <div className="flex flex-col gap-2">
             <Link href="/cases/new" className="flex items-center justify-center gap-2 rounded bg-pine px-4 py-2.5 text-xs font-medium text-white hover:bg-pine-dark transition">

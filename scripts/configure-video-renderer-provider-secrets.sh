@@ -63,6 +63,11 @@ put_secret R2_ACCESS_KEY_ID "$R2_ACCESS_KEY_ID" "$RENDERER_CONFIG"
 put_secret R2_SECRET_ACCESS_KEY "$R2_SECRET_ACCESS_KEY" "$RENDERER_CONFIG"
 put_secret R2_BUCKET_NAME "$R2_BUCKET_NAME" "$RENDERER_CONFIG"
 
+printf '%s\n' "Configuring R2 secrets on the main application Worker..."
+put_secret CLOUDFLARE_ACCOUNT_ID "$CLOUDFLARE_ACCOUNT_ID" "$APP_CONFIG"
+put_secret R2_ACCESS_KEY_ID "$R2_ACCESS_KEY_ID" "$APP_CONFIG"
+put_secret R2_SECRET_ACCESS_KEY "$R2_SECRET_ACCESS_KEY" "$APP_CONFIG"
+put_secret R2_BUCKET_NAME "$R2_BUCKET_NAME" "$APP_CONFIG"
 printf '%s' "$RENDERER_URL" | npx wrangler secret put VIDEO_RENDER_SERVICE_URL --config "$APP_CONFIG" >/dev/null
 
 printf '%s\n' "Provider and R2 secrets configured successfully."

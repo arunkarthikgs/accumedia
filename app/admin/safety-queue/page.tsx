@@ -9,7 +9,6 @@ import {
   XCircle,
   Scissors,
   Building2,
-  Stethoscope,
   RefreshCw,
 } from "lucide-react";
 import StatusTag from "@/components/ui/StatusTag";
@@ -26,8 +25,9 @@ interface Flag {
     id: string;
     title: string;
     organizationId: string;
+    organizationName?: string | null;
     physician?: { name: string } | null;
-  };
+  } | null;
   imageAsset?: { id: string; channel: string; sourceType: string; phiReviewStatus: string; safetyFindings?: unknown } | null;
 }
 
@@ -109,7 +109,7 @@ export default function SafetyQueuePage() {
 
     for (const flag of flags) {
       byType.set(flag.flagType, (byType.get(flag.flagType) || 0) + 1);
-      caseIds.add(flag.case.id);
+      if (flag.case?.id) caseIds.add(flag.case.id);
       if (flag.confidence === "high") highConfidence += 1;
     }
 
@@ -247,6 +247,19 @@ export default function SafetyQueuePage() {
               <div key={f.id} className="card card-accent border-l-ochre p-5">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1">
+                    {f.case ? (
+                      <Link href={`/cases/${f.case.id}/review`} className="mb-3 block rounded border border-line bg-paper px-3 py-2 hover:border-pine">
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-pine">Clinical case</span>
+                        <span className="mt-0.5 block text-sm font-bold text-ink">{f.case.title}</span>
+                        <span className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted">
+                          <span>Case #{f.case.id.slice(0, 8)}</span>
+                          {f.case.organizationName && <span>{f.case.organizationName}</span>}
+                          {f.case.physician?.name && <span>{f.case.physician.name}</span>}
+                        </span>
+                      </Link>
+                    ) : (
+                      <div className="mb-3 rounded border border-brick/30 bg-brick-tint px-3 py-2 text-xs font-semibold text-brick">Case association unavailable</div>
+                    )}
                     <div className="flex items-center gap-2 mb-1.5">
                       <StatusTag tone={CONFIDENCE_TONE[f.confidence] || "ochre"}>{f.confidence} confidence</StatusTag>
                       <span className="text-[10px] font-medium text-muted uppercase tracking-wide">{f.flagType.replace("_", " ")}</span>
@@ -270,12 +283,6 @@ export default function SafetyQueuePage() {
                                         {f.imageAsset && imageSafetyFindings(f.imageAsset.safetyFindings).length === 0 && (
                                           <p className="mt-2 text-xs text-muted">Detailed screening evidence is unavailable for this earlier image scan. Open the case to inspect the source image before deciding.</p>
                                         )}
-                    <div className="mt-2 flex items-center gap-3 text-[11px] text-muted">
-                      <Link href={`/cases/${f.case.id}/review`} className="flex items-center gap-1 hover:text-pine">
-                        <Stethoscope className="h-3 w-3" /> {f.case.title}
-                      </Link>
-                      {f.case.physician?.name && <span>· {f.case.physician.name}</span>}
-                    </div>
                     <button
                       type="button"
                       onClick={() => viewRefinedText(f)}
@@ -314,7 +321,7 @@ export default function SafetyQueuePage() {
           </div>
         )}
       </main>
-      {viewingFlag && <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4"><section role="dialog" aria-modal="true" aria-labelledby="refined-text-title" className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg border border-line bg-surface p-6"><div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-semibold uppercase tracking-wide text-ochre">Safety review evidence</p><h2 id="refined-text-title" className="mt-1 text-lg font-bold text-ink">Refined clinical narrative</h2><p className="mt-1 text-xs text-muted">{viewingFlag.case.title}</p></div><button onClick={() => { setViewingFlag(null); setRefinedText(null); }} className="rounded border border-line px-3 py-1 text-xs font-semibold text-ink hover:border-pine">Close</button></div><div className="mt-5 rounded border border-ochre/30 bg-ochre-tint p-3 text-xs leading-5 text-ink"><strong>{viewingFlag.flagType.replaceAll("_", " ")}</strong> · {viewingFlag.detail}</div><div className="mt-5"><h3 className="text-xs font-bold uppercase tracking-wide text-muted">Redacted GPT refinement</h3><p className="mt-2 whitespace-pre-wrap rounded border border-line bg-paper p-4 text-sm leading-7 text-ink">{isLoadingRefinedText ? "Loading refined text..." : refinedText || "No refined text is available for this safety finding."}</p></div></section></div>}
+      {viewingFlag && <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4"><section role="dialog" aria-modal="true" aria-labelledby="refined-text-title" className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg border border-line bg-surface p-6"><div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-semibold uppercase tracking-wide text-ochre">Safety review evidence</p><h2 id="refined-text-title" className="mt-1 text-lg font-bold text-ink">Refined clinical narrative</h2><p className="mt-1 text-xs text-muted">{viewingFlag.case?.title || "Case association unavailable"}</p></div><button onClick={() => { setViewingFlag(null); setRefinedText(null); }} className="rounded border border-line px-3 py-1 text-xs font-semibold text-ink hover:border-pine">Close</button></div><div className="mt-5 rounded border border-ochre/30 bg-ochre-tint p-3 text-xs leading-5 text-ink"><strong>{viewingFlag.flagType.replaceAll("_", " ")}</strong> · {viewingFlag.detail}</div><div className="mt-5"><h3 className="text-xs font-bold uppercase tracking-wide text-muted">Redacted GPT refinement</h3><p className="mt-2 whitespace-pre-wrap rounded border border-line bg-paper p-4 text-sm leading-7 text-ink">{isLoadingRefinedText ? "Loading refined text..." : refinedText || "No refined text is available for this safety finding."}</p></div></section></div>}
     </div>
   );
 }

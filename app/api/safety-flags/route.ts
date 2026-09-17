@@ -44,16 +44,17 @@ export async function GET(req: Request) {
     const values: unknown[] = [];
     const filters: string[] = [];
     if (status !== "ALL") { values.push(status); filters.push(`sf.status = $${values.length}`); }
-    if (scopedOrgId) { values.push(scopedOrgId); filters.push(`(c."organizationId" = $${values.length} OR ia."caseId" IN (SELECT id FROM macula.cases WHERE "organizationId" = $${values.length}))`); }
-    if (caseId) { values.push(caseId); filters.push(`sf."caseId" = $${values.length}`); }
+    if (scopedOrgId) { values.push(scopedOrgId); filters.push(`c."organizationId" = $${values.length}`); }
+    if (caseId) { values.push(caseId); filters.push(`c.id = $${values.length}`); }
     if (flagId) { values.push(flagId); filters.push(`sf.id = $${values.length}`); }
     const { rows: flags } = await query(`SELECT sf.id, sf."targetType", sf.detail, sf."flagType", sf.confidence, sf.status, sf."reviewedBy", sf."reviewedAt", sf."createdAt",
-      CASE WHEN c.id IS NULL THEN NULL ELSE json_build_object('id', c.id, 'title', c.title, 'organizationId', c."organizationId", 'physician', json_build_object('name', u.name)) END AS case,
+      CASE WHEN c.id IS NULL THEN NULL ELSE json_build_object('id', c.id, 'title', c.title, 'organizationId', c."organizationId", 'organizationName', o.name, 'physician', json_build_object('name', u.name)) END AS case,
       CASE WHEN ia.id IS NULL THEN NULL ELSE json_build_object('id', ia.id, 'channel', ia.channel, 'sourceType', ia."sourceType", 'phiReviewStatus', ia."phiReviewStatus", 'safetyFindings', ia."safetyFindings") END AS "imageAsset"
       FROM macula.safety_flags sf
-      LEFT JOIN macula.cases c ON c.id = sf."caseId"
-      LEFT JOIN macula.users u ON u.id = c."physicianId"
       LEFT JOIN macula.image_assets ia ON ia.id = sf."imageAssetId"
+      LEFT JOIN macula.cases c ON c.id = COALESCE(sf."caseId", ia."caseId")
+      LEFT JOIN macula.users u ON u.id = c."physicianId"
+      LEFT JOIN macula.organizations o ON o.id = c."organizationId"
       ${filters.length ? `WHERE ${filters.join(" AND ")}` : ""}
       ORDER BY sf."createdAt" DESC LIMIT ${flagId ? 1 : 25}`, values);
     const organizations = (await organizationQuery).rows;

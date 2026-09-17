@@ -170,15 +170,13 @@ function safeJsonParse(raw: string) {
  * Falls back to the six required output types if the org hasn't configured
  * ChannelDefinitions yet, so no org ships with zero required outputs.
  */
-export async function runAdaptationEngine(caseId: string) {
-  const kase = (await query<any>(`SELECT c.*, row_to_json(o) AS organization FROM macula.cases c JOIN macula.organizations o ON o.id = c."organizationId" WHERE c.id = $1 LIMIT 1`, [caseId])).rows[0];
+export async function runAdaptationEngine(caseId: string, loadedCase?: any) {
+  const kase = loadedCase || (await query<any>(`SELECT c.*, row_to_json(o) AS organization FROM macula.cases c JOIN macula.organizations o ON o.id = c."organizationId" WHERE c.id = $1 LIMIT 1`, [caseId])).rows[0];
   if (!kase) throw new Error("Case not found.");
 
-  const [channelResult, existingAssetResult, platformLimitResult, seoKeywordResult] = await Promise.all([
+  const [channelResult, existingAssetResult] = await Promise.all([
     query<any>(`SELECT * FROM macula.channel_definitions WHERE "isActive" = TRUE AND "outputType" IS NOT NULL AND ("organizationId" = $1 OR "organizationId" IS NULL) ORDER BY ("organizationId" IS NOT NULL) DESC`, [kase.organizationId]),
     query<{ channelKey: string }>(`SELECT "channelKey" FROM macula.generated_assets WHERE "caseId" = $1`, [caseId]),
-    query<{ maxCharacters: number | null }>(`SELECT "maxCharacters" FROM macula.platform_limits WHERE platform = 'x' LIMIT 1`),
-    query(`SELECT "primaryKeyword", "secondaryKeywords", "longTailKeywords", "localKeywords", "questionKeywords", "semanticKeywords", "searchIntent" FROM macula.seo_keyword_sets WHERE "caseId" = $1 LIMIT 1`, [caseId]),
   ]);
   let channels = channelResult.rows;
 
@@ -192,6 +190,10 @@ export async function runAdaptationEngine(caseId: string) {
   const missingChannels = channels.filter((channel) => !existingChannelKeys.has(channel.channelKey));
   if (missingChannels.length === 0) return [];
 
+  const [platformLimitResult, seoKeywordResult] = await Promise.all([
+    query<{ maxCharacters: number | null }>(`SELECT "maxCharacters" FROM macula.platform_limits WHERE platform = 'x' LIMIT 1`),
+    query(`SELECT "primaryKeyword", "secondaryKeywords", "longTailKeywords", "localKeywords", "questionKeywords", "semanticKeywords", "searchIntent" FROM macula.seo_keyword_sets WHERE "caseId" = $1 LIMIT 1`, [caseId]),
+  ]);
   const generationContext = {
     platformCharacterLimit: platformLimitResult.rows[0]?.maxCharacters || 280,
     seoKeywordSet: seoKeywordResult.rows[0] || null,

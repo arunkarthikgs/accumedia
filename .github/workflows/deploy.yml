@@ -75,6 +75,13 @@ jobs:
       - name: Build application Worker
         run: npm run build:worker
 
+      - name: Migrate production database
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          test -n "$DATABASE_URL" || { echo "Missing GitHub secret DATABASE_URL"; exit 1; }
+          npx prisma migrate deploy
+
       - name: Deploy application Worker
         run: npx wrangler deploy --config wrangler.toml
         env:

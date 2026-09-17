@@ -278,9 +278,10 @@ export default function CompliancePromptsAdminPage() {
             <div className="h-4 w-px bg-slate-200" />
             <div className="flex items-center gap-2">
               <ShieldAlert className="h-5 w-5 text-teal-600" />
-              <h1 className="text-base font-bold text-slate-900">
-                Statutory Compliance & AI Prompt Control Center
-              </h1>
+              <div>
+                <h1 className="text-base font-bold text-slate-900">AI Prompt Management &amp; Governance</h1>
+                <p className="text-[11px] text-slate-500">Manage global defaults, organization overrides, channel prompts, versions, testing, and audit history.</p>
+              </div>
             </div>
           </div>
 

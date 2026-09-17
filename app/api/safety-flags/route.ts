@@ -47,9 +47,13 @@ export async function GET(req: Request) {
     if (scopedOrgId) { values.push(scopedOrgId); filters.push(`c."organizationId" = $${values.length}`); }
     if (caseId) { values.push(caseId); filters.push(`c.id = $${values.length}`); }
     if (flagId) { values.push(flagId); filters.push(`sf.id = $${values.length}`); }
+    const evidenceColumns = flagId ? `,
+      COALESCE((SELECT ar."transcribedText" FROM macula.audio_recordings ar WHERE ar."caseId" = c.id AND NULLIF(BTRIM(ar."transcribedText"), '') IS NOT NULL ORDER BY ar."updatedAt" DESC LIMIT 1), NULLIF(BTRIM(c.raw_input), '')) AS "evidenceText",
+      CASE WHEN EXISTS (SELECT 1 FROM macula.audio_recordings ar WHERE ar."caseId" = c.id AND NULLIF(BTRIM(ar."transcribedText"), '') IS NOT NULL) THEN 'refined_recording' ELSE 'sanitized_case_input' END AS "evidenceSource"` : "";
     const { rows: flags } = await query(`SELECT sf.id, sf."targetType", sf.detail, sf."flagType", sf.confidence, sf.status, sf."reviewedBy", sf."reviewedAt", sf."createdAt",
       CASE WHEN c.id IS NULL THEN NULL ELSE json_build_object('id', c.id, 'title', c.title, 'organizationId', c."organizationId", 'organizationName', o.name, 'physician', json_build_object('name', u.name)) END AS case,
       CASE WHEN ia.id IS NULL THEN NULL ELSE json_build_object('id', ia.id, 'channel', ia.channel, 'sourceType', ia."sourceType", 'phiReviewStatus', ia."phiReviewStatus", 'safetyFindings', ia."safetyFindings") END AS "imageAsset"
+      ${evidenceColumns}
       FROM macula.safety_flags sf
       LEFT JOIN macula.image_assets ia ON ia.id = sf."imageAssetId"
       LEFT JOIN macula.cases c ON c.id = COALESCE(sf."caseId", ia."caseId")

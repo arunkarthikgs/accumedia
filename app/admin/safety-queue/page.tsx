@@ -29,6 +29,8 @@ interface Flag {
     physician?: { name: string } | null;
   } | null;
   imageAsset?: { id: string; channel: string; sourceType: string; phiReviewStatus: string; safetyFindings?: unknown } | null;
+  evidenceText?: string | null;
+  evidenceSource?: "refined_recording" | "sanitized_case_input" | null;
 }
 
 interface Organization {
@@ -64,6 +66,7 @@ export default function SafetyQueuePage() {
   const [actingOnId, setActingOnId] = useState<string | null>(null);
   const [viewingFlag, setViewingFlag] = useState<Flag | null>(null);
   const [refinedText, setRefinedText] = useState<string | null>(null);
+  const [evidenceLabel, setEvidenceLabel] = useState("Redacted GPT refinement");
   const [isLoadingRefinedText, setIsLoadingRefinedText] = useState(false);
 
   const loadFlags = async (force = false) => {
@@ -141,12 +144,15 @@ export default function SafetyQueuePage() {
   const viewRefinedText = async (flag: Flag) => {
     setViewingFlag(flag);
     setRefinedText(null);
+    setEvidenceLabel("Redacted GPT refinement");
     setIsLoadingRefinedText(true);
     try {
       const response = await fetch(`/api/safety-flags?flagId=${encodeURIComponent(flag.id)}`);
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Unable to load refined text.");
-      setRefinedText(data.flags?.[0]?.case?.recordings?.[0]?.transcribedText || "No refined text is available for this safety finding.");
+      const evidence = data.flags?.[0] as Flag | undefined;
+      setEvidenceLabel(evidence?.evidenceSource === "sanitized_case_input" ? "Sanitized case input" : "Redacted GPT refinement");
+      setRefinedText(evidence?.evidenceText || "No refined text is available for this safety finding.");
     } catch (error: any) {
       setRefinedText(error.message || "Unable to load refined text.");
     } finally {
@@ -321,7 +327,7 @@ export default function SafetyQueuePage() {
           </div>
         )}
       </main>
-      {viewingFlag && <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4"><section role="dialog" aria-modal="true" aria-labelledby="refined-text-title" className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg border border-line bg-surface p-6"><div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-semibold uppercase tracking-wide text-ochre">Safety review evidence</p><h2 id="refined-text-title" className="mt-1 text-lg font-bold text-ink">Refined clinical narrative</h2><p className="mt-1 text-xs text-muted">{viewingFlag.case?.title || "Case association unavailable"}</p></div><button onClick={() => { setViewingFlag(null); setRefinedText(null); }} className="rounded border border-line px-3 py-1 text-xs font-semibold text-ink hover:border-pine">Close</button></div><div className="mt-5 rounded border border-ochre/30 bg-ochre-tint p-3 text-xs leading-5 text-ink"><strong>{viewingFlag.flagType.replaceAll("_", " ")}</strong> · {viewingFlag.detail}</div><div className="mt-5"><h3 className="text-xs font-bold uppercase tracking-wide text-muted">Redacted GPT refinement</h3><p className="mt-2 whitespace-pre-wrap rounded border border-line bg-paper p-4 text-sm leading-7 text-ink">{isLoadingRefinedText ? "Loading refined text..." : refinedText || "No refined text is available for this safety finding."}</p></div></section></div>}
+      {viewingFlag && <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4"><section role="dialog" aria-modal="true" aria-labelledby="refined-text-title" className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg border border-line bg-surface p-6"><div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-semibold uppercase tracking-wide text-ochre">Safety review evidence</p><h2 id="refined-text-title" className="mt-1 text-lg font-bold text-ink">Refined clinical narrative</h2><p className="mt-1 text-xs text-muted">{viewingFlag.case?.title || "Case association unavailable"}</p></div><button onClick={() => { setViewingFlag(null); setRefinedText(null); }} className="rounded border border-line px-3 py-1 text-xs font-semibold text-ink hover:border-pine">Close</button></div><div className="mt-5 rounded border border-ochre/30 bg-ochre-tint p-3 text-xs leading-5 text-ink"><strong>{viewingFlag.flagType.replaceAll("_", " ")}</strong> · {viewingFlag.detail}</div><div className="mt-5"><h3 className="text-xs font-bold uppercase tracking-wide text-muted">{evidenceLabel}</h3><p className="mt-2 whitespace-pre-wrap rounded border border-line bg-paper p-4 text-sm leading-7 text-ink">{isLoadingRefinedText ? "Loading refined text..." : refinedText || "No refined text is available for this safety finding."}</p></div></section></div>}
     </div>
   );
 }

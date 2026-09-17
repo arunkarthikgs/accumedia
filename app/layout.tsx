@@ -82,8 +82,6 @@ export default async function RootLayout({
               <span>NMC Code of Medical Ethics (2023)</span>
               <span>•</span>
               <span>DPDP Act 2023 PHI Compliance</span>
-              <span>•</span>
-              <span>HIPAA BAA Storage</span>
             </div>
           </div>
         </footer>

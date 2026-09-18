@@ -98,3 +98,19 @@ export async function renderClinicalImage(input: {
   const safety = parseSafetyResponse(screened.choices[0]?.message?.content || "{}");
   return { buffer, ...safety };
 }
+
+export async function screenUploadedClinicalImage(input: { buffer: Buffer; mimeType: string; safetyPrompt: string }) {
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const screened = await openai.chat.completions.create({
+    model: process.env.IMAGE_SAFETY_AI_MODEL || "gpt-4o",
+    response_format: { type: "json_object" },
+    messages: [{
+      role: "user",
+      content: [
+        { type: "text", text: input.safetyPrompt },
+        { type: "image_url", image_url: { url: `data:${input.mimeType};base64,${input.buffer.toString("base64")}`, detail: "high" } },
+      ],
+    }],
+  });
+  return parseSafetyResponse(screened.choices[0]?.message?.content || "{}");
+}

@@ -209,7 +209,23 @@ export default function SubscriptionPage() {
           </div>
         )}
       </header>
-      {!isLoading && plans.length > 0 && (
+      <nav aria-label="Subscription sections" className="flex gap-1 overflow-x-auto rounded-lg border border-line bg-surface p-1">
+        {([
+          ["current", "Current plan", CreditCard],
+          ["catalog", "Plan catalog", Settings2],
+          ["quotas", "Quota usage", Gauge],
+        ] as const).map(([key, label, Icon]) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setActiveTab(key)}
+            className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded px-3 py-2 text-xs font-semibold transition ${activeTab === key ? "bg-pine text-white" : "text-muted hover:bg-paper hover:text-ink"}`}
+          >
+            <Icon className="h-3.5 w-3.5" /> {label}
+          </button>
+        ))}
+      </nav>
+      {activeTab === "catalog" && !isLoading && plans.length > 0 && (
         <section className="rounded-lg border border-line bg-surface p-6">
           <h2 className="text-sm font-bold text-ink">RFP commercial plans</h2>
           <p className="mt-1 text-xs text-muted">
@@ -255,7 +271,7 @@ export default function SubscriptionPage() {
           </div>
         </section>
       )}
-      {isLoading ? (
+      {activeTab === "current" && (isLoading ? (
         <div className="rounded-lg border border-line bg-surface p-12 text-center text-sm text-muted">
           <Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin text-pine" />
           Loading subscription…
@@ -339,8 +355,8 @@ export default function SubscriptionPage() {
           </div>
           {message && <p className="mt-3 text-xs text-muted">{message}</p>}
         </section>
-      )}
-      <section className="rounded-lg border border-line bg-surface p-6">
+      ))}
+      {activeTab === "catalog" && <section className="rounded-lg border border-line bg-surface p-6">
         <h2 className="text-sm font-bold text-ink">Plan catalog administration</h2>
         <p className="mt-1 text-xs text-muted">Create and update plan pricing, content limits, AI limits, and overage policy.</p>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -353,7 +369,16 @@ export default function SubscriptionPage() {
         </div>
         <div className="mt-4 flex gap-2"><button type="button" onClick={savePlanDefinition} disabled={!planForm.name.trim()} className="rounded bg-pine px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">{editingPlan ? "Update plan" : "Create plan"}</button>{editingPlan && <button type="button" onClick={() => setEditingPlan(null)} className="rounded border border-line px-4 py-2 text-xs font-semibold text-ink">Cancel</button>}</div>
         <div className="mt-5 divide-y divide-line border-t border-line">{plans.map((plan) => <div key={`edit-${plan.id}`} className="flex items-center justify-between py-3 text-xs"><span className="font-semibold text-ink">{plan.name}</span><button type="button" onClick={() => editPlan(plan)} className="text-pine hover:underline">Edit</button></div>)}</div>
-      </section>
+      </section>}
+      {activeTab === "quotas" && <section className="rounded-lg border border-line bg-surface p-6">
+        <h2 className="text-sm font-bold text-ink">Current quota usage</h2>
+        <p className="mt-1 text-xs text-muted">Usage against the selected organisation&apos;s assigned plan.</p>
+        <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+          {quota && Object.entries({ Cases: quota.cases, "Audio minutes": quota.audioMinutes, "AI tokens": quota.aiTokens, Assets: quota.assets }).map(([label, value]: [string, any]) => (
+            <div key={label} className="rounded border border-line bg-paper p-4"><p className="text-[10px] uppercase text-muted">{label}</p><p className="mt-2 text-lg font-bold text-ink">{value.used.toLocaleString()} / {value.limit ?? "∞"}</p></div>
+          ))}
+        </div>
+      </section>}
     </main>
   );
 }

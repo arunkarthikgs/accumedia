@@ -5,6 +5,8 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
+ARG IMAGE_SCREEN_VERSION=2
+RUN echo "image-screen-version=${IMAGE_SCREEN_VERSION}"
 COPY video-render-service/package.json ./package.json
 RUN npm install
 COPY video-render-service/server.ts ./video-render-service/server.ts

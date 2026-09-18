@@ -1,10 +1,10 @@
 import express from "express";
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { renderClinicalVideo } from "../lib/video-renderer.js";
-import { renderClinicalImage } from "./image-renderer.js";
+import { renderClinicalImage, screenUploadedClinicalImage } from "./image-renderer.js";
 
 const app = express();
-app.use(express.json({ limit: "512kb" }));
+app.use(express.json({ limit: "16mb" }));
 
 const port = Number(process.env.PORT || 8080);
 const callbackSecret = process.env.VIDEO_RENDER_CALLBACK_SECRET || "";
@@ -67,6 +67,18 @@ app.post("/image-jobs", async (req, res) => {
     }
     const result = await processImageJob(job);
     return res.status(200).json({ jobId: job.jobId, status: "COMPLETED", ...result });
+  } catch (error) {
+    return res.status(502).json({ status: "FAILED", error: formatError(error) });
+  }
+});
+
+app.post("/image-screen", async (req, res) => {
+  try {
+    if (!authorized(req)) return res.status(401).json({ error: "Unauthorized." });
+    const body = req.body as { imageBase64: string; mimeType: string; safetyPrompt: string };
+    if (!body.imageBase64 || !body.mimeType || !body.safetyPrompt) return res.status(400).json({ error: "Invalid image screening request." });
+    const result = await screenUploadedClinicalImage({ buffer: Buffer.from(body.imageBase64, "base64"), mimeType: body.mimeType, safetyPrompt: body.safetyPrompt });
+    return res.status(200).json({ status: "COMPLETED", ...result });
   } catch (error) {
     return res.status(502).json({ status: "FAILED", error: formatError(error) });
   }

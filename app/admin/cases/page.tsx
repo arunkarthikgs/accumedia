@@ -118,6 +118,9 @@ export default function AdminCasesPage() {
   );
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
   const [isLoadingPlayback, setIsLoadingPlayback] = useState(false);
+  const [manualTextCase, setManualTextCase] = useState<CaseItem | null>(null);
+  const [manualText, setManualText] = useState<string | null>(null);
+  const [isLoadingManualText, setIsLoadingManualText] = useState(false);
 
   const loadCases = async () => {
     const cacheKey = `macula:case-list:${selectedOrgId}:${selectedStatus}:${fromDate}:${toDate}:${currentPage}`;
@@ -217,6 +220,23 @@ export default function AdminCasesPage() {
       else next.add(id);
       return next;
     });
+  };
+
+  const viewManualText = async (caseItem: CaseItem) => {
+    setManualTextCase(caseItem);
+    setManualText(null);
+    setIsLoadingManualText(true);
+    try {
+      const response = await fetch(`/api/cases/${caseItem.id}/review`, { cache: "no-store" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Unable to load manual text.");
+      const reviewCase = data.case;
+      setManualText(reviewCase.recordings?.[0]?.transcribedText || reviewCase.recordings?.[0]?.rawTranscript || reviewCase.rawInput || "No manual text available.");
+    } catch (error: any) {
+      setManualText(error.message || "Unable to load manual text.");
+    } finally {
+      setIsLoadingManualText(false);
+    }
   };
 
   const openAuditCase = async (caseItem: CaseItem) => {
@@ -730,9 +750,15 @@ export default function AdminCasesPage() {
                                 )}
                             </div>
                           ) : (
-                            <span className="inline-flex items-center gap-1 text-[11px] text-muted">
-                              <FileText className="h-3 w-3" /> Manual text
-                            </span>
+                            <div>
+                              <button
+                                type="button"
+                                onClick={() => viewManualText(c)}
+                                className="inline-flex items-center gap-1 text-[11px] text-pine hover:text-pine-dark hover:underline"
+                              >
+                                <FileText className="h-3 w-3" /> View manual text
+                              </button>
+                            </div>
                           )}
                           <Link
                             href={`/cases/${c.id}/assets`}
@@ -1021,6 +1047,21 @@ export default function AdminCasesPage() {
                 Close
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {manualTextCase && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 p-4 backdrop-blur-[2px]">
+          <div className="flex max-h-[80vh] w-full max-w-2xl flex-col rounded-lg border border-line bg-surface shadow-xl">
+            <div className="flex items-center justify-between border-b border-line px-6 py-4">
+              <div className="flex items-center gap-2"><FileText className="h-4 w-4 text-pine" /><h3 className="font-serif text-sm font-semibold">Manual clinical text</h3></div>
+              <button type="button" onClick={() => setManualTextCase(null)} className="text-muted hover:text-ink"><X className="h-5 w-5" /></button>
+            </div>
+            <div className="overflow-y-auto p-6">
+              <p className="mb-3 text-xs font-semibold text-ink">{manualTextCase.title}</p>
+              {isLoadingManualText ? <p className="text-xs text-muted">Loading manual text…</p> : <p className="whitespace-pre-wrap text-sm leading-7 text-ink">{manualText || "No manual text available."}</p>}
+            </div>
+            <div className="flex justify-end border-t border-line bg-paper px-6 py-3"><button type="button" onClick={() => setManualTextCase(null)} className="rounded bg-line px-4 py-1.5 text-xs font-medium text-ink">Close</button></div>
           </div>
         </div>
       )}

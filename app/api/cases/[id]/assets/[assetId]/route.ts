@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { generateChannelAsset } from "@/lib/content-engine";
+import { upsertSeoContentMetadata } from "@/lib/seo-metadata";
 import { requireOrganizationAccess } from "@/lib/tenant-auth";
 import { query } from "@/lib/worker-db";
 import crypto from "node:crypto";
@@ -27,9 +28,9 @@ export async function PATCH(
       editedBy?: string;
     };
 
-    const assetResult = await query<any>(`SELECT ga.*, c."organizationId", c."masterRecord", o.name AS organization_name, o."brandingHex" AS branding_hex, o."defaultDisclaimer", o."logoUrl" FROM macula.generated_assets ga JOIN macula.cases c ON c.id = ga."caseId" JOIN macula.organizations o ON o.id = c."organizationId" WHERE ga.id = $1 AND ga."caseId" = $2 LIMIT 1`, [assetId, caseId]);
+    const assetResult = await query<any>(`SELECT ga.*, c."organizationId", c."masterRecord", o.name AS organization_name, o."brandingHex" AS branding_hex, o."defaultDisclaimer", o."logoUrl", o."websiteUrl" FROM macula.generated_assets ga JOIN macula.cases c ON c.id = ga."caseId" JOIN macula.organizations o ON o.id = c."organizationId" WHERE ga.id = $1 AND ga."caseId" = $2 LIMIT 1`, [assetId, caseId]);
     const row = assetResult.rows[0];
-    const asset = row ? { ...row, case: { organizationId: row.organizationId, masterRecord: row.masterRecord, organization: { name: row.organization_name, brandingHex: row.branding_hex, defaultDisclaimer: row.defaultDisclaimer, logoUrl: row.logoUrl } } } : null;
+    const asset = row ? { ...row, case: { organizationId: row.organizationId, masterRecord: row.masterRecord, organization: { name: row.organization_name, brandingHex: row.branding_hex, defaultDisclaimer: row.defaultDisclaimer, logoUrl: row.logoUrl, websiteUrl: row.websiteUrl } } } : null;
     if (!asset) {
       return NextResponse.json({ error: "Asset not found" }, { status: 404 });
     }
@@ -47,6 +48,7 @@ export async function PATCH(
       }
       await snapshotCurrentVersion(asset.id, asset.content, asset.version, "manual_edit");
       const { rows } = await query(`UPDATE macula.generated_assets SET content = $1::jsonb, version = $2, status = 'DRAFT', "updatedAt" = NOW() WHERE id = $3 RETURNING *`, [JSON.stringify(content), asset.version + 1, assetId]);
+      await upsertSeoContentMetadata(assetId, content, asset.case.organization.websiteUrl);
       const updated = rows[0];
       return NextResponse.json({ success: true, asset: updated });
     }
@@ -76,6 +78,7 @@ export async function PATCH(
       });
 
       const { rows } = await query(`UPDATE macula.generated_assets SET content = $1::jsonb, version = $2, status = $3, "validationWarnings" = $4::jsonb, "validationWordCount" = $5, "validationCharacterCount" = $6, "validationDurationSeconds" = $7, "promptTemplateVersion" = $8, "modelUsed" = $9, "updatedAt" = NOW() WHERE id = $10 AND "caseId" = $11 RETURNING *`, [JSON.stringify(regenerated.content), asset.version + 1, regenerated.status, JSON.stringify(regenerated.validationWarnings), regenerated.validationWordCount, regenerated.validationCharacterCount, regenerated.validationDurationSeconds, regenerated.promptTemplateVersion, regenerated.modelUsed, assetId, caseId]);
+      await upsertSeoContentMetadata(assetId, regenerated.content, asset.case.organization.websiteUrl);
       const updated = rows[0];
 
       return NextResponse.json({ success: true, asset: updated });
@@ -94,7 +97,7 @@ export async function GET(
 ) {
   try {
     const { id: caseId, assetId } = await props.params;
-    const { rows } = await query<any>(`SELECT ga.*, c."organizationId", COALESCE((SELECT json_agg(av ORDER BY av.version DESC) FROM macula.asset_versions av WHERE av."assetId" = ga.id), '[]') AS versions FROM macula.generated_assets ga JOIN macula.cases c ON c.id = ga."caseId" WHERE ga.id = $1 AND ga."caseId" = $2 GROUP BY ga.id, c."organizationId" LIMIT 1`, [assetId, caseId]);
+    const { rows } = await query<any>(`SELECT ga.*, c."organizationId", (SELECT row_to_json(scm) FROM macula.seo_content_metadata scm WHERE scm."assetId" = ga.id) AS "seoMetadata", COALESCE((SELECT json_agg(av ORDER BY av.version DESC) FROM macula.asset_versions av WHERE av."assetId" = ga.id), '[]') AS versions FROM macula.generated_assets ga JOIN macula.cases c ON c.id = ga."caseId" WHERE ga.id = $1 AND ga."caseId" = $2 GROUP BY ga.id, c."organizationId" LIMIT 1`, [assetId, caseId]);
     const asset = rows[0];
     if (!asset) return NextResponse.json({ error: "Asset not found" }, { status: 404 });
     await requireOrganizationAccess(asset.organizationId);

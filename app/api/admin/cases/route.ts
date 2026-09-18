@@ -40,7 +40,7 @@ export async function GET(req: Request) {
     const recordingSelect = includeContent
       ? `json_build_object('id', ar.id, 'durationSeconds', ar."durationSeconds", 'transcriptionStatus', ar."transcriptionStatus", 'r2Key', ar."r2Key", 'rawTranscript', ar."rawTranscript", 'transcribedText', ar."transcribedText")`
       : `json_build_object('id', ar.id, 'durationSeconds', ar."durationSeconds", 'transcriptionStatus', ar."transcriptionStatus")`;
-    const adminCaseQuery = `SELECT c.id, c.title, c.status, c.rejection_reason AS "rejectionReason", c.reviewed_by AS "reviewedBy", c.reviewed_at AS "reviewedAt", c."createdAt" AS "createdAt", COUNT(*) OVER()::int AS "totalCount"${includeContent ? ', c."masterRecord" AS "masterRecord", c."safetyAudit" AS "safetyAudit"' : ''},
+    const adminCaseQuery = `SELECT c.id, c.title, c.status, c.rejection_reason AS "rejectionReason", c.reviewed_by AS "reviewedBy", c.reviewed_at AS "reviewedAt", c."createdAt" AS "createdAt", COUNT(*) OVER()::int AS "totalCount"${includeContent ? ', c."masterRecord" AS "masterRecord", c."safetyAudit" AS "safetyAudit", c.raw_input AS "rawInput"' : ''},
       json_build_object('id', u.id, 'name', u.name, 'email', u.email, 'registrationNo', u."registrationNo", 'specialty', u.specialty) AS physician,
       json_build_object('id', o.id, 'name', o.name) AS organization,
       COALESCE((SELECT json_agg(${recordingSelect}) FROM macula.audio_recordings ar WHERE ar."caseId" = c.id), '[]') AS recordings,

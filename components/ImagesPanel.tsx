@@ -261,7 +261,7 @@ export default function ImagesPanel({ caseId, mccrApproved }: { caseId: string; 
                     onClick={() => togglePublicUse(img)}
                     className="flex-1 rounded border border-line px-1.5 py-1 text-[10px] font-medium text-ink hover:border-pine"
                   >
-                    {img.publicUseApproved ? "Revoke" : "Approve"}
+                    {img.publicUseApproved ? "Use publicly: Yes" : "Use publicly: No"}
                   </button>
                   {img.sourceType === "ai_generated" && (
                     <button onClick={() => regenerate(img)} className="rounded border border-line p-1 text-muted hover:border-pine hover:text-pine">

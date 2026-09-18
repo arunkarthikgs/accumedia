@@ -390,6 +390,7 @@ model GeneratedAsset {
   versions    AssetVersion[]
   safetyFlags SafetyFlag[]
   publicationJobs PublicationJob[]
+  seoMetadata SeoContentMetadata?
 
   @@unique([caseId, channelKey])
   @@index([caseId])
@@ -551,6 +552,43 @@ model AssetVersion {
   @@index([assetId])
   @@schema("macula")
   @@map("asset_versions")
+}
+
+// RFP §12 — searchable/publishable SEO fields are stored separately from the
+// generic asset payload while the original generated JSON remains available.
+model SeoContentMetadata {
+  id                           String   @id @default(uuid())
+  contentType                  String?
+  seoTitle                     String?
+  h1                           String?
+  urlSlug                      String?
+  metaTitle                    String?
+  metaDescription              String?  @db.Text
+  primaryKeyword               String?
+  secondaryKeywords            Json
+  longTailKeywords             Json
+  searchIntent                 String?
+  suggestedHeadings            Json
+  fullArticle                  String?  @db.Text
+  faqSection                   Json
+  internalLinkSuggestions     Json
+  externalReferenceSuggestions Json
+  imageAltText                 String?
+  featuredImageBrief           String?  @db.Text
+  schemaRecommendations        Json
+  internalLinkVerification     Json
+  externalLinkVerification     Json
+  linkVerificationStatus       String   @default("UNRESOLVED")
+  createdAt                    DateTime @default(now())
+  updatedAt                    DateTime @default(now()) @updatedAt
+
+  assetId String         @unique
+  asset   GeneratedAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@index([contentType])
+  @@index([primaryKeyword])
+  @@schema("macula")
+  @@map("seo_content_metadata")
 }
 
 model ComplianceRule {

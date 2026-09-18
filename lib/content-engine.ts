@@ -4,6 +4,8 @@ import { createOpenAIChatCompletion } from "@/lib/openai-fetch";
 import { validateGeneratedContent } from "./content-validation";
 import { logAIUsage } from "./ai-usage";
 import { assertAssetQuota, assertPublishingGenerationQuota, assertTokenQuota } from "./quotas";
+import { upsertSeoContentMetadata } from "./seo-metadata";
+import { verifySeoLinks } from "./seo-links";
 
 /**
  * RFP §7-12 output-type prompt library. Each entry is deliberately kept as
@@ -61,8 +63,11 @@ meta_description, primary_keyword, secondary_keywords (5-10), long_tail_keywords
   (5-10), search_intent, suggested_headings (H2/H3), full_article, faq_section (3-6 Q&A),
   internal_link_suggestions, external_reference_suggestions, image_alt_text,
   featured_image_brief, schema_recommendations. internal_link_suggestions and
-  external_reference_suggestions must be arrays; schema_recommendations must identify
-  appropriate schema types and required fields. No promotional/guaranteed-outcome claims.
+  external_reference_suggestions must be arrays of objects with label, url, and reason.
+  Internal URLs must be relative paths on the organization's website; external URLs
+  must be authoritative absolute HTTPS URLs. Do not invent a URL when no suitable
+  destination is known. schema_recommendations must identify appropriate schema types
+  and required fields. No promotional/guaranteed-outcome claims.
 Return JSON matching those fields.`,
 };
 
@@ -95,6 +100,7 @@ Never state or imply a guaranteed outcome. Respect the record's
 terminologyRetain, terminologySimplify, terminology_retain, and terminology_simplify guidance. Include this disclaimer
 where applicable: "${organization.defaultDisclaimer}".
 Organization writing tone: ${organization.preferredTone || "clinically precise, educational, and respectful"}.
+Organization website for internal SEO links: ${organization.websiteUrl || "not configured"}.
 Default call to action, where appropriate and non-promotional: ${organization.callToAction || "None configured"}.`;
   const seoKeywordSet = outputType === "SEO_BLOG" ? generationContext.seoKeywordSet : null;
   const resolvedPrompt = systemPrompt
@@ -157,12 +163,14 @@ export async function generateChannelAsset({
   const raw = response.choices?.[0]?.message?.content || "";
   const content = outputType === "VIDEO_SCRIPT" ? { script: raw } : safeJsonParse(raw);
   const validation = validateGeneratedContent(content, channel);
+  const seoLinkVerification = outputType === "SEO_BLOG" ? await verifySeoLinks(content, organization.websiteUrl) : null;
+  const validationWarnings = [...(validation.warnings || []), ...(seoLinkVerification?.warnings || [])];
 
   if (!persistAsset) {
     return {
       content,
-      status: validation.valid ? "DRAFT" : "REVIEW",
-      validationWarnings: validation.warnings || [],
+      status: validationWarnings.length ? "REVIEW" : "DRAFT",
+      validationWarnings,
       validationWordCount: validation.wordCount,
       validationCharacterCount: validation.characterCount,
       validationDurationSeconds: validation.estimatedDurationSeconds || null,
@@ -171,9 +179,10 @@ export async function generateChannelAsset({
     };
   }
 
-  const { rows } = await query(`INSERT INTO macula.generated_assets (id, "caseId", "channelKey", "channelName", "outputType", variant, content, status, "validationWarnings", "validationWordCount", "validationCharacterCount", "validationDurationSeconds", version, "promptTemplateId", "promptTemplateVersion", "modelUsed") VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9::jsonb, $10, $11, $12, 1, $13, $14, 'gpt-4o') ON CONFLICT ("caseId", "channelKey") DO NOTHING RETURNING *`, [crypto.randomUUID(), caseId, channel.channelKey, channel.displayName, outputType, channel.durationLabel || null, JSON.stringify(content), validation.valid ? "DRAFT" : "REVIEW", JSON.stringify(validation.warnings || []), validation.wordCount, validation.characterCount, validation.estimatedDurationSeconds, channel.id, promptTemplateVersion]);
-  if (rows[0]) return rows[0];
-  return (await query(`SELECT * FROM macula.generated_assets WHERE "caseId" = $1 AND "channelKey" = $2 LIMIT 1`, [caseId, channel.channelKey])).rows[0];
+  const { rows } = await query(`INSERT INTO macula.generated_assets (id, "caseId", "channelKey", "channelName", "outputType", variant, content, status, "validationWarnings", "validationWordCount", "validationCharacterCount", "validationDurationSeconds", version, "promptTemplateId", "promptTemplateVersion", "modelUsed") VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9::jsonb, $10, $11, $12, 1, $13, $14, 'gpt-4o') ON CONFLICT ("caseId", "channelKey") DO NOTHING RETURNING *`, [crypto.randomUUID(), caseId, channel.channelKey, channel.displayName, outputType, channel.durationLabel || null, JSON.stringify(content), validationWarnings.length ? "REVIEW" : "DRAFT", JSON.stringify(validationWarnings), validation.wordCount, validation.characterCount, validation.estimatedDurationSeconds, channel.id, promptTemplateVersion]);
+  const asset = rows[0] || (await query(`SELECT * FROM macula.generated_assets WHERE "caseId" = $1 AND "channelKey" = $2 LIMIT 1`, [caseId, channel.channelKey])).rows[0];
+  if (asset && outputType === "SEO_BLOG") await upsertSeoContentMetadata(asset.id, content, organization.websiteUrl, seoLinkVerification || undefined);
+  return asset;
 }
 
 function safeJsonParse(raw: string) {

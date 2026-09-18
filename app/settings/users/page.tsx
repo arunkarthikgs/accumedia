@@ -38,6 +38,7 @@ export default function UsersSettingsPage() {
   const [selectedOrganizationId, setSelectedOrganizationId] = useState("");
   const [scopeReady, setScopeReady] = useState(false);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [previewPhoto, setPreviewPhoto] = useState<{ name: string; src: string } | null>(null);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -209,11 +210,11 @@ export default function UsersSettingsPage() {
                   className="rounded-lg border border-line bg-surface p-5 transition hover:border-pine/50"
                 >
                   <div className="flex items-start gap-4">
-                    <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg border border-pine/20 bg-pine-tint text-sm font-bold text-pine">
-                      {doc.profilePhotoUrl ? (
+                    {doc.profilePhotoUrl ? (
+                      <button type="button" onClick={() => setPreviewPhoto({ name: doc.name, src: doc.profilePhotoR2Key ? `/api/profile-media/serve?userId=${encodeURIComponent(doc.id)}` : doc.profilePhotoUrl || "" })} className="flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg border border-pine/20 bg-pine-tint text-sm font-bold text-pine" title={`View ${doc.name}'s original photo`}>
                         <img src={doc.profilePhotoR2Key ? `/api/profile-media/serve?userId=${encodeURIComponent(doc.id)}` : doc.profilePhotoUrl || ""} alt={`${doc.name} profile`} className="h-full w-full object-cover" />
-                      ) : initials}
-                    </div>
+                      </button>
+                    ) : <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg border border-pine/20 bg-pine-tint text-sm font-bold text-pine">{initials}</div>}
                     <div className="min-w-0 flex-1">
                       <h4 className="truncate text-sm font-bold text-ink">{doc.name}</h4>
                       <p className="text-xs font-medium text-pine truncate">
@@ -248,6 +249,13 @@ export default function UsersSettingsPage() {
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {previewPhoto && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-ink/80 p-4" role="dialog" aria-modal="true" aria-label={`${previewPhoto.name} original profile photo`} onClick={() => setPreviewPhoto(null)}>
+            <button type="button" onClick={() => setPreviewPhoto(null)} className="absolute right-4 top-4 rounded bg-surface/90 p-2 text-ink hover:bg-white" aria-label="Close photo preview"><X className="h-5 w-5" /></button>
+            <img src={previewPhoto.src} alt={`${previewPhoto.name} original profile`} className="max-h-[90vh] max-w-[95vw] object-contain" onClick={(event) => event.stopPropagation()} />
           </div>
         )}
 

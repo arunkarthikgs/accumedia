@@ -6,8 +6,10 @@ import { useEffect, useState } from "react";
 import {
   ArrowLeft,
   CheckCircle2,
+  ClipboardList,
   FileText,
   History,
+  Images,
   Loader2,
   Pencil,
   FileDown,
@@ -595,18 +597,19 @@ export default function CaseReviewPage() {
       >
         {(
           [
-            ["clinical", "Clinical review"],
-            ["record", "Master record"],
-            ["history", "History & audit"],
-            ["assets", "Assets & sources"],
+            ["clinical", "Clinical review", FileText],
+            ["record", "Master record", ClipboardList],
+            ["history", "History & audit", History],
+            ["assets", "Assets & sources", Images],
           ] as const
-        ).map(([key, label]) => (
+        ).map(([key, label, Icon]) => (
           <button
             key={key}
             type="button"
             onClick={() => setActiveReviewSection(key)}
-            className={`whitespace-nowrap rounded px-3 py-2 text-xs font-semibold transition ${activeReviewSection === key ? "bg-pine text-white" : "text-muted hover:bg-paper hover:text-ink"}`}
+            className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded px-3 py-2 text-xs font-semibold transition ${activeReviewSection === key ? "bg-pine text-white" : "text-muted hover:bg-paper hover:text-ink"}`}
           >
+            <Icon className="h-3.5 w-3.5" />
             {label}
           </button>
         ))}

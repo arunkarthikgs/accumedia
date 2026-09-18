@@ -719,12 +719,15 @@ export default function AdminCasesPage() {
                               <FileText className="h-3 w-3" /> Manual text
                             </span>
                           )}
-                          <span className="text-[11px] text-muted">
+                          <Link
+                            href={`/cases/${c.id}/assets`}
+                            className="text-[11px] text-pine hover:text-pine-dark hover:underline"
+                          >
                             · {c._count?.assets ?? c.assets.length} asset
                             {(c._count?.assets ?? c.assets.length) === 1
                               ? ""
                               : "s"}
-                          </span>
+                          </Link>
                         </div>
                       </td>
                       <td className="px-5 py-4">

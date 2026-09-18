@@ -56,6 +56,9 @@ export default function PublishingAssetWorkspace({ caseId, assets }: { caseId: s
     counts[label] = (counts[label] || 0) + 1;
     return counts;
   }, {});
+  const statusSummary = Object.entries(assetsByStatus)
+    .map(([status, count]) => `${count} ${status.toLowerCase().replaceAll("_", " ")}`)
+    .join(" · ");
 
   if (!selectedAsset) return null;
 
@@ -75,7 +78,7 @@ export default function PublishingAssetWorkspace({ caseId, assets }: { caseId: s
   return <div className="space-y-5">
     <section className="rounded-lg border border-line bg-surface p-5" aria-label="Generated asset summary">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div><h2 className="text-sm font-bold text-ink">Generated assets</h2><p className="mt-1 text-xs text-muted">{assets.length} publication assets are ready for review.</p></div>
+        <div><h2 className="text-sm font-bold text-ink">Generated assets</h2><p className="mt-1 text-xs text-muted">{assets.length} publication assets · {statusSummary || "No status available"}</p></div>
         <div className="flex flex-wrap gap-2 text-xs">{(Object.entries(assetsByStatus) as [string, number][]).map(([status, count]) => <button key={status} type="button" onClick={() => setSelectedAssetId(orderedAssets.find((asset) => asset.status === status)?.id || selectedAsset.id)} className={status === "APPROVED" ? "rounded bg-sage-tint px-2.5 py-1 font-semibold text-sage hover:ring-1 hover:ring-sage/40" : status === "REVIEW" ? "rounded bg-ochre-tint px-2.5 py-1 font-semibold text-ochre hover:ring-1 hover:ring-ochre/40" : "rounded bg-paper px-2.5 py-1 font-semibold text-muted hover:ring-1 hover:ring-line"}>{count} {status.toLowerCase().replaceAll("_", " ")}</button>)}</div>
       </div>
       <div className="mt-4 flex flex-wrap gap-2 border-t border-line pt-4">

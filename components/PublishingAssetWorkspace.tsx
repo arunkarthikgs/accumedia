@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import AssetActionsPanel from "@/components/AssetActionsPanel";
 
 type Asset = {
@@ -30,6 +30,14 @@ export default function PublishingAssetWorkspace({ caseId, assets }: { caseId: s
   const orderedAssets = [...videoAssets, ...otherAssets];
   const [selectedAssetId, setSelectedAssetId] = useState(orderedAssets[0]?.id || "");
   const selectedAsset = orderedAssets.find((asset) => asset.id === selectedAssetId) || orderedAssets[0];
+  useEffect(() => {
+    const assetId = window.location.hash.match(/^#asset-(.+)$/)?.[1];
+    if (!assetId || !orderedAssets.some((asset) => asset.id === assetId)) return;
+    setSelectedAssetId(assetId);
+    window.requestAnimationFrame(() => {
+      document.getElementById(`asset-${assetId}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }, [orderedAssets]);
   const assetsByStatus = assets.reduce((counts: Record<string, number>, asset) => {
     counts[asset.status] = (counts[asset.status] || 0) + 1;
     return counts;
@@ -68,7 +76,9 @@ export default function PublishingAssetWorkspace({ caseId, assets }: { caseId: s
         {otherAssets.length > 0 && <div className="flex gap-2 lg:flex-col"><p className="hidden border-t border-line px-2 pt-3 text-[10px] font-semibold uppercase tracking-wide text-muted lg:block">Other assets</p>{otherAssets.map(assetButton)}</div>}
       </div>
     </nav>
-    <AssetActionsPanel key={selectedAsset.id} caseId={caseId} asset={selectedAsset} />
+    <div id={`asset-${selectedAsset.id}`}>
+      <AssetActionsPanel key={selectedAsset.id} caseId={caseId} asset={selectedAsset} />
+    </div>
     </section>
   </div>;
 }

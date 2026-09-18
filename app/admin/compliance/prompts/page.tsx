@@ -7,6 +7,8 @@ import {
   ArrowLeft,
   Building2,
   Save,
+  Pencil,
+  X,
   Play,
   CheckCircle2,
   AlertCircle,
@@ -93,6 +95,8 @@ export default function CompliancePromptsAdminPage() {
   // Form State
   const [governedPrompts, setGovernedPrompts] = useState<GovernedPrompt[]>([]);
   const [selectedPromptKey, setSelectedPromptKey] = useState("MASTER_SYNTHESIS");
+  const [editingPromptKey, setEditingPromptKey] = useState<string | null>(null);
+  const [editingChannelKey, setEditingChannelKey] = useState<string | null>(null);
   const [editScope, setEditScope] = useState<"organization" | "global">("organization");
   const [canEditGlobal, setCanEditGlobal] = useState(false);
   const [channels, setChannels] = useState<ChannelDefinition[]>([]);
@@ -114,6 +118,8 @@ export default function CompliancePromptsAdminPage() {
 
   const changeEditScope = (scope: "organization" | "global") => {
     setEditScope(scope);
+    setEditingPromptKey(null);
+    setEditingChannelKey(null);
     setGovernedPrompts((current) => current.map((prompt) => ({
       ...prompt,
       content: scope === "global" ? prompt.globalContent : prompt.organizationContent || prompt.globalContent,
@@ -351,7 +357,7 @@ export default function CompliancePromptsAdminPage() {
           <div className="flex w-full flex-col gap-2 sm:w-80">
             <select
               value={selectedOrgId}
-              onChange={(e) => { setSelectedOrgId(e.target.value); setEditScope("organization"); }}
+              onChange={(e) => { setSelectedOrgId(e.target.value); setEditScope("organization"); setEditingPromptKey(null); setEditingChannelKey(null); }}
               className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-800 focus:border-teal-500 focus:bg-white focus:outline-hidden"
             >
               {organizations.map((org) => (
@@ -397,10 +403,10 @@ export default function CompliancePromptsAdminPage() {
                     );
                   })}
                   <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                    <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-sm font-bold text-slate-900">{selectedGovernedPrompt.name}</h3><p className="mt-1 text-xs text-slate-600">{selectedGovernedPrompt.description}</p></div><span className="rounded bg-white px-2 py-1 text-[10px] font-semibold text-teal-700">{editScope === "global" ? "Global default" : selectedGovernedPrompt.source === "organization" ? "Organization override" : "Inherited global default"} · v{selectedGovernedPrompt.version}</span></div>
+                    <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-sm font-bold text-slate-900">{selectedGovernedPrompt.name}</h3><p className="mt-1 text-xs text-slate-600">{selectedGovernedPrompt.description}</p></div><div className="flex items-center gap-2"><span className="rounded bg-white px-2 py-1 text-[10px] font-semibold text-teal-700">{editScope === "global" ? "Global default" : selectedGovernedPrompt.source === "organization" ? "Organization override" : "Inherited global default"} · v{selectedGovernedPrompt.version}</span>{editingPromptKey === selectedGovernedPrompt.promptKey ? <button type="button" onClick={() => setEditingPromptKey(null)} className="inline-flex items-center gap-1 rounded border border-slate-200 px-2 py-1 text-[10px] font-semibold text-slate-600 hover:border-teal-500"><X className="h-3 w-3" /> Cancel edit</button> : <button type="button" onClick={() => setEditingPromptKey(selectedGovernedPrompt.promptKey)} className="inline-flex items-center gap-1 rounded border border-teal-200 bg-white px-2 py-1 text-[10px] font-semibold text-teal-700 hover:bg-teal-50"><Pencil className="h-3 w-3" /> Edit prompt</button>}</div></div>
                     <div className="mt-3 rounded border border-teal-200 bg-teal-50 p-3 text-xs text-teal-900"><strong>Used during:</strong> {PROMPT_STAGE_HELP[selectedGovernedPrompt.promptKey]}</div>
                   </div>
-                  <textarea rows={18} value={selectedGovernedPrompt.content} onChange={(event) => updateSelectedPrompt(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-900 p-4 font-mono text-xs leading-relaxed text-teal-300 focus:border-teal-500 focus:outline-hidden" />
+                  {editingPromptKey === selectedGovernedPrompt.promptKey ? <textarea rows={18} autoFocus value={selectedGovernedPrompt.content} onChange={(event) => updateSelectedPrompt(event.target.value)} className="w-full rounded-xl border border-teal-400 bg-slate-900 p-4 font-mono text-xs leading-relaxed text-teal-300 focus:border-teal-500 focus:outline-hidden" /> : <pre className="max-h-[28rem] overflow-auto whitespace-pre-wrap rounded-xl border border-slate-200 bg-slate-100 p-4 font-mono text-xs leading-relaxed text-slate-700">{selectedGovernedPrompt.content}</pre>}
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <span className="text-[11px] text-slate-500">History: {selectedGovernedPrompt.history.map((entry) => `v${entry.version} ${entry.source}`).join(" · ")}</span>
                     {editScope === "organization" && <button type="button" onClick={resetSelectedPrompt} className="flex items-center gap-1.5 rounded border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-teal-500"><RefreshCw className="h-3.5 w-3.5" /> Reset to global default</button>}
@@ -411,7 +417,7 @@ export default function CompliancePromptsAdminPage() {
               {activeTab === "channels" && (
                 <div className="space-y-4">
                   <div className="rounded border border-teal-200 bg-teal-50 p-3 text-xs text-teal-900"><strong>Used during:</strong> After case approval, each prompt adapts the Master Clinical Record for one publishing format, audience, and duration.</div>
-                  {channels.map((channel, index) => <div key={channel.channelKey} className="rounded-xl border border-slate-200 bg-slate-50/50 p-4"><div className="flex flex-wrap items-start justify-between gap-2"><div><span className="text-xs font-bold text-slate-800">{channel.displayName}</span><span className="ml-2 text-[10px] text-slate-500">{channel.channelKey} · Target: {channel.targetAudience}</span></div><span className="rounded bg-white px-2 py-1 text-[10px] font-semibold text-teal-700">{editScope === "global" ? "Global default" : channel.source === "organization" ? "Organization override" : "Inherited global default"} · v{channel.promptVersion}</span></div><textarea rows={6} value={channel.systemPrompt} onChange={(event) => { const updated = [...channels]; updated[index] = { ...channel, systemPrompt: event.target.value, resetToGlobal: false }; setChannels(updated); }} className="mt-3 w-full rounded-lg border border-slate-200 bg-slate-900 p-3 font-mono text-xs text-teal-300" />{editScope === "organization" && <div className="mt-2 text-right"><button type="button" onClick={() => { const updated = [...channels]; updated[index] = { ...channel, systemPrompt: channel.globalSystemPrompt, source: "global", resetToGlobal: true }; setChannels(updated); }} className="text-[11px] font-semibold text-teal-700 hover:underline">Reset to global default</button></div>}</div>)}
+                  {channels.map((channel, index) => <div key={channel.channelKey} className="rounded-xl border border-slate-200 bg-slate-50/50 p-4"><div className="flex flex-wrap items-start justify-between gap-2"><div><span className="text-xs font-bold text-slate-800">{channel.displayName}</span><span className="ml-2 text-[10px] text-slate-500">{channel.channelKey} · Target: {channel.targetAudience}</span></div><div className="flex items-center gap-2"><span className="rounded bg-white px-2 py-1 text-[10px] font-semibold text-teal-700">{editScope === "global" ? "Global default" : channel.source === "organization" ? "Organization override" : "Inherited global default"} · v{channel.promptVersion}</span>{editingChannelKey === channel.channelKey ? <button type="button" onClick={() => setEditingChannelKey(null)} className="inline-flex items-center gap-1 rounded border border-slate-200 px-2 py-1 text-[10px] font-semibold text-slate-600 hover:border-teal-500"><X className="h-3 w-3" /> Cancel edit</button> : <button type="button" onClick={() => setEditingChannelKey(channel.channelKey)} className="inline-flex items-center gap-1 rounded border border-teal-200 bg-white px-2 py-1 text-[10px] font-semibold text-teal-700 hover:bg-teal-50"><Pencil className="h-3 w-3" /> Edit prompt</button>}</div></div>{editingChannelKey === channel.channelKey ? <textarea rows={6} autoFocus value={channel.systemPrompt} onChange={(event) => { const updated = [...channels]; updated[index] = { ...channel, systemPrompt: event.target.value, resetToGlobal: false }; setChannels(updated); }} className="mt-3 w-full rounded-lg border border-teal-400 bg-slate-900 p-3 font-mono text-xs text-teal-300" /> : <pre className="mt-3 max-h-48 overflow-auto whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-100 p-3 font-mono text-xs leading-relaxed text-slate-700">{channel.systemPrompt}</pre>}{editScope === "organization" && <div className="mt-2 text-right"><button type="button" onClick={() => { const updated = [...channels]; updated[index] = { ...channel, systemPrompt: channel.globalSystemPrompt, source: "global", resetToGlobal: true }; setChannels(updated); }} className="text-[11px] font-semibold text-teal-700 hover:underline">Reset to global default</button></div>}</div>)}
                 </div>
               )}
             </div>

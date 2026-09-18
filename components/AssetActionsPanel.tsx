@@ -234,8 +234,9 @@ export default function AssetActionsPanel({
         setPublicationMessage(data.error || "Unable to queue publication.");
         return;
       }
-      setStatus(data.asset?.status || status);
-      if (data.asset?.status) onStatusChange?.(asset.id, data.asset.status);
+      const queuedStatus = data.asset?.status || (scheduledAt ? "SCHEDULED" : "EXPORTED");
+      setStatus(queuedStatus);
+      onStatusChange?.(asset.id, queuedStatus);
       setPublicationMessage(
         `${data.message || (data.connectorConfigured ? "Publication queued for the configured connector." : "Publication queued; configure the connector before processing it.")} ${data.job?.scheduledAt ? `Scheduled for ${new Date(data.job.scheduledAt).toLocaleString()}.` : ""}`.trim(),
       );

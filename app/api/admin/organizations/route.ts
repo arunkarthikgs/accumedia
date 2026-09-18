@@ -23,6 +23,7 @@ export async function GET() {
       id: string;
       name: string;
       slug: string;
+      is_active: boolean;
       branding_hex: string | null;
       logo_url: string | null;
       brand_font: string | null;
@@ -57,7 +58,7 @@ export async function GET() {
          SELECT "organizationId" AS organization_id, COUNT(*) AS count
          FROM macula.audio_recordings GROUP BY "organizationId"
        )
-       SELECT o.id, o.name, o.slug, o."brandingHex" AS branding_hex,
+      SELECT o.id, o.name, o.slug, o."isActive" AS is_active, o."brandingHex" AS branding_hex,
               o."logoUrl" AS logo_url, o."brandFont" AS brand_font,
               o."brandTagline" AS brand_tagline, o.location,
               o."websiteUrl" AS website_url, o."linkedinUrl" AS linkedin_url,
@@ -84,6 +85,7 @@ export async function GET() {
       id: organization.id,
       name: organization.name,
       slug: organization.slug,
+      isActive: organization.is_active,
       brandingHex: organization.branding_hex,
       logoUrl: organization.logo_url,
       brandFont: organization.brand_font,
@@ -278,6 +280,7 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: "Primary brand colour must be a valid hex value, such as #0f766e." }, { status: 400 });
     }
     await requireOrganizationAccess(body.organizationId);
+    if (Object.prototype.hasOwnProperty.call(body, "isActive") && !user?.isSuperAdmin) return NextResponse.json({ error: "Only Super Admin can change organization status." }, { status: 403 });
     const assignments: string[] = [];
     const values: unknown[] = [];
     const hasOwn = (key: string) => Object.prototype.hasOwnProperty.call(body, key);
@@ -293,6 +296,10 @@ export async function PATCH(req: Request) {
     };
 
     setText("name", "name");
+    if (user?.isSuperAdmin && Object.prototype.hasOwnProperty.call(body, "isActive")) {
+      values.push(Boolean(body.isActive));
+      assignments.push(`"isActive"=$${values.length}`);
+    }
     if (hasOwn("brandingHex")) {
       values.push(normalizeBrandColor(body.brandingHex));
       assignments.push(`"brandingHex"=$${values.length}`);

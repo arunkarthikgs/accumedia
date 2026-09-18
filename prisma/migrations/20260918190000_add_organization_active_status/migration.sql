@@ -1,0 +1,1 @@
+ALTER TABLE "macula"."organizations" ADD COLUMN "isActive" BOOLEAN NOT NULL DEFAULT true;

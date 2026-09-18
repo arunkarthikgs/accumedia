@@ -23,6 +23,7 @@ interface OrganizationItem {
   id: string;
   name: string;
   slug: string;
+  isActive: boolean;
   brandingHex: string | null;
   preferredAsrModel: string;
   customSystemPrompt: string | null;
@@ -198,6 +199,13 @@ export default function AdminOrganizationsPage() {
     }
   };
 
+  const toggleOrganizationStatus = async (org: OrganizationItem) => {
+    const response = await fetch("/api/admin/organizations", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ organizationId: org.id, isActive: !org.isActive }) });
+    const data = await response.json();
+    if (!response.ok) return setErrorMessage(data.error || "Unable to update organization status.");
+    setOrganizations((current) => current.map((item) => item.id === org.id ? { ...item, isActive: data.organization.isActive } : item));
+  };
+
   const filteredOrgs = organizations.filter(
     (o) =>
       o.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -313,6 +321,7 @@ export default function AdminOrganizationsPage() {
                             <div className="font-mono text-[11px] text-slate-400">
                               {org.slug}
                             </div>
+                            <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${org.isActive ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>{org.isActive ? "Active" : "Inactive"}</span>
                           </div>
                         </div>
                       </td>
@@ -342,6 +351,7 @@ export default function AdminOrganizationsPage() {
                           >
                             <Users className="h-3 w-3 text-slate-500" /> Users
                           </Link>
+                          {isSuperAdmin && <button type="button" onClick={() => void toggleOrganizationStatus(org)} className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-[11px] font-semibold transition ${org.isActive ? "border-red-200 bg-red-50 text-red-700 hover:bg-red-100" : "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"}`} title={org.isActive ? "Deactivate organization" : "Activate organization"}>{org.isActive ? "Deactivate" : "Activate"}</button>}
                           <Link
                             href={`/settings/organization?orgId=${org.id}`}
                             className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 transition shadow-2xs"

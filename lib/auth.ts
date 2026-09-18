@@ -53,13 +53,14 @@ async function resolveCurrentUser(): Promise<SessionUser | null> {
       role_slug: string | null;
       permissions: string[];
       is_active: boolean;
+      organization_is_active: boolean | null;
     }>(
             `SELECT u.id, u.name, u.email, u."registrationNo" AS registration_no,
               u.specialty, u.designation, u.qualifications,
               u."profilePhotoUrl" AS profile_photo_url,
               u."isSuperAdmin" AS is_super_admin, u."organizationId" AS organization_id,
               u."isActive" AS is_active,
-              o.name AS organization_name, o."brandingHex" AS branding_hex,
+              o.name AS organization_name, o."brandingHex" AS branding_hex, o."isActive" AS organization_is_active,
               r.id AS role_id, r.name AS role_name, r.slug AS role_slug,
               '{}'::text[] AS permissions
        FROM macula.sessions s
@@ -72,7 +73,7 @@ async function resolveCurrentUser(): Promise<SessionUser | null> {
     );
     const session = rows[0];
 
-    if (!session || !session.is_active) {
+    if (!session || !session.is_active || (!session.is_super_admin && session.organization_id && session.organization_is_active === false)) {
       sessionCache.set(tokenHash, { user: null, expiresAt: Date.now() + SESSION_CACHE_TTL_MS });
       return null;
     }

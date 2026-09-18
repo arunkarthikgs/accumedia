@@ -106,5 +106,8 @@ function Field({ label, value, onChange, placeholder, type = "text", required = 
 
 function SpecialtySelect({ value, options, onChange }: { value: string; options: SpecialtyOption[]; onChange: (value: string) => void }) {
   const groups = options.reduce<Record<string, SpecialtyOption[]>>((result, option) => { (result[option.category] ||= []).push(option); return result; }, {});
-  return <label className="block text-xs font-semibold text-ink">Clinical specialty<select required value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 w-full rounded border border-line bg-paper px-3 py-2.5 text-xs outline-none focus:border-pine focus:ring-2 focus:ring-pine/20"><option value="">Select specialty</option>{Object.entries(groups).map(([category, categoryOptions]) => <optgroup key={category} label={category}>{categoryOptions.map((option) => <option key={option.name} value={option.name}>{option.name}</option>)}</optgroup>)}</select></label>;
+  // Users can also be assigned a free-text specialty elsewhere (settings/users quick-edit datalist);
+  // if the stored value isn't one of the canonical options, surface it instead of showing a blank select.
+  const hasExactMatch = options.some((option) => option.name === value);
+  return <label className="block text-xs font-semibold text-ink">Clinical specialty<select required value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 w-full rounded border border-line bg-paper px-3 py-2.5 text-xs outline-none focus:border-pine focus:ring-2 focus:ring-pine/20"><option value="">Select specialty</option>{value && !hasExactMatch && <option value={value}>{value} (custom)</option>}{Object.entries(groups).map(([category, categoryOptions]) => <optgroup key={category} label={category}>{categoryOptions.map((option) => <option key={option.name} value={option.name}>{option.name}</option>)}</optgroup>)}</select></label>;
 }

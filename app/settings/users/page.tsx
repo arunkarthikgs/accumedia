@@ -208,8 +208,10 @@ export default function UsersSettingsPage() {
                   className="rounded-lg border border-line bg-surface p-5 transition hover:border-pine/50"
                 >
                   <div className="flex items-start gap-4">
-                    <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg border border-pine/20 bg-pine-tint text-sm font-bold text-pine">
-                      {initials}
+                    <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg border border-pine/20 bg-pine-tint text-sm font-bold text-pine">
+                      {doc.profilePhotoUrl ? (
+                        <img src={doc.profilePhotoUrl} alt={`${doc.name} profile`} className="h-full w-full object-cover" />
+                      ) : initials}
                     </div>
                     <div className="min-w-0 flex-1">
                       <h4 className="truncate text-sm font-bold text-ink">{doc.name}</h4>

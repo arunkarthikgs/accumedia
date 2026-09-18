@@ -12,14 +12,15 @@ export async function POST(req: Request) {
     const { userId, password } = await req.json();
     if (!userId || !password) return NextResponse.json({ error: "User ID and password are required." }, { status: 400 });
 
-    const { rows } = await query<{ id: string; password_hash: string | null; is_active: boolean }>(
-      `SELECT id, password_hash, "isActive" AS is_active
+    const { rows } = await query<{ id: string; password_hash: string | null; is_active: boolean; must_set_password: boolean }>(
+      `SELECT id, password_hash, "isActive" AS is_active, "mustSetPassword" AS must_set_password
        FROM macula.users
        WHERE email = $1 OR id = $1
        LIMIT 1`,
       [userId]
     );
     const user = rows[0];
+    if (user?.must_set_password) return NextResponse.json({ error: "Please use the password setup link sent to your email before signing in." }, { status: 403 });
     if (!user?.is_active || !user.password_hash || !(await bcrypt.compare(password, user.password_hash))) {
       return NextResponse.json({ error: "Invalid credentials." }, { status: 401 });
     }

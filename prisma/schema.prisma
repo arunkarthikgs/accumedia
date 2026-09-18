@@ -276,6 +276,9 @@ model User {
   designation    String?
   profilePhotoUrl String?
   profilePhotoR2Key String?
+  mustSetPassword Boolean          @default(false)
+  passwordResetTokenHash String?
+  passwordResetExpiresAt DateTime?
   isSuperAdmin   Boolean          @default(false)
   isActive       Boolean          @default(true)
   createdAt      DateTime         @default(now())

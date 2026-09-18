@@ -19,6 +19,7 @@ export default function EditUserPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [resetMessage, setResetMessage] = useState<string | null>(null);
 
   useEffect(() => {
     fetch(`/api/users${organizationId ? `?organizationId=${encodeURIComponent(organizationId)}` : ""}`)
@@ -68,6 +69,12 @@ export default function EditUserPage() {
       setIsUploadingPhoto(false);
     }
   };
+  const sendPasswordReset = async () => {
+    setResetMessage(null);
+    const response = await fetch("/api/users", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: params.id, resetPassword: true }) });
+    const data = await response.json();
+    setResetMessage(response.ok ? data.message : data.error || "Unable to send password reset link.");
+  };
 
   return <main className="readable-route min-h-full bg-paper p-6 text-ink md:p-8"><div className="mx-auto max-w-3xl space-y-6">
     <header><Link href={`/settings/users${organizationId ? `?organizationId=${encodeURIComponent(organizationId)}` : ""}`} className="mb-2 inline-flex items-center gap-1 text-xs font-semibold text-pine hover:underline"><ArrowLeft className="h-3 w-3" /> Physicians &amp; Medical Staff</Link><div className="flex items-center gap-2"><UserCircle className="h-5 w-5 text-pine" /><h1 className="text-2xl font-bold tracking-tight">Edit User Profile</h1></div><p className="mt-1 text-sm text-muted">Update the user’s professional profile and login details.</p></header>
@@ -76,6 +83,7 @@ export default function EditUserPage() {
     {user && <form onSubmit={submit} className="card space-y-5 p-6">
       <div className="rounded border border-line bg-paper px-3 py-2 text-xs text-muted">Organisation: <strong className="text-ink">{user.organization?.name || "Current organisation"}</strong></div>
       <label className="flex items-center gap-2 text-xs font-semibold text-ink"><input type="checkbox" checked={form.isActive} onChange={(event) => update("isActive", event.target.checked as unknown as string)} /> Account active and permitted to sign in</label>
+      <div className="flex flex-wrap items-center gap-3 rounded border border-line bg-paper p-3"><div className="flex-1"><p className="text-xs font-semibold text-ink">Password access</p><p className="mt-1 text-[10px] text-muted">Send this user a one-time link to set a new password.</p></div><button type="button" onClick={sendPasswordReset} className="rounded border border-pine/30 bg-pine-tint px-3 py-2 text-[11px] font-semibold text-pine-dark">Send password reset link</button>{resetMessage && <p className="w-full text-[11px] text-muted">{resetMessage}</p>}</div>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="User name" required value={form.name} onChange={(value) => update("name", value)} placeholder="Dr. A. Sharma" />
         <Field label="Email / User ID" required type="email" value={form.email} onChange={(value) => update("email", value)} placeholder="physician@hospital.org" />

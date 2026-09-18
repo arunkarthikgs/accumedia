@@ -274,6 +274,7 @@ model User {
   qualifications String?
   designation    String?
   profilePhotoUrl String?
+  profilePhotoR2Key String?
   isSuperAdmin   Boolean          @default(false)
   isActive       Boolean          @default(true)
   createdAt      DateTime         @default(now())

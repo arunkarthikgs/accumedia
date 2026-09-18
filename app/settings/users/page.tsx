@@ -20,6 +20,7 @@ interface Physician {
   qualifications?: string | null;
   designation?: string | null;
   profilePhotoUrl?: string | null;
+  profilePhotoR2Key?: string | null;
   role?: { name: string; slug: string };
   organization?: Organization;
 }
@@ -210,7 +211,7 @@ export default function UsersSettingsPage() {
                   <div className="flex items-start gap-4">
                     <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg border border-pine/20 bg-pine-tint text-sm font-bold text-pine">
                       {doc.profilePhotoUrl ? (
-                        <img src={doc.profilePhotoUrl} alt={`${doc.name} profile`} className="h-full w-full object-cover" />
+                        <img src={doc.profilePhotoR2Key ? `/api/profile-media/serve?userId=${encodeURIComponent(doc.id)}` : doc.profilePhotoUrl || ""} alt={`${doc.name} profile`} className="h-full w-full object-cover" />
                       ) : initials}
                     </div>
                     <div className="min-w-0 flex-1">

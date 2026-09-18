@@ -23,6 +23,7 @@ export async function GET(req: Request) {
       qualifications: string | null;
       designation: string | null;
       profile_photo_url: string | null;
+      profile_photo_r2_key: string | null;
       organization_id: string | null;
       organization_name: string | null;
       role_name: string | null;
@@ -31,7 +32,7 @@ export async function GET(req: Request) {
     }>(
       `SELECT u.id, u.name, u.email,
               u."registrationNo" AS registration_no, u.specialty, u.qualifications,
-              u.designation, u."profilePhotoUrl" AS profile_photo_url,
+              u.designation, u."profilePhotoUrl" AS profile_photo_url, u."profilePhotoR2Key" AS profile_photo_r2_key,
               o.id AS organization_id, o.name AS organization_name,
               u."isActive" AS is_active,
               r.name AS role_name, r.slug AS role_slug
@@ -51,6 +52,7 @@ export async function GET(req: Request) {
       qualifications: item.qualifications,
       designation: item.designation,
       profilePhotoUrl: item.profile_photo_url,
+      profilePhotoR2Key: item.profile_photo_r2_key,
       organization: item.organization_id && item.organization_name
         ? { id: item.organization_id, name: item.organization_name }
         : undefined,

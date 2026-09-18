@@ -28,7 +28,7 @@ export async function POST(req: Request) {
     const buffer = Buffer.from(await file.arrayBuffer());
     const uploaded = await uploadImageToR2(buffer, `${target}-${crypto.randomUUID()}-${file.name}`, file.type, organizationId);
     if (target === "doctor") {
-      const { rows } = await query(`UPDATE macula.users SET "profilePhotoUrl"=$1, "updatedAt"=NOW() WHERE id=$2 RETURNING id, "profilePhotoUrl"`, [uploaded.storageUrl, userId]);
+      const { rows } = await query(`UPDATE macula.users SET "profilePhotoUrl"=$1, "profilePhotoR2Key"=$2, "updatedAt"=NOW() WHERE id=$3 RETURNING id, "profilePhotoUrl", "profilePhotoR2Key"`, [uploaded.storageUrl, uploaded.r2Key, userId]);
       return NextResponse.json({ success: true, target, url: uploaded.storageUrl, user: rows[0] });
     }
 

@@ -1,0 +1,1 @@
+ALTER TABLE "macula"."users" ADD COLUMN "profilePhotoR2Key" TEXT;

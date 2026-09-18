@@ -34,7 +34,7 @@ export type ImageRenderResult = {
 };
 
 export async function submitImageRenderJob(job: ImageRenderJob): Promise<ImageRenderResult> {
-  const serviceUrl = (process.env.VIDEO_RENDER_SERVICE_URL || "https://accumedia-video-renderer.invalid").replace(/\/+$/, "");
+  const serviceUrl = (process.env.VIDEO_RENDER_SERVICE_URL || "https://accumedia-utility.invalid").replace(/\/+$/, "");
   const request = new Request(`${serviceUrl}/image-jobs`, {
     method: "POST",
     headers: {
@@ -68,7 +68,7 @@ export async function submitImageRenderJob(job: ImageRenderJob): Promise<ImageRe
 }
 
 export async function screenUploadedImage(input: { buffer: Buffer; mimeType: string; safetyPrompt: string }) {
-  const serviceUrl = (process.env.VIDEO_RENDER_SERVICE_URL || "https://accumedia-video-renderer.invalid").replace(/\/+$/, "");
+  const serviceUrl = (process.env.VIDEO_RENDER_SERVICE_URL || "https://accumedia-utility.invalid").replace(/\/+$/, "");
   const request = new Request(`${serviceUrl}/image-screen`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-Render-Secret": process.env.VIDEO_RENDER_SERVICE_SECRET || "" },

@@ -36,7 +36,7 @@ export async function sendPasswordSetupEmail(input: { email: string; name: strin
     if (!response.ok) throw new Error(`Email service delivery failed (${response.status}).`);
     return { sent: true };
   }
-  throw new Error("Email service is not configured. Deploy accumedia-video-renderer with SMTP secrets.");
+  throw new Error("Email service is not configured. Deploy accumedia-utility with SMTP secrets.");
 }
 
 function escapeHtml(value: string) {

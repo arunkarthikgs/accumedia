@@ -34,7 +34,7 @@ npx wrangler secret put VIDEO_RENDER_SERVICE_SECRET --config wrangler.toml
 npx wrangler secret put VIDEO_RENDER_CALLBACK_SECRET --config wrangler.toml
 ```
 
-Set `VIDEO_RENDER_SERVICE_URL` to the deployed `accumedia-video-renderer` Worker URL. Use the same service and callback secret values on both Workers.
+Set `VIDEO_RENDER_SERVICE_URL` to the deployed `accumedia-utility` Worker URL. Use the same service and callback secret values on both Workers.
 
 ## Local development
 

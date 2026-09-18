@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowLeft, Building2, CreditCard, Loader2, Save } from "lucide-react";
+import { ArrowLeft, Building2, CreditCard, Loader2, Save, Settings2, Gauge } from "lucide-react";
 import { formatDate } from "@/lib/date-format";
 
 export default function SubscriptionPage() {
@@ -20,6 +20,7 @@ export default function SubscriptionPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [quota, setQuota] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState<"current" | "catalog" | "quotas">("current");
   const [editingPlan, setEditingPlan] = useState<any>(null);
   const [planForm, setPlanForm] = useState({ name: "", sortOrder: 0, monthlyCaseLimit: "", monthlyAudioMinutes: "", monthlyAiTokens: "", monthlyAssetLimit: "", monthlyPrice: "", currency: "INR", billingInterval: "monthly", setupFee: "", isCustom: false, overagePolicy: "" });
 

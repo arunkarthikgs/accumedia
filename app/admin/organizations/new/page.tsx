@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
-import { ArrowLeft, Building2, CheckCircle2, Loader2 } from "lucide-react";
+import { ArrowLeft, Building2, CheckCircle2, Loader2, Palette, FileText, Settings2, BriefcaseBusiness } from "lucide-react";
 
 const ASR_MODELS = [
   { id: "whisper-1", name: "OpenAI Whisper-1", description: "Multilingual cloud speech recognition." },
@@ -104,7 +104,7 @@ export default function NewOrganizationPage() {
 
         <form onSubmit={submit} className="space-y-6">
           <div className="card flex gap-1 overflow-x-auto p-2" role="tablist" aria-label="Organisation profile sections">
-            {([ ["details", "Organisation details"], ["brand", "Brand identity"], ["content", "Content preferences"], ["advanced", "Advanced configuration"], ["commercial", "Commercial plan"] ] as const).map(([tab, label]) => <button key={tab} type="button" role="tab" aria-selected={activeTab === tab} onClick={() => setActiveTab(tab as typeof activeTab)} className={`whitespace-nowrap rounded px-3 py-2 text-xs font-semibold transition ${activeTab === tab ? "bg-pine text-white" : "text-muted hover:bg-pine-tint hover:text-pine"}`}>{label}</button>)}
+            {([ ["details", "Organisation details", Building2], ["brand", "Brand identity", Palette], ["content", "Content preferences", FileText], ["advanced", "Advanced configuration", Settings2], ["commercial", "Commercial plan", BriefcaseBusiness] ] as const).map(([tab, label, Icon]) => <button key={tab} type="button" role="tab" aria-selected={activeTab === tab} onClick={() => setActiveTab(tab as typeof activeTab)} className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded px-3 py-2 text-xs font-semibold transition ${activeTab === tab ? "bg-pine text-white" : "text-muted hover:bg-pine-tint hover:text-pine"}`}><Icon className="h-3.5 w-3.5" />{label}</button>)}
           </div>
 
           <section className={activeTab === "details" ? "card space-y-4 p-6" : "hidden"}>

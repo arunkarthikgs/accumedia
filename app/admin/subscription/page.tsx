@@ -18,6 +18,7 @@ export default function SubscriptionPage() {
   const [selectedPlan, setSelectedPlan] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isPaying, setIsPaying] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [quota, setQuota] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<"current" | "catalog" | "quotas">("current");
@@ -118,6 +119,61 @@ export default function SubscriptionPage() {
       return setMessage(data.error || "Unable to save subscription.");
     setSubscription(data.subscription);
     setMessage("Subscription plan saved.");
+  };
+
+  const payWithRazorpay = async () => {
+    const plan = plans.find((item) => item.id === selectedPlan);
+    if (!plan || plan.isCustom || plan.monthlyPrice == null) return setMessage("Select a paid online plan first.");
+    setIsPaying(true);
+    setMessage(null);
+    try {
+      const orderResponse = await fetch("/api/admin/subscription/razorpay/order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ organizationId, planId: selectedPlan }),
+      });
+      const order = await orderResponse.json();
+      if (!orderResponse.ok) throw new Error(order.error || "Unable to start Razorpay checkout.");
+      if (!(window as any).Razorpay) {
+        await new Promise<void>((resolve, reject) => {
+          const script = document.createElement("script");
+          script.src = "https://checkout.razorpay.com/v1/checkout.js";
+          script.onload = () => resolve();
+          script.onerror = () => reject(new Error("Unable to load Razorpay Checkout."));
+          document.body.appendChild(script);
+        });
+      }
+      const checkout = new (window as any).Razorpay({
+        key: order.keyId,
+        amount: order.amount,
+        currency: order.currency,
+        name: "Accumedia",
+        description: `${order.planName} subscription`,
+        order_id: order.orderId,
+        handler: async (payment: Record<string, string>) => {
+          const verifyResponse = await fetch("/api/admin/subscription/razorpay/verify", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ organizationId, planId: selectedPlan, ...payment }),
+          });
+          const verified = await verifyResponse.json();
+          if (!verifyResponse.ok) throw new Error(verified.error || "Payment verification failed.");
+          setSubscription(verified.subscription);
+          setIsPaying(false);
+          setMessage("Payment verified and subscription activated.");
+        },
+        modal: { ondismiss: () => setIsPaying(false) },
+        theme: { color: "#0f766e" },
+      });
+      checkout.on("payment.failed", (failure: { error?: { description?: string } }) => {
+        setMessage(failure.error?.description || "Razorpay payment failed.");
+        setIsPaying(false);
+      });
+      checkout.open();
+    } catch (error: any) {
+      setMessage(error.message || "Unable to complete Razorpay checkout.");
+      setIsPaying(false);
+    }
   };
 
   const savePlanDefinition = async () => {
@@ -333,6 +389,15 @@ export default function SubscriptionPage() {
             >
               <Save className="h-3.5 w-3.5" />
               {isSaving ? "Saving…" : "Save plan"}
+            </button>
+            <button
+              type="button"
+              disabled={!selectedPlan || isSaving || isPaying || plans.find((plan) => plan.id === selectedPlan)?.isCustom || plans.find((plan) => plan.id === selectedPlan)?.monthlyPrice == null}
+              onClick={payWithRazorpay}
+              className="flex items-center gap-2 rounded-lg border border-pine bg-pine-tint px-4 py-2 text-xs font-semibold text-pine-dark disabled:opacity-50"
+            >
+              <CreditCard className="h-3.5 w-3.5" />
+              {isPaying ? "Opening checkout…" : "Pay with Razorpay"}
             </button>
             <button
               type="button"

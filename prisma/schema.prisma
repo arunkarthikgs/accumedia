@@ -138,6 +138,7 @@ model Organization {
   aiPromptTemplates  AiPromptTemplate[]
   auditLogs          AuditLog[]
   subscription       Subscription?
+  paymentTransactions PaymentTransaction[]
 
   @@index([createdAt])
 
@@ -536,6 +537,29 @@ model Subscription {
   @@index([status, currentPeriodEnd])
   @@schema("macula")
   @@map("subscriptions")
+}
+
+model PaymentTransaction {
+  id              String   @id @default(uuid())
+  provider        String   @default("RAZORPAY")
+  orderId         String   @unique
+  paymentId       String?
+  signature       String?
+  amount          Int
+  currency        String
+  status          String   @default("PENDING")
+  metadata        Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  planId         String
+
+  @@index([organizationId, status, createdAt])
+  @@index([planId])
+  @@schema("macula")
+  @@map("payment_transactions")
 }
 
 // RFP §17 — "Retain version history". A snapshot is written every time an

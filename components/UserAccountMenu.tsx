@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { LogOut, UserCircle } from "lucide-react";
 
@@ -12,6 +13,7 @@ type CurrentUser = {
 };
 
 export default function UserAccountMenu({ initialUser }: { initialUser: CurrentUser | null }) {
+  const pathname = usePathname();
   const [user, setUser] = useState<CurrentUser | null>(initialUser);
 
   const logout = async () => {
@@ -19,7 +21,7 @@ export default function UserAccountMenu({ initialUser }: { initialUser: CurrentU
     window.location.href = "/login";
   };
 
-  if (!user) return null;
+  if (!user || pathname === "/reset-password") return null;
 
   const initials = user.name.split(" ").filter(Boolean).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
 

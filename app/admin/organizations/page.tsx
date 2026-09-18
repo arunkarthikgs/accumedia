@@ -8,7 +8,6 @@ import {
   Plus,
   Edit2,
   RefreshCw,
-  Layers,
   FileText,
   Users,
   Search,
@@ -17,8 +16,6 @@ import {
   X,
   Sparkles,
   ShieldCheck,
-  Server,
-  Cloud,
   Palette,
 } from "lucide-react";
 
@@ -52,30 +49,6 @@ interface OrganizationItem {
     recordings: number;
   };
 }
-
-const ASR_MODELS = [
-  {
-    id: "whisper-1",
-    name: "OpenAI Whisper-1",
-    badge: "Cloud ASR",
-    color: "bg-blue-50 text-blue-700 border-blue-200",
-    description: "Multilingual, resilient to accents, standard cloud deployment.",
-  },
-  {
-    id: "deepgram-nova-3-medical",
-    name: "Deepgram Nova-3 Medical",
-    badge: "Medical-Tuned",
-    color: "bg-purple-50 text-purple-700 border-purple-200",
-    description: "Trained on pharmacological databases, low latency clinical dictation.",
-  },
-  {
-    id: "faster-whisper-self-hosted",
-    name: "Faster-Whisper (Self-Hosted)",
-    badge: "On-Prem / Private VPC",
-    color: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    description: "Zero external transmission, compliant with Indian DPDP data sovereignty.",
-  },
-];
 
 const ORGANIZATION_PROFILE_FIELDS = [
   { key: "location", label: "Location", placeholder: "City, state, country", type: "text" },
@@ -250,7 +223,7 @@ export default function AdminOrganizationsPage() {
                 Hospital Network &amp; Model Configuration
               </h1>
             </div>
-            <p className="mt-0.5 text-xs text-muted">Configure organizations, clinicians, and default speech engines.</p>
+            <p className="mt-0.5 text-xs text-muted">Configure organizations, clinicians, branding, and compliance settings.</p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
@@ -307,7 +280,6 @@ export default function AdminOrganizationsPage() {
             <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200">
               <tr>
                 <th className="w-[250px] px-6 py-3.5">Hospital Name &amp; Slug</th>
-                {isSuperAdmin && <th className="w-[250px] px-6 py-3.5">Default Speech Engine (ASR)</th>}
                 <th className="w-[210px] px-6 py-3.5">Clinicians &amp; Cases</th>
                 <th className="min-w-[260px] px-6 py-3.5">Statutory Disclaimer</th>
                 <th className="w-[250px] px-6 py-3.5 text-right">Actions</th>
@@ -316,26 +288,18 @@ export default function AdminOrganizationsPage() {
             <tbody className="divide-y divide-slate-100">
               {isLoading ? (
                 <tr>
-                  <td colSpan={isSuperAdmin ? 5 : 4} className="py-12 text-center text-slate-400">
+                  <td colSpan={4} className="py-12 text-center text-slate-400">
                     Loading hospital networks...
                   </td>
                 </tr>
               ) : filteredOrgs.length === 0 ? (
                 <tr>
-                  <td colSpan={isSuperAdmin ? 5 : 4} className="py-12 text-center text-slate-400">
+                  <td colSpan={4} className="py-12 text-center text-slate-400">
                     No hospitals registered yet. Click &ldquo;Add Hospital&rdquo; to start.
                   </td>
                 </tr>
               ) : (
                 filteredOrgs.map((org) => {
-                  const modelInfo = ASR_MODELS.find(
-                    (m) => m.id === org.preferredAsrModel
-                  ) || {
-                    name: org.preferredAsrModel,
-                    badge: "Custom",
-                    color: "bg-slate-100 text-slate-700 border-slate-200",
-                  };
-
                   return (
                     <tr key={org.id} className="hover:bg-slate-50/70 transition">
                       <td className="px-6 py-4">
@@ -352,21 +316,6 @@ export default function AdminOrganizationsPage() {
                           </div>
                         </div>
                       </td>
-
-                      {isSuperAdmin && <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold border ${modelInfo.color}`}
-                          >
-                            {org.preferredAsrModel === "faster-whisper-self-hosted" ? (
-                              <Server className="h-3 w-3" />
-                            ) : (
-                              <Cloud className="h-3 w-3" />
-                            )}
-                            {modelInfo.name}
-                          </span>
-                        </div>
-                      </td>}
 
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3 text-slate-500">
@@ -507,57 +456,6 @@ export default function AdminOrganizationsPage() {
                 <label className="mb-1 block font-semibold text-slate-700">Default call to action</label>
                 <textarea rows={2} value={formData.callToAction} onChange={(e) => setFormData({ ...formData, callToAction: e.target.value })} placeholder="Book an appointment through the hospital reception." className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs" />
               </div>
-
-              {/* ASR Speech Recognition Model Selection */}
-              {isSuperAdmin && <div className="rounded-xl border border-teal-100 bg-teal-50/40 p-4 space-y-2">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-teal-800">Advanced configuration</p>
-                <label className="block font-bold text-teal-950 flex items-center gap-1.5">
-                  <Layers className="h-4 w-4 text-teal-700" /> Default Speech Recognition (ASR) Engine
-                </label>
-                <p className="text-[11px] text-teal-800">
-                  Select which model handles audio dictations for all clinicians assigned to this hospital.
-                </p>
-
-                <div className="grid grid-cols-1 gap-2 pt-1">
-                  {ASR_MODELS.map((model) => {
-                    const isSelected = formData.preferredAsrModel === model.id;
-                    return (
-                      <label
-                        key={model.id}
-                        className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition ${
-                          isSelected
-                            ? "border-teal-500 bg-white shadow-xs"
-                            : "border-slate-200 bg-white/70 hover:bg-white"
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="preferredAsrModel"
-                          value={model.id}
-                          checked={isSelected}
-                          onChange={() =>
-                            setFormData({ ...formData, preferredAsrModel: model.id })
-                          }
-                          className="mt-0.5 text-teal-600 accent-teal-600"
-                        />
-                        <div className="flex-1">
-                          <div className="flex items-center justify-between">
-                            <span className="font-semibold text-slate-900">{model.name}</span>
-                            <span
-                              className={`rounded-md px-1.5 py-0.2 text-[10px] font-bold border ${model.color}`}
-                            >
-                              {model.badge}
-                            </span>
-                          </div>
-                          <p className="text-[11px] text-slate-500 mt-0.5">
-                            {model.description}
-                          </p>
-                        </div>
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>}
 
               {/* Custom System Prompt */}
               <div>

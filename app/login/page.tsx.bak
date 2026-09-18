@@ -1,7 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
-import { ArrowRight, LockKeyhole, ShieldCheck } from "lucide-react";
+import { FormEvent, useState } from "react";
+import { ArrowRight, CheckCircle2, FileText, LockKeyhole, ShieldCheck } from "lucide-react";
 import BrandLogo from "@/components/BrandLogo";
 
 const DEMO_ACCOUNTS = [
@@ -15,40 +15,11 @@ const DEMO_ACCOUNTS = [
   { label: "Auditor", value: "role-auditor@bangalore-hospital.test", password: "MaculaTest@2026!", detail: "Bangalore Hospital role test" },
 ];
 
-const LOGIN_VISUALS = [
-  {
-    eyebrow: "01 / Capture",
-    title: "A clear starting point",
-    detail: "Clinician narratives enter the workspace as source material for review.",
-    image: "/workflow-01.png",
-  },
-  {
-    eyebrow: "02 / Structure",
-    title: "A record built for people",
-    detail: "The narrative is organized into a readable Master Clinical Record.",
-    image: "/workflow-02.png",
-  },
-  {
-    eyebrow: "03 / Review",
-    title: "Governance before release",
-    detail: "Safety flags, RMP oversight, and approval gates stay visible throughout.",
-    image: "/workflow-03.png",
-  },
-] as const;
-
 export default function LoginPage() {
   const [userId, setUserId] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [activeVisual, setActiveVisual] = useState(0);
-
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      setActiveVisual((current) => (current + 1) % LOGIN_VISUALS.length);
-    }, 5600);
-    return () => window.clearInterval(timer);
-  }, []);
 
   const continueToWorkspace = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -84,7 +55,7 @@ export default function LoginPage() {
 
   return (
     <main className="min-h-screen bg-paper text-ink lg:grid lg:grid-cols-[1.08fr_0.92fr]">
-      <section className="relative hidden overflow-hidden bg-pine-dark p-12 text-white lg:flex lg:flex-col lg:justify-start">
+      <section className="relative hidden overflow-hidden bg-pine-dark p-12 text-white lg:flex lg:flex-col lg:justify-between">
         <div className="absolute inset-0 opacity-20 [background-image:linear-gradient(rgba(255,255,255,.12)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.12)_1px,transparent_1px)] [background-size:48px_48px]" />
         <div className="relative">
           <BrandLogo invert />
@@ -92,85 +63,31 @@ export default function LoginPage() {
           {error && <div className="mb-4 rounded-lg border border-brick/30 bg-brick-tint p-3 text-xs text-brick">{error}</div>}
         </div>
 
-        <div className="relative mt-12 max-w-xl py-6">
-          <p className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-pine-tint">
+        <div className="relative max-w-xl py-16">
+          <p className="mb-5 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-pine-tint">
             <span className="h-px w-8 bg-pine-tint" />
-            A governed clinical workflow
+            Clinical records, ready for review
           </p>
           <h1 className="max-w-2xl text-4xl font-bold leading-tight" style={{ fontFamily: "var(--font-serif)" }}>
-            From narrative to reviewable record.
+            Turn every dictation into a record your team can trust.
           </h1>
-          <p className="mt-3 max-w-lg text-sm leading-6 text-pine-tint">
-            A secure workspace for turning clinician input into structured records that remain under human and compliance review.
+          <p className="mt-5 max-w-lg text-sm leading-7 text-pine-tint">
+            Capture medical narratives, refine the transcript, and move each case through a clear review and governance workflow.
           </p>
-
-          <div className="relative mt-5 max-w-2xl overflow-hidden rounded-2xl border border-white/15 bg-slate-950/60 p-3 shadow-2xl backdrop-blur-xl">
-            <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-emerald-400/10 blur-3xl" />
-            <div className="flex items-center justify-between border-b border-white/10 pb-4">
-              <div className="flex items-center gap-2 text-xs font-semibold text-slate-200">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-400/15 text-emerald-300">
-                  <ShieldCheck className="h-4 w-4" />
-                </span>
-                Secure clinical workflow
+          <div className="mt-8 grid max-w-lg grid-cols-2 gap-3 text-xs">
+            {["Audio to clinical record", "Review before publishing", "Organization-level controls", "Audit-ready case history"].map((item) => (
+              <div key={item} className="flex items-start gap-2 border-t border-white/20 pt-3 text-pine-tint">
+                <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-white" />
+                <span>{item}</span>
               </div>
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/25 bg-emerald-400/10 px-2.5 py-1 text-[10px] font-semibold text-emerald-300">
-                <span className="relative flex h-1.5 w-1.5">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-300 opacity-60" />
-                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-300" />
-                </span>
-                Human review required
-              </span>
-            </div>
-
-            <div className="relative mt-3 overflow-hidden rounded-xl border border-white/10 bg-slate-900/80">
-              <div key={activeVisual} className="login-visual-fade">
-                <img
-                  src={LOGIN_VISUALS[activeVisual].image}
-                  alt={LOGIN_VISUALS[activeVisual].title}
-                  className="block aspect-video w-full object-cover"
-                />
-                <div className="border-t border-white/10 px-3 py-2">
-                  <p className="text-[10px] font-mono uppercase tracking-[0.14em] text-emerald-300">
-                    {LOGIN_VISUALS[activeVisual].eyebrow}
-                  </p>
-                  <p className="mt-1 text-[10px] leading-4 text-slate-400">{LOGIN_VISUALS[activeVisual].detail}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-3 flex items-center justify-center gap-1.5" aria-label="Workflow preview slides">
-              {LOGIN_VISUALS.map((visual, index) => (
-                <button
-                  key={visual.eyebrow}
-                  type="button"
-                  aria-label={`Show ${visual.eyebrow}`}
-                  onClick={() => setActiveVisual(index)}
-                  className={`h-1.5 rounded-full transition-all ${activeVisual === index ? "w-7 bg-emerald-300" : "w-1.5 bg-slate-600 hover:bg-slate-400"}`}
-                />
-              ))}
-            </div>
+            ))}
           </div>
         </div>
 
-        <div className="relative mt-auto flex items-center justify-between border-t border-white/20 pt-5 text-[11px] text-pine-tint">
+        <div className="relative flex items-center justify-between border-t border-white/20 pt-5 text-[11px] text-pine-tint">
           <span>Secure clinical workspace</span>
           <span>v1.0</span>
         </div>
-
-        <style jsx global>{`
-          @keyframes login-fade-in {
-            from { opacity: 0; transform: translateY(5px); }
-            to { opacity: 1; transform: translateY(0); }
-          }
-
-          .login-visual-fade {
-            animation: login-fade-in 700ms ease-out both;
-          }
-
-          @media (prefers-reduced-motion: reduce) {
-            .login-visual-fade { animation: none; }
-          }
-        `}</style>
       </section>
 
       <section className="flex min-h-screen items-center justify-center px-6 py-12 sm:px-10">

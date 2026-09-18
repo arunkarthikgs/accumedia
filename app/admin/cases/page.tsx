@@ -301,16 +301,31 @@ export default function AdminCasesPage() {
       const json = await res.json();
 
       if (res.ok) {
+        try {
+          Object.keys(sessionStorage)
+            .filter((key) => key.startsWith("macula:case-list:"))
+            .forEach((key) => sessionStorage.removeItem(key));
+        } catch {
+          // Ignore unavailable browser storage.
+        }
         setCases((prev) =>
           prev.map((c) => (c.id === caseId ? { ...c, ...json.case } : c)),
         );
         setRejectionModalCase(null);
         setRejectionInputReason("");
-      } else if (newStatus === "APPROVED") {
+        if (currentPage === 1) {
+          await loadCases();
+        } else {
+          setCurrentPage(1);
+        }
+      } else {
         const flagList = (json.openFlags || [])
           .map((f: any) => f.detail)
           .join("; ");
-        setApproveError(json.error + (flagList ? ` (${flagList})` : ""));
+        setApproveError(
+          (json.error || `${newStatus === "REJECTED" ? "Rejection" : "Approval"} failed.`) +
+            (flagList ? ` (${flagList})` : ""),
+        );
       }
     } catch (err) {
       console.error("Failed to update status:", err);

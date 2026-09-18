@@ -119,7 +119,6 @@ model Organization {
   hospitalPhotoUrls  Json?
   preferredAsrModel  String              @default("whisper-1")
   customSystemPrompt String?             @db.Text
-  clinicalRefinerPrompt String?          @db.Text
   defaultDisclaimer  String              @default("This clinical summary is generated under NMC registered medical practitioner supervision.")
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @default(now()) @updatedAt

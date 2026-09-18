@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 import { getASRPromptProfile } from "@/lib/asr/prompts";
 import { MANDATORY_CLINICAL_SYNTHESIS_PROMPT } from "@/lib/prompts/clinical-synthesis";
 import { DEFAULT_CLINICAL_REFINER_PROMPT } from "@/lib/clinical-refiner";
+import { getResolvedAiPrompts } from "@/lib/ai-prompts";
 import { requireAuthenticatedUser, requireOrganizationAccess } from "@/lib/tenant-auth";
 import { query } from "@/lib/worker-db";
 
@@ -29,17 +30,36 @@ export async function GET(req: Request) {
     // 3. Static & dynamic AI prompts used across the ingestion pipeline
     const selectedModel = requestedModel || recording?.transcriptionAgent || process.env.DEFAULT_ASR_MODEL || "whisper-1";
     const asrPromptProfile = getASRPromptProfile(selectedModel);
+    const resolvedPrompts = organization?.id
+      ? await getResolvedAiPrompts(organization.id, ["CLINICAL_REFINER", "MASTER_SYNTHESIS", "SEO_KEYWORDS"])
+      : new Map();
+    const clinicalRefinerPrompt = resolvedPrompts.get("CLINICAL_REFINER");
+    const masterSynthesisPrompt = resolvedPrompts.get("MASTER_SYNTHESIS");
+    const seoKeywordPrompt = resolvedPrompts.get("SEO_KEYWORDS");
     const prompts = {
       asrTranscriptionPrompt: asrPromptProfile,
       clinicalRefinerPrompt: {
         agent: "OpenAI GPT-4o (gpt-4o)",
         temperature: 0.1,
-        systemPrompt: organization?.clinicalRefinerPrompt || DEFAULT_CLINICAL_REFINER_PROMPT,
+        systemPrompt: clinicalRefinerPrompt?.content || organization?.clinicalRefinerPrompt || DEFAULT_CLINICAL_REFINER_PROMPT,
+        promptTemplateId: clinicalRefinerPrompt?.id || null,
+        promptVersion: clinicalRefinerPrompt?.version || null,
+        promptSource: clinicalRefinerPrompt?.organizationId ? "organization" : clinicalRefinerPrompt ? "global" : "fallback",
       },
       organizationSystemPrompt: {
         agent: "Macula Synthesis Engine",
-        systemPrompt: `${MANDATORY_CLINICAL_SYNTHESIS_PROMPT}\n\nOrganization-specific instructions:\n${organization?.customSystemPrompt || "No additional organization-specific instructions were configured."}`,
+        systemPrompt: `${masterSynthesisPrompt?.content || MANDATORY_CLINICAL_SYNTHESIS_PROMPT}\n\nOrganization-specific instructions:\n${organization?.customSystemPrompt || "No additional organization-specific instructions were configured."}`,
         disclaimer: organization?.defaultDisclaimer || "Standard NMC supervision disclaimer applied.",
+        promptTemplateId: masterSynthesisPrompt?.id || null,
+        promptVersion: masterSynthesisPrompt?.version || null,
+        promptSource: masterSynthesisPrompt?.organizationId ? "organization" : masterSynthesisPrompt ? "global" : "fallback",
+      },
+      seoKeywordPrompt: {
+        agent: "OpenAI GPT-4o (gpt-4o)",
+        systemPrompt: seoKeywordPrompt?.content || null,
+        promptTemplateId: seoKeywordPrompt?.id || null,
+        promptVersion: seoKeywordPrompt?.version || null,
+        promptSource: seoKeywordPrompt?.organizationId ? "organization" : seoKeywordPrompt ? "global" : "fallback",
       },
       channelPrompts: organization?.channelDefinitions.map((c) => ({
         channelKey: c.channelKey,

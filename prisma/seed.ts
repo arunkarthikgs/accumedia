@@ -258,15 +258,13 @@ async function main() {
     }
   }
 
-  const organizations = await db.organization.findMany({ select: { id: true, clinicalRefinerPrompt: true } });
+  const organizations = await db.organization.findMany({ select: { id: true } });
   for (const organization of organizations) {
     for (const [promptKey, masterContent] of masterPrompts) {
       const master = await db.aiPromptTemplate.findFirst({ where: { organizationId: null, promptKey }, orderBy: { version: "desc" } });
       if (!master) continue;
       const activeOverrides = await db.aiPromptTemplate.findMany({ where: { organizationId: organization.id, promptKey, isActive: true }, orderBy: { version: "desc" } });
-      const preferredContent = promptKey === "CLINICAL_REFINER" && organization.clinicalRefinerPrompt?.trim()
-        ? organization.clinicalRefinerPrompt.trim()
-        : activeOverrides[0]?.content;
+      const preferredContent = activeOverrides[0]?.content;
       if (!preferredContent || preferredContent === masterContent) {
         if (activeOverrides.length) await db.aiPromptTemplate.updateMany({ where: { id: { in: activeOverrides.map((prompt) => prompt.id) } }, data: { isActive: false } });
         continue;

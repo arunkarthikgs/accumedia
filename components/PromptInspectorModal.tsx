@@ -185,6 +185,34 @@ export default function PromptInspectorModal({
                     </p>
                     <p className="mt-1 text-[11px] font-medium text-slate-600">Used when Stage 3 creates the Master Clinical Record. The disclaimer is also reused when publishing assets and narrated videos are generated.</p>
                   </div>
+
+                  {/* SEO Keyword Prompt */}
+                  {data.prompts?.seoKeywordPrompt?.systemPrompt && (
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="mb-2 flex items-center justify-between">
+                        <div>
+                          <span className="font-semibold text-slate-800">
+                            SEO Keyword Strategy ({data.prompts.seoKeywordPrompt.agent})
+                          </span>
+                          <span className="ml-2 rounded-md bg-teal-100 px-1.5 py-0.5 text-[10px] font-mono text-teal-800">
+                            v{data.prompts.seoKeywordPrompt.promptVersion || "fallback"}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => copyToClipboard(data.prompts.seoKeywordPrompt.systemPrompt, "seo")}
+                          className="flex items-center gap-1 text-[11px] text-teal-700 hover:underline"
+                        >
+                          {copiedKey === "seo" ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
+                          {copiedKey === "seo" ? "Copied" : "Copy"}
+                        </button>
+                      </div>
+                      <pre className="rounded-lg bg-slate-900 p-3 font-mono text-[11px] text-slate-100 whitespace-pre-wrap leading-relaxed">
+                        {data.prompts.seoKeywordPrompt.systemPrompt}
+                      </pre>
+                      <p className="mt-2 text-[11px] font-medium text-slate-600">Used after Master Clinical Record approval to create the SEO keyword strategy.</p>
+                    </div>
+                  )}
                 </div>
             </>
           )}

@@ -94,6 +94,21 @@ export async function PATCH(req: Request) {
     if (existing.imageAssetId) {
       await query(`UPDATE macula.image_assets SET "phiReviewStatus" = $1, "updatedAt" = NOW() WHERE id = $2`, [decision === "REVIEWED_OK" ? "CLEAR" : "FLAGGED", existing.imageAssetId]);
     }
+    if (existing.caseId && decision === "REJECTED") {
+      await query(
+        `UPDATE macula.cases SET status = 'REJECTED', rejection_reason = $1, reviewed_by = $2, reviewed_at = NOW(), "updatedAt" = NOW() WHERE id = $3`,
+        [updated.detail || "Rejected from the Safety Queue.", reviewedBy || "Compliance officer", existing.caseId],
+      );
+      await recordAudit({
+        organizationId,
+        caseId: existing.caseId,
+        targetType: "CASE",
+        targetId: existing.caseId,
+        action: "CASE_REJECTED",
+        detail: updated.detail || "Rejected from the Safety Queue.",
+        metadata: { reviewedBy, source: "SAFETY_QUEUE", safetyFlagId: flagId },
+      });
+    }
     await recordAudit({ organizationId, caseId: existing.caseId || undefined, targetType: existing.imageAssetId ? "IMAGE_ASSET" : "CASE", targetId: existing.imageAssetId || existing.caseId || flagId, action: "SAFETY_FLAG_RESOLVED", detail: decision, metadata: { reviewedBy } });
 
     return NextResponse.json({ success: true, flag: updated });

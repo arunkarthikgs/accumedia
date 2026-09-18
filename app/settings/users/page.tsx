@@ -147,8 +147,8 @@ export default function UsersSettingsPage() {
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-pine">
-              <Link href="/" className="flex items-center gap-1 hover:underline">
-                <ArrowLeft className="h-3 w-3" /> Dashboard
+              <Link href="/admin/organizations" className="flex items-center gap-1 hover:underline">
+                <ArrowLeft className="h-3 w-3" /> Hospital Networks
               </Link>
               <span>/</span>
               <span>Settings</span>

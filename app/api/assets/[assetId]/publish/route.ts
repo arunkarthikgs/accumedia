@@ -60,11 +60,15 @@ export async function POST(
     const { rows: jobRows } = await query(`INSERT INTO macula.publication_jobs (id, platform, "scheduledAt", "organizationId", "caseId", "assetId") VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`, [crypto.randomUUID(), platform, scheduledAt, asset.organizationId, asset.case_id, assetId]);
     const job = jobRows[0];
 
+    const nextStatus = scheduledAt ? "SCHEDULED" : "EXPORTED";
+    const { rows: assetRows } = await query(`UPDATE macula.generated_assets SET status=$1, "updatedAt"=NOW() WHERE id=$2 RETURNING *`, [nextStatus, assetId]);
+
     const connection = (await query(`SELECT id FROM macula.publication_connections WHERE "organizationId"=$1 AND platform=$2 AND "isActive"=TRUE LIMIT 1`, [asset.organizationId, platform])).rows[0];
 
     return NextResponse.json({
       success: true,
       job,
+      asset: assetRows[0],
       connectorConfigured: Boolean(connection),
       message: connection ? "Publication queued for the configured connector." : "Publication queued, but no active platform connector is configured.",
     });

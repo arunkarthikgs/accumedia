@@ -159,6 +159,7 @@ export default function AssetActionsPanel({
   const [publicationMessage, setPublicationMessage] = useState<string | null>(
     null,
   );
+  const [isQueueingPublication, setIsQueueingPublication] = useState(false);
   const [previewPlatform, setPreviewPlatform] = useState(
     defaultPlatform(asset),
   );
@@ -216,24 +217,32 @@ export default function AssetActionsPanel({
 
   const queuePublication = async () => {
     setPublicationMessage(null);
-    const response = await fetch(`/api/assets/${asset.id}/publish`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        platform: publishPlatform,
-        scheduledAt: scheduledAt || null,
-      }),
-    });
-    const data = await response.json();
-    if (!response.ok)
-      return setPublicationMessage(
-        data.error || "Unable to queue publication.",
+    setIsQueueingPublication(true);
+    try {
+      const response = await fetch(`/api/assets/${asset.id}/publish`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          platform: publishPlatform,
+          scheduledAt: scheduledAt || null,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setPublicationMessage(data.error || "Unable to queue publication.");
+        return;
+      }
+      setStatus(data.asset?.status || status);
+      setPublicationMessage(
+        data.connectorConfigured
+          ? data.message || "Publication queued for the configured connector."
+          : data.message || "Publication queued; configure the connector before processing it.",
       );
-    setPublicationMessage(
-      data.connectorConfigured
-        ? "Publication queued for the configured connector."
-        : "Publication queued; configure the connector before processing it.",
-    );
+    } catch (error: any) {
+      setPublicationMessage(error.message || "Unable to reach the publishing service.");
+    } finally {
+      setIsQueueingPublication(false);
+    }
   };
 
   const renderVideo = async () => {
@@ -572,11 +581,11 @@ export default function AssetActionsPanel({
                   />
                 </label>
                 <button
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || isQueueingPublication}
                   onClick={queuePublication}
                   className="flex items-center gap-1 rounded bg-pine px-3 py-1.5 text-[11px] font-medium text-white disabled:opacity-50"
                 >
-                  <Send className="h-3 w-3" /> Queue publication
+                  {isQueueingPublication ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />} {isQueueingPublication ? "Queueing…" : "Queue publication"}
                 </button>
               </div>
             )}

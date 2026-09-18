@@ -64,6 +64,7 @@ interface PromptAuditEvent {
 }
 
 const PROMPT_STAGE_HELP: Record<string, string> = {
+  ASR_TRANSCRIPTION: "Stage 1 speech-to-text guidance. Used for Whisper transcription to preserve clinical wording without summarizing or inventing facts.",
   MASTER_SYNTHESIS: "Used after clinical refinement to create the structured Master Clinical Record and its DPDP/NMC safety audit.",
   CLINICAL_REFINER: "Used after speech-to-text to correct medical terminology and structure without adding clinical facts.",
   SEO_KEYWORDS: "Used after Master Clinical Record synthesis to create the approved keyword strategy consumed by SEO publishing assets.",
@@ -75,7 +76,7 @@ const GOVERNED_PROMPT_GROUPS = [
   {
     title: "Case Ingestion",
     description: "Prompts used to transform dictated clinical input into the approved Master Clinical Record.",
-    promptKeys: ["CLINICAL_REFINER", "MASTER_SYNTHESIS"],
+    promptKeys: ["ASR_TRANSCRIPTION", "CLINICAL_REFINER", "MASTER_SYNTHESIS"],
   },
   {
     title: "Asset Creation",

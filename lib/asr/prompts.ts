@@ -6,11 +6,12 @@ type ASRPromptProfile = {
   note: string;
 };
 
+export const DEFAULT_ASR_TRANSCRIPTION_PROMPT = "Clinical medical dictation from a licensed practitioner. Preserve exact wording, medication names, dosages, units, anatomy, abbreviations, and procedures. Do not summarize, infer, diagnose, or add information.";
+
 export const ASR_PROMPT_PROFILES: Record<ASRModelIdentifier, ASRPromptProfile> = {
   "whisper-1": {
     agent: "OpenAI Whisper (whisper-1)",
-    prompt:
-      "Clinical medical dictation from a licensed practitioner. Preserve exact wording, medication names, dosages, units, anatomy, abbreviations, and procedures. Do not summarize, infer, diagnose, or add information.",
+    prompt: DEFAULT_ASR_TRANSCRIPTION_PROMPT,
     note: "Prompt guidance is sent to OpenAI Whisper with the audio.",
   },
   "deepgram-nova-3-medical": {

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getASRProvider } from "@/lib/asr/factory";
 import { getASRPromptProfile } from "@/lib/asr/prompts";
+import { getResolvedAiPrompts } from "@/lib/ai-prompts";
 import { redactClinicalText } from "@/lib/prompts/clinical-redaction";
 import { logAIUsage } from "@/lib/ai-usage";
 import { requireOrganizationAccess } from "@/lib/tenant-auth";
@@ -53,6 +54,7 @@ export async function POST(req: Request) {
     // Resolve provider via Factory
     const provider = getASRProvider(selectedModel);
     const promptProfile = getASRPromptProfile(selectedModel);
+    const governedAsrPrompt = (await getResolvedAiPrompts(recording.organizationId, ["ASR_TRANSCRIPTION"])).get("ASR_TRANSCRIPTION")?.content;
     const recordingMeta = { organizationId: recording.organizationId, durationSeconds: recording.durationSeconds, caseId: recording.caseId };
 
     // Execute Transcription
@@ -60,7 +62,7 @@ export async function POST(req: Request) {
       buffer,
       fileName,
       mimeType,
-      prompt: promptProfile.prompt || undefined,
+      prompt: governedAsrPrompt || promptProfile.prompt || undefined,
     });
 
     const redactionRules = recordingMeta

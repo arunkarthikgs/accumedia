@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
-import { getASRPromptProfile } from "@/lib/asr/prompts";
+import { DEFAULT_ASR_TRANSCRIPTION_PROMPT, getASRPromptProfile } from "@/lib/asr/prompts";
 import { MANDATORY_CLINICAL_SYNTHESIS_PROMPT } from "@/lib/prompts/clinical-synthesis";
 import { DEFAULT_CLINICAL_REFINER_PROMPT } from "@/lib/clinical-refiner";
 import { getResolvedAiPrompts } from "@/lib/ai-prompts";
@@ -31,13 +31,20 @@ export async function GET(req: Request) {
     const selectedModel = requestedModel || recording?.transcriptionAgent || process.env.DEFAULT_ASR_MODEL || "whisper-1";
     const asrPromptProfile = getASRPromptProfile(selectedModel);
     const resolvedPrompts = organization?.id
-      ? await getResolvedAiPrompts(organization.id, ["CLINICAL_REFINER", "MASTER_SYNTHESIS", "SEO_KEYWORDS"])
+      ? await getResolvedAiPrompts(organization.id, ["ASR_TRANSCRIPTION", "CLINICAL_REFINER", "MASTER_SYNTHESIS", "SEO_KEYWORDS"])
       : new Map();
     const clinicalRefinerPrompt = resolvedPrompts.get("CLINICAL_REFINER");
     const masterSynthesisPrompt = resolvedPrompts.get("MASTER_SYNTHESIS");
     const seoKeywordPrompt = resolvedPrompts.get("SEO_KEYWORDS");
     const prompts = {
       asrTranscriptionPrompt: asrPromptProfile,
+      asrGovernedPrompt: {
+        agent: asrPromptProfile.agent,
+        systemPrompt: resolvedPrompts.get("ASR_TRANSCRIPTION")?.content || DEFAULT_ASR_TRANSCRIPTION_PROMPT,
+        promptTemplateId: resolvedPrompts.get("ASR_TRANSCRIPTION")?.id || null,
+        promptVersion: resolvedPrompts.get("ASR_TRANSCRIPTION")?.version || null,
+        promptSource: resolvedPrompts.get("ASR_TRANSCRIPTION")?.organizationId ? "organization" : resolvedPrompts.get("ASR_TRANSCRIPTION") ? "global" : "fallback",
+      },
       clinicalRefinerPrompt: {
         agent: "OpenAI GPT-4o (gpt-4o)",
         temperature: 0.1,

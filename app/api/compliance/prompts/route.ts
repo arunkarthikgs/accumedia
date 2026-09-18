@@ -3,6 +3,7 @@ import { DEFAULT_CLINICAL_REFINER_PROMPT } from "@/lib/clinical-refiner";
 import { DEFAULT_IMAGE_GENERATION_PROMPT, DEFAULT_IMAGE_SAFETY_PROMPT } from "@/lib/image-prompts";
 import { MANDATORY_CLINICAL_SYNTHESIS_PROMPT } from "@/lib/prompts/clinical-synthesis";
 import { DEFAULT_SEO_KEYWORD_PROMPT } from "@/lib/seo-keyword-engine";
+import { DEFAULT_ASR_TRANSCRIPTION_PROMPT } from "@/lib/asr/prompts";
 import { DEFAULT_CHANNEL_PROMPTS } from "@/lib/content-engine";
 import { getResolvedAiPrompts } from "@/lib/ai-prompts";
 import { requirePermission } from "@/lib/auth";
@@ -42,6 +43,7 @@ export async function GET(req: Request) {
       CLINICAL_REFINER: DEFAULT_CLINICAL_REFINER_PROMPT,
       IMAGE_GENERATION: DEFAULT_IMAGE_GENERATION_PROMPT,
       IMAGE_SAFETY: DEFAULT_IMAGE_SAFETY_PROMPT,
+      ASR_TRANSCRIPTION: DEFAULT_ASR_TRANSCRIPTION_PROMPT,
     };
     const governedPrompts = promptDefinitions.rows.map((definition: any) => {
       const versions = promptHistory.rows.filter((prompt: any) => prompt.promptKey === definition.promptKey);

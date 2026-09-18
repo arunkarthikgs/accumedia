@@ -3,6 +3,7 @@ import { DEFAULT_CLINICAL_REFINER_PROMPT } from "../lib/clinical-refiner";
 import { DEFAULT_IMAGE_GENERATION_PROMPT, DEFAULT_IMAGE_SAFETY_PROMPT } from "../lib/image-prompts";
 import { MANDATORY_CLINICAL_SYNTHESIS_PROMPT } from "../lib/prompts/clinical-synthesis";
 import { DEFAULT_SEO_KEYWORD_PROMPT } from "../lib/seo-keyword-engine";
+import { DEFAULT_ASR_TRANSCRIPTION_PROMPT } from "../lib/asr/prompts";
 
 const db = new PrismaClient();
 
@@ -223,6 +224,7 @@ async function main() {
   }
   console.log(`Role matrix complete for ${organizationsForRoles.length} organizations.`);
   const masterPrompts = [
+    ["ASR_TRANSCRIPTION", DEFAULT_ASR_TRANSCRIPTION_PROMPT],
     ["MASTER_SYNTHESIS", MANDATORY_CLINICAL_SYNTHESIS_PROMPT],
     ["SEO_KEYWORDS", DEFAULT_SEO_KEYWORD_PROMPT],
     ["CLINICAL_REFINER", DEFAULT_CLINICAL_REFINER_PROMPT],
@@ -230,6 +232,7 @@ async function main() {
     ["IMAGE_SAFETY", DEFAULT_IMAGE_SAFETY_PROMPT],
   ] as const;
   const promptDefinitionsCatalog: Record<(typeof masterPrompts)[number][0], { name: string; description: string }> = {
+    ASR_TRANSCRIPTION: { name: "ASR Speech-to-Text", description: "Controls Stage 1 medical speech transcription guidance for supported ASR providers." },
     MASTER_SYNTHESIS: { name: "Master Clinical Synthesis", description: "Generates the governed Master Clinical Record from sanitized clinical inputs." },
     SEO_KEYWORDS: { name: "SEO Keyword Generation", description: "Generates and validates the SEO keyword set for approved clinical content." },
     CLINICAL_REFINER: { name: "Clinical Transcript Refinement", description: "Refines sanitized ASR output into accurate clinical documentation without adding facts." },

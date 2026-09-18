@@ -27,6 +27,7 @@ function runtimeSeconds(asset: Asset) {
 
 const STATUS_DOT_CLASS: Record<string, string> = {
   QUEUED: "bg-ochre",
+  PROCESSING: "bg-pine",
   APPROVED: "bg-sage",
   REVIEW: "bg-ochre",
   DRAFT: "bg-slate-400",
@@ -43,7 +44,7 @@ export default function PublishingAssetWorkspace({ caseId, assets, caseApproved 
   const orderedAssets = [...videoAssets, ...otherAssets];
   const [selectedAssetId, setSelectedAssetId] = useState(orderedAssets[0]?.id || "");
   const selectedAsset = orderedAssets.find((asset) => asset.id === selectedAssetId) || orderedAssets[0];
-  const displayStatus = (asset: Asset) => asset.publicationStatus === "QUEUED" ? "QUEUED" : asset.status;
+  const displayStatus = (asset: Asset) => ["QUEUED", "PROCESSING", "PUBLISHED"].includes(asset.publicationStatus || "") ? asset.publicationStatus as string : asset.status;
   useEffect(() => {
     const assetId = window.location.hash.match(/^#asset-(.+)$/)?.[1];
     if (!assetId || !orderedAssets.some((asset) => asset.id === assetId)) return;

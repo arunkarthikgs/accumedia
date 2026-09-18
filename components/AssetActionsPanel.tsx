@@ -206,6 +206,7 @@ export default function AssetActionsPanel({
       setVersion(json.asset.version);
       setDraftText(readableDraft(json.asset.content));
       setIsEditing(false);
+      onStatusChange?.(asset.id, json.asset.status);
       setActionMessage(action === "regenerate" ? `Asset regenerated successfully as version ${json.asset.version}.` : action === "approve" ? "Asset approved." : "Asset edit saved.");
     } catch (err: any) {
       setError(err.message || "Action failed.");

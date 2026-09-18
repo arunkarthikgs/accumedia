@@ -61,6 +61,32 @@ function defaultPlatform(asset: AssetActionsPanelProps["asset"]) {
   return "linkedin";
 }
 
+function formatReadableValue(value: unknown, indent = 0): string {
+  const padding = "  ".repeat(indent);
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => {
+        if (item && typeof item === "object") {
+          return `${padding}-\n${formatReadableValue(item, indent + 1)}`;
+        }
+        return `${padding}- ${String(item)}`;
+      })
+      .join("\n");
+  }
+  if (value && typeof value === "object") {
+    return Object.entries(value as Record<string, unknown>)
+      .map(([key, childValue]) => {
+        const label = key.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+        if (childValue && typeof childValue === "object") {
+          return `${padding}${label}:\n${formatReadableValue(childValue, indent + 1)}`;
+        }
+        return `${padding}${label}: ${String(childValue ?? "Not provided")}`;
+      })
+      .join("\n");
+  }
+  return `${padding}${String(value ?? "Not provided")}`;
+}
+
 function previewText(content: any) {
   if (typeof content === "string") return content;
   if (!content || typeof content !== "object") return "";
@@ -78,7 +104,7 @@ function previewText(content: any) {
     )
     .map(
       ([key, value]) =>
-        `${key.replace(/_/g, " ")}: ${Array.isArray(value) ? value.join(" • ") : typeof value === "object" ? JSON.stringify(value) : value}`,
+        `${key.replace(/_/g, " ")}:\n${formatReadableValue(value)}`,
     )
     .join("\n\n");
 }
@@ -103,18 +129,7 @@ function readableDraft(content: any) {
     )
     .map(
       ([key, value]) =>
-        `${key.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase())}\n${
-          Array.isArray(value)
-            ? value.join("\n")
-            : typeof value === "object"
-              ? Object.entries(value as Record<string, unknown>)
-                  .map(
-                    ([childKey, childValue]) =>
-                      `${childKey.replace(/_/g, " ")}: ${childValue}`,
-                  )
-                  .join("\n")
-              : String(value)
-        }`,
+        `${key.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase())}\n${formatReadableValue(value)}`,
     )
     .join("\n\n");
 }

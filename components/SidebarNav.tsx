@@ -39,7 +39,7 @@ export default function SidebarNav({ currentUser }: { currentUser: SessionUser |
   const pathname = usePathname();
   const visibleItems = NAV_ITEMS.filter((item) => !item.permission || currentUser?.isSuperAdmin || currentUser?.permissions.includes(item.permission));
 
-  if (pathname === "/login") return null;
+  if (pathname === "/login" || pathname === "/reset-password") return null;
 
   return (
     <aside className="w-full shrink-0 border-b border-line bg-surface flex flex-col md:w-64 md:border-b-0 md:border-r">

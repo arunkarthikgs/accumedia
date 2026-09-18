@@ -18,6 +18,7 @@ import { formatDateTime } from "@/lib/date-format";
 
 interface AssetActionsPanelProps {
   caseId: string;
+  onStatusChange?: (assetId: string, status: string) => void;
   asset: {
     id: string;
     channelKey: string;
@@ -143,6 +144,7 @@ function readableDraft(content: any) {
 export default function AssetActionsPanel({
   caseId,
   asset,
+  onStatusChange,
 }: AssetActionsPanelProps) {
   const [content, setContent] = useState(asset.content);
   const [status, setStatus] = useState(asset.status);
@@ -233,10 +235,9 @@ export default function AssetActionsPanel({
         return;
       }
       setStatus(data.asset?.status || status);
+      if (data.asset?.status) onStatusChange?.(asset.id, data.asset.status);
       setPublicationMessage(
-        data.connectorConfigured
-          ? data.message || "Publication queued for the configured connector."
-          : data.message || "Publication queued; configure the connector before processing it.",
+        `${data.message || (data.connectorConfigured ? "Publication queued for the configured connector." : "Publication queued; configure the connector before processing it.")} ${data.job?.scheduledAt ? `Scheduled for ${new Date(data.job.scheduledAt).toLocaleString()}.` : ""}`.trim(),
       );
     } catch (error: any) {
       setPublicationMessage(error.message || "Unable to reach the publishing service.");

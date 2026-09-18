@@ -34,8 +34,10 @@ const STATUS_DOT_CLASS: Record<string, string> = {
 };
 
 export default function PublishingAssetWorkspace({ caseId, assets }: { caseId: string; assets: Asset[] }) {
-  const videoAssets = assets.filter((asset) => asset.outputType === "VIDEO_SCRIPT").sort((left, right) => runtimeSeconds(left) - runtimeSeconds(right));
-  const otherAssets = assets.filter((asset) => asset.outputType !== "VIDEO_SCRIPT");
+  const [workspaceAssets, setWorkspaceAssets] = useState(assets);
+  useEffect(() => setWorkspaceAssets(assets), [assets]);
+  const videoAssets = workspaceAssets.filter((asset) => asset.outputType === "VIDEO_SCRIPT").sort((left, right) => runtimeSeconds(left) - runtimeSeconds(right));
+  const otherAssets = workspaceAssets.filter((asset) => asset.outputType !== "VIDEO_SCRIPT");
   const orderedAssets = [...videoAssets, ...otherAssets];
   const [selectedAssetId, setSelectedAssetId] = useState(orderedAssets[0]?.id || "");
   const selectedAsset = orderedAssets.find((asset) => asset.id === selectedAssetId) || orderedAssets[0];
@@ -47,11 +49,11 @@ export default function PublishingAssetWorkspace({ caseId, assets }: { caseId: s
       document.getElementById(`asset-${assetId}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   }, [orderedAssets]);
-  const assetsByStatus = assets.reduce((counts: Record<string, number>, asset) => {
+  const assetsByStatus = workspaceAssets.reduce((counts: Record<string, number>, asset) => {
     counts[asset.status] = (counts[asset.status] || 0) + 1;
     return counts;
   }, {});
-  const assetsByType = assets.reduce((counts: Record<string, number>, asset) => {
+  const assetsByType = workspaceAssets.reduce((counts: Record<string, number>, asset) => {
     const label = asset.outputType?.replaceAll("_", " ") || asset.channelName;
     counts[label] = (counts[label] || 0) + 1;
     return counts;
@@ -61,6 +63,10 @@ export default function PublishingAssetWorkspace({ caseId, assets }: { caseId: s
     .join(" · ");
 
   if (!selectedAsset) return null;
+
+  const updateAssetStatus = (assetId: string, status: string) => {
+    setWorkspaceAssets((current) => current.map((asset) => asset.id === assetId ? { ...asset, status } : asset));
+  };
 
   const assetButton = (asset: Asset) => {
     const selected = asset.id === selectedAsset.id;
@@ -94,7 +100,7 @@ export default function PublishingAssetWorkspace({ caseId, assets }: { caseId: s
       </div>
     </nav>
     <div id={`asset-${selectedAsset.id}`}>
-      <AssetActionsPanel key={selectedAsset.id} caseId={caseId} asset={selectedAsset} />
+      <AssetActionsPanel key={selectedAsset.id} caseId={caseId} asset={selectedAsset} onStatusChange={updateAssetStatus} />
     </div>
     </section>
   </div>;

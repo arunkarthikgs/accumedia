@@ -41,10 +41,10 @@ function formatError(error: unknown) {
 app.post("/jobs", async (req, res) => {
   if (!authorized(req)) return res.status(401).json({ error: "Unauthorized." });
   const job = req.body as {
-    jobId: string; caseId: string; assetId: string; script: string; title: string;
+    jobId: string; caseId: string; assetId: string; organizationId: string; script: string; title: string;
     accent: string; disclaimer?: string; logoUrl?: string; callbackUrl: string;
   };
-  if (!job.jobId || !job.assetId || !job.script || !job.callbackUrl) return res.status(400).json({ error: "Invalid render job." });
+  if (!job.jobId || !job.assetId || !job.organizationId || !job.script || !job.callbackUrl) return res.status(400).json({ error: "Invalid render job." });
   await callback(job, { status: "PROCESSING" });
   void processJob(job, true);
   return res.status(202).json({ jobId: job.jobId, status: "PROCESSING" });
@@ -107,11 +107,11 @@ async function processImageJob(job: ImageJob) {
   };
 }
 
-async function processJob(job: { jobId: string; caseId: string; assetId: string; script: string; title: string; accent: string; disclaimer?: string; logoUrl?: string; callbackUrl: string }, processingAlreadyReported = false) {
+async function processJob(job: { jobId: string; caseId: string; assetId: string; organizationId: string; script: string; title: string; accent: string; disclaimer?: string; logoUrl?: string; callbackUrl: string }, processingAlreadyReported = false) {
   try {
     if (!processingAlreadyReported) await callback(job, { status: "PROCESSING" });
     const rendered = await renderClinicalVideo({ script: job.script, title: job.title, accent: job.accent, disclaimer: job.disclaimer, logoUrl: job.logoUrl });
-    const r2Key = `${process.env.RENDER_ORGANIZATION_PREFIX || "rendered"}/videos/${job.caseId}/${job.assetId}-${Date.now()}.mp4`;
+    const r2Key = `${job.organizationId}/videos/${job.caseId}/${job.assetId}-${Date.now()}.mp4`;
     await r2.send(new PutObjectCommand({ Bucket: bucket, Key: r2Key, Body: rendered.buffer, ContentType: rendered.mimeType }));
     await callback(job, { status: "READY", videoR2Key: r2Key, durationSeconds: rendered.durationSeconds });
   } catch (error) {

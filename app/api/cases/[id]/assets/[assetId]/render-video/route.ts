@@ -21,7 +21,7 @@ export async function POST(_req: Request, props: { params: Promise<{ id: string;
     const content = asset.content as Record<string, unknown>;
     const script = typeof content.script === "string" ? content.script : typeof content.draft_text === "string" ? content.draft_text : String(content.raw_text || "");
     if (!script.trim()) return NextResponse.json({ error: "The video script is empty." }, { status: 400 });
-    const job = await submitVideoRenderJob({ caseId: id, assetId, script, title: asset.title, accent: normalizeBrandColor(asset.brandingHex), disclaimer: asset.defaultDisclaimer, logoUrl: asset.logoUrl }, new URL(_req.url).origin);
+    const job = await submitVideoRenderJob({ caseId: id, assetId, organizationId: asset.organizationId, script, title: asset.title, accent: normalizeBrandColor(asset.brandingHex), disclaimer: asset.defaultDisclaimer, logoUrl: asset.logoUrl }, new URL(_req.url).origin);
     await query(`UPDATE macula.generated_assets SET "videoStatus" = 'PROCESSING', "updatedAt" = NOW() WHERE id = $1`, [assetId]);
     return NextResponse.json({ success: true, jobId: job.jobId, status: "PROCESSING" }, { status: 202 });
   } catch (error: any) {

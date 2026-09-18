@@ -5,6 +5,7 @@ export type VideoRenderJob = {
   jobId: string;
   caseId: string;
   assetId: string;
+  organizationId: string;
   script: string;
   title: string;
   accent: string;

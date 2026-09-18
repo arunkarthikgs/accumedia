@@ -93,7 +93,7 @@ export default async function CaseAssetsPage(props: {
               <ArrowLeft className="h-3 w-3" /> Dashboard
             </Link>
             <span>/</span>
-            <Link href={`/cases/${caseData.id}/review`} className="hover:text-pine">Audit review</Link>
+            <Link href={`/cases/${caseData.id}/review#assets`} className="flex items-center gap-1 hover:text-pine"><ArrowLeft className="h-3 w-3" /> Generated assets</Link>
             <span>/</span>
             <span className="text-ink">Publishing studio</span>
           </div>

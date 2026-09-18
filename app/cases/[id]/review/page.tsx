@@ -320,6 +320,18 @@ export default function CaseReviewPage() {
     };
   }, [params.id]);
 
+  useEffect(() => {
+    const selectSectionFromHash = () => {
+      const section = window.location.hash.replace("#", "");
+      if (section === "assets" || section === "history" || section === "record" || section === "clinical") {
+        setActiveReviewSection(section);
+      }
+    };
+    selectSectionFromHash();
+    window.addEventListener("hashchange", selectSectionFromHash);
+    return () => window.removeEventListener("hashchange", selectSectionFromHash);
+  }, []);
+
   const saveRecord = async () => {
     try {
       const masterRecord = JSON.parse(recordDraft);

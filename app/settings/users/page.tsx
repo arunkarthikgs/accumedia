@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { UserPlus, Shield, Stethoscope, Mail, Hash, X, ArrowLeft, AlertCircle, Pencil } from "lucide-react";
+import { UserPlus, Shield, Stethoscope, Mail, Hash, X, ArrowLeft, AlertCircle, Pencil, KeyRound, Loader2 } from "lucide-react";
 import { fetchJsonOnce } from "@/lib/client-fetch";
 
 interface Organization {
@@ -39,6 +39,8 @@ export default function UsersSettingsPage() {
   const [scopeReady, setScopeReady] = useState(false);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [previewPhoto, setPreviewPhoto] = useState<{ name: string; src: string } | null>(null);
+  const [resettingUserId, setResettingUserId] = useState<string | null>(null);
+  const [resetMessages, setResetMessages] = useState<Record<string, string>>({});
 
   const [formData, setFormData] = useState({
     name: "",
@@ -139,6 +141,20 @@ export default function UsersSettingsPage() {
     setFormData({ name: physician.name, email: physician.email, registrationNo: physician.registrationNo || "", specialty: physician.specialty || "", qualifications: physician.qualifications || "", designation: physician.designation || "", profilePhotoUrl: physician.profilePhotoUrl || "", organizationId: physician.organization?.id || selectedOrganizationId, password: "" });
     setError(null);
     setModalOpen(true);
+  };
+
+  const sendPasswordReset = async (physician: Physician) => {
+    setResettingUserId(physician.id);
+    setResetMessages((current) => ({ ...current, [physician.id]: "" }));
+    try {
+      const response = await fetch("/api/users", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: physician.id, resetPassword: true }) });
+      const data = await response.json();
+      setResetMessages((current) => ({ ...current, [physician.id]: response.ok ? "Reset link sent" : data.error || "Reset failed" }));
+    } catch (error: any) {
+      setResetMessages((current) => ({ ...current, [physician.id]: error.message || "Reset failed" }));
+    } finally {
+      setResettingUserId(null);
+    }
   };
 
   return (
@@ -248,7 +264,7 @@ export default function UsersSettingsPage() {
                       </div>
                     </div>
                   </div>
-                  {canManageUsers && <div className="mt-4 flex flex-wrap gap-3"><Link href={`/settings/users/${doc.id}/edit?organizationId=${encodeURIComponent(selectedOrganizationId || doc.organization?.id || "")}`} className="inline-flex items-center gap-1 text-xs font-semibold text-pine hover:underline"><Pencil className="h-3.5 w-3.5" /> Edit user</Link><Link href={`/settings/users/${doc.id}/edit?organizationId=${encodeURIComponent(selectedOrganizationId || doc.organization?.id || "")}&photo=1`} className="inline-flex items-center gap-1 text-xs font-semibold text-pine hover:underline"><Pencil className="h-3.5 w-3.5" /> Profile photo</Link></div>}
+                  {canManageUsers && <div className="mt-4 flex flex-wrap items-center gap-3"><Link href={`/settings/users/${doc.id}/edit?organizationId=${encodeURIComponent(selectedOrganizationId || doc.organization?.id || "")}`} className="inline-flex items-center gap-1 text-xs font-semibold text-pine hover:underline"><Pencil className="h-3.5 w-3.5" /> Edit user</Link><Link href={`/settings/users/${doc.id}/edit?organizationId=${encodeURIComponent(selectedOrganizationId || doc.organization?.id || "")}&photo=1`} className="inline-flex items-center gap-1 text-xs font-semibold text-pine hover:underline"><Pencil className="h-3.5 w-3.5" /> Profile photo</Link><button type="button" onClick={() => void sendPasswordReset(doc)} disabled={resettingUserId === doc.id} title="Send password reset link" aria-label={`Send password reset link to ${doc.name}`} className="inline-flex h-7 w-7 items-center justify-center rounded border border-pine/30 bg-pine-tint text-pine hover:bg-pine/10 disabled:opacity-50">{resettingUserId === doc.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />}</button>{resetMessages[doc.id] && <span className="text-[10px] text-muted">{resetMessages[doc.id]}</span>}</div>}
                 </div>
               );
             })}

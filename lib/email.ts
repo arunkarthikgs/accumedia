@@ -1,7 +1,14 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 
 export async function sendPasswordSetupEmail(input: { email: string; name: string; organizationName: string; token: string; reason: "welcome" | "reset" }) {
-  const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "");
+  let runtimeAppUrl = "";
+  try {
+    const runtimeEnv = getCloudflareContext({ async: false }).env as typeof globalThis & { NEXT_PUBLIC_APP_URL?: string };
+    runtimeAppUrl = runtimeEnv.NEXT_PUBLIC_APP_URL || "";
+  } catch {
+    // Local development falls back to process.env.NEXT_PUBLIC_APP_URL.
+  }
+  const appUrl = (runtimeAppUrl || process.env.NEXT_PUBLIC_APP_URL || "https://accumedia.inofinix.com").replace(/\/$/, "");
   const from = process.env.SMTP_FROM || process.env.EMAIL_FROM;
   if (!from || !appUrl) {
     console.warn("Password setup email not sent: SMTP_FROM/EMAIL_FROM and NEXT_PUBLIC_APP_URL are required.");

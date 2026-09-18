@@ -2,7 +2,7 @@
   "name": "accumedia-email-service",
   "private": true,
   "type": "module",
-  "scripts": { "build": "tsc --outDir dist --module NodeNext --moduleResolution NodeNext --target ES2022 --esModuleInterop --skipLibCheck --types node email-service/server.ts", "start": "node dist/email-service/server.js" },
+  "scripts": { "build": "tsc --outDir dist --module NodeNext --moduleResolution NodeNext --target ES2022 --esModuleInterop --skipLibCheck --types node email-service/server.ts", "start": "node dist/server.js" },
   "dependencies": {
     "express": "^4.21.1",
     "nodemailer": "^7.0.3",

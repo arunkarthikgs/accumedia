@@ -20,7 +20,7 @@ export async function GET(
     const { assetId } = await props.params;
     const asset = (await query<any>(`SELECT ga.id, ga."status", ga."caseId", c."organizationId", c.status AS case_status FROM macula.generated_assets ga JOIN macula.cases c ON c.id=ga."caseId" WHERE ga.id=$1 LIMIT 1`, [assetId])).rows[0];
     if (!asset) return NextResponse.json({ error: "Asset not found." }, { status: 404 });
-    await requireOrganizationAccess(asset.case.organizationId);
+    await requireOrganizationAccess(asset.organizationId);
     const { rows: jobs } = await query(`SELECT * FROM macula.publication_jobs WHERE "assetId"=$1 ORDER BY "createdAt" DESC`, [assetId]);
     return NextResponse.json({ jobs });
   } catch (error: any) {
@@ -47,7 +47,7 @@ export async function POST(
 
     const asset = (await query<any>(`SELECT ga.id, ga."status", ga."caseId", c.id AS case_id, c."organizationId", c.status AS case_status FROM macula.generated_assets ga JOIN macula.cases c ON c.id=ga."caseId" WHERE ga.id=$1 LIMIT 1`, [assetId])).rows[0];
     if (!asset) return NextResponse.json({ error: "Asset not found." }, { status: 404 });
-    await requireOrganizationAccess(asset.case.organizationId);
+    await requireOrganizationAccess(asset.organizationId);
     if (asset.status !== "APPROVED" || asset.case_status !== "APPROVED") {
       return NextResponse.json({ error: "Only approved cases and assets can be queued for publishing." }, { status: 409 });
     }

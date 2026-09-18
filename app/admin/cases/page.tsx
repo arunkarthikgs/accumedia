@@ -94,6 +94,11 @@ export default function AdminCasesPage() {
   const [selectedStatus, setSelectedStatus] = useState<string>("ALL");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+  const [doctorFilter, setDoctorFilter] = useState("");
+  const [specialtyFilter, setSpecialtyFilter] = useState("");
+  const [procedureFilter, setProcedureFilter] = useState("");
+  const [diagnosisFilter, setDiagnosisFilter] = useState("");
+  const [platformFilter, setPlatformFilter] = useState("ALL");
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const pageSize = 10;
@@ -123,7 +128,7 @@ export default function AdminCasesPage() {
   const [isLoadingManualText, setIsLoadingManualText] = useState(false);
 
   const loadCases = async () => {
-    const cacheKey = `macula:case-list:${selectedOrgId}:${selectedStatus}:${fromDate}:${toDate}:${currentPage}`;
+    const cacheKey = `macula:case-list:${selectedOrgId}:${selectedStatus}:${fromDate}:${toDate}:${doctorFilter}:${specialtyFilter}:${procedureFilter}:${diagnosisFilter}:${platformFilter}:${searchQuery}:${currentPage}`;
     let servedCache = false;
     try {
       const cached = sessionStorage.getItem(cacheKey);
@@ -158,6 +163,12 @@ export default function AdminCasesPage() {
       if (selectedOrgId !== "ALL") url += `&orgId=${selectedOrgId}`;
       if (fromDate) url += `&fromDate=${fromDate}`;
       if (toDate) url += `&toDate=${toDate}`;
+      if (searchQuery.trim()) url += `&keyword=${encodeURIComponent(searchQuery.trim())}`;
+      if (doctorFilter.trim()) url += `&doctor=${encodeURIComponent(doctorFilter.trim())}`;
+      if (specialtyFilter.trim()) url += `&specialty=${encodeURIComponent(specialtyFilter.trim())}`;
+      if (procedureFilter.trim()) url += `&procedure=${encodeURIComponent(procedureFilter.trim())}`;
+      if (diagnosisFilter.trim()) url += `&diagnosis=${encodeURIComponent(diagnosisFilter.trim())}`;
+      if (platformFilter !== "ALL") url += `&platform=${encodeURIComponent(platformFilter)}`;
       try {
         const data = await fetchJsonOnce<any>(url, { cache: "no-store" });
         setCases(data.cases || []);
@@ -188,30 +199,13 @@ export default function AdminCasesPage() {
 
   useEffect(() => {
     loadCases();
-  }, [selectedOrgId, selectedStatus, fromDate, toDate, currentPage]);
+  }, [selectedOrgId, selectedStatus, fromDate, toDate, doctorFilter, specialtyFilter, procedureFilter, diagnosisFilter, platformFilter, searchQuery, currentPage]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [selectedOrgId, selectedStatus, fromDate, toDate]);
+  }, [selectedOrgId, selectedStatus, fromDate, toDate, doctorFilter, specialtyFilter, procedureFilter, diagnosisFilter, platformFilter, searchQuery]);
 
-  const filteredCases = useMemo(() => {
-    const fromTimestamp = fromDate
-      ? Date.parse(`${fromDate}T00:00:00.000Z`)
-      : null;
-    const toTimestamp = toDate ? Date.parse(`${toDate}T23:59:59.999Z`) : null;
-    return cases.filter((c) => {
-      const q = searchQuery.toLowerCase();
-      const createdTimestamp = Date.parse(c.createdAt);
-      return (
-        (fromTimestamp === null || createdTimestamp >= fromTimestamp) &&
-        (toTimestamp === null || createdTimestamp <= toTimestamp) &&
-        (c.title.toLowerCase().includes(q) ||
-          c.physician.name.toLowerCase().includes(q) ||
-          c.physician.registrationNo?.toLowerCase().includes(q) ||
-          c.organization.name.toLowerCase().includes(q))
-      );
-    });
-  }, [cases, searchQuery]);
+  const filteredCases = useMemo(() => cases, [cases]);
 
   const toggleSelectCase = (id: string) => {
     setSelectedCaseIds((prev) => {
@@ -545,13 +539,13 @@ export default function AdminCasesPage() {
       </header>
 
       <main className="w-full p-6 space-y-5 md:p-8">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 card p-4">
-          <div className="flex flex-1 items-center gap-3">
+        <div className="flex flex-col gap-4 card p-4">
+          <div className="flex flex-wrap items-center gap-3">
             <div className="relative flex-1 max-w-md">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted" />
               <input
                 type="text"
-                placeholder="Search by case title, physician, or registration no…"
+                placeholder="Keyword: title, diagnosis, procedure, content…"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full rounded border border-line bg-paper pl-9 pr-3 py-1.5 text-xs text-ink placeholder-muted focus:border-pine focus:bg-white focus:outline-none"
@@ -604,7 +598,22 @@ export default function AdminCasesPage() {
               />
             </label>
           </div>
-          <div className="text-xs text-muted">
+          <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
+            <input value={doctorFilter} onChange={(event) => setDoctorFilter(event.target.value)} placeholder="Doctor" className="w-36 rounded border border-line bg-paper px-2.5 py-1.5 text-xs text-ink focus:border-pine focus:outline-none" />
+            <input value={specialtyFilter} onChange={(event) => setSpecialtyFilter(event.target.value)} placeholder="Specialty" className="w-36 rounded border border-line bg-paper px-2.5 py-1.5 text-xs text-ink focus:border-pine focus:outline-none" />
+            <input value={procedureFilter} onChange={(event) => setProcedureFilter(event.target.value)} placeholder="Procedure" className="w-36 rounded border border-line bg-paper px-2.5 py-1.5 text-xs text-ink focus:border-pine focus:outline-none" />
+            <input value={diagnosisFilter} onChange={(event) => setDiagnosisFilter(event.target.value)} placeholder="Diagnosis" className="w-36 rounded border border-line bg-paper px-2.5 py-1.5 text-xs text-ink focus:border-pine focus:outline-none" />
+            <select value={platformFilter} onChange={(event) => setPlatformFilter(event.target.value)} className="rounded border border-line bg-paper px-2.5 py-1.5 text-xs text-ink focus:border-pine focus:outline-none">
+              <option value="ALL">All platforms</option>
+              <option value="VIDEO_SCRIPT">Video script</option>
+              <option value="LINKEDIN">LinkedIn</option>
+              <option value="FACEBOOK">Facebook</option>
+              <option value="X">X / Twitter</option>
+              <option value="YOUTUBE">YouTube / Reels</option>
+              <option value="SEO_BLOG">SEO blog</option>
+            </select>
+          </div>
+          <div className="flex items-center justify-end text-xs text-muted">
             <strong className="text-ink font-medium">
               {filteredCases.length}
             </strong>{" "}

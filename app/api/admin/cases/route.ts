@@ -12,6 +12,12 @@ export async function GET(req: Request) {
     const status = searchParams.get("status");
     const fromDate = searchParams.get("fromDate");
     const toDate = searchParams.get("toDate");
+    const keyword = searchParams.get("keyword")?.trim();
+    const doctor = searchParams.get("doctor")?.trim();
+    const specialty = searchParams.get("specialty")?.trim();
+    const procedure = searchParams.get("procedure")?.trim();
+    const diagnosis = searchParams.get("diagnosis")?.trim();
+    const platform = searchParams.get("platform")?.trim();
     const includeContent = searchParams.get("includeContent") === "true";
     const page = Math.max(1, Number(searchParams.get("page") || "1"));
     const pageSize = Math.min(100, Math.max(10, Number(searchParams.get("pageSize") || (includeContent ? "100" : "25"))));
@@ -32,6 +38,24 @@ export async function GET(req: Request) {
     if (status && status !== "ALL") { values.push(status); filters.push(`c.status = $${values.length}`); }
     if (fromDate) { values.push(new Date(`${fromDate}T00:00:00.000Z`)); filters.push(`c."createdAt" >= $${values.length}`); }
     if (toDate) { values.push(new Date(`${toDate}T23:59:59.999Z`)); filters.push(`c."createdAt" <= $${values.length}`); }
+    if (doctor) { values.push(`%${doctor}%`); filters.push(`(u.name ILIKE $${values.length} OR u.email ILIKE $${values.length})`); }
+    if (specialty) { values.push(`%${specialty}%`); filters.push(`u.specialty ILIKE $${values.length}`); }
+    if (procedure) { values.push(`c."masterRecord"::text ILIKE $${values.length}`); }
+    if (diagnosis) { values.push(`c."masterRecord"::text ILIKE $${values.length}`); }
+    if (keyword) {
+      values.push(`%${keyword}%`);
+      const keywordParam = `$${values.length}`;
+      filters.push(`(
+        c.title ILIKE ${keywordParam} OR c.raw_input ILIKE ${keywordParam} OR
+        c."masterRecord"::text ILIKE ${keywordParam} OR c."guidedSubmission"::text ILIKE ${keywordParam} OR
+        u.name ILIKE ${keywordParam} OR u.specialty ILIKE ${keywordParam} OR
+        EXISTS (SELECT 1 FROM macula.generated_assets search_ga WHERE search_ga."caseId" = c.id AND (search_ga."channelKey" ILIKE ${keywordParam} OR search_ga."channelName" ILIKE ${keywordParam} OR search_ga.content::text ILIKE ${keywordParam}))
+      )`);
+    }
+    if (platform) {
+      values.push(`%${platform}%`);
+      filters.push(`EXISTS (SELECT 1 FROM macula.generated_assets platform_ga WHERE platform_ga."caseId" = c.id AND (platform_ga."channelKey" ILIKE $${values.length} OR platform_ga."channelName" ILIKE $${values.length} OR platform_ga."outputType"::text ILIKE $${values.length}))`);
+    }
     const filterSql = filters.join(" AND ");
 
     const assetSelect = includeContent

@@ -5,6 +5,7 @@ import { requirePermission } from "@/lib/auth";
 import { isBrandColor, normalizeBrandColor } from "@/lib/brand";
 import { query } from "@/lib/worker-db";
 import crypto from "node:crypto";
+import { issuePasswordSetupEmail } from "@/lib/password-reset";
 
 const ORGANIZATION_CACHE_TTL_MS = 30_000;
 const organizationCache = new Map<string, { expiresAt: number; organizations: unknown[] }>();
@@ -162,9 +163,10 @@ export async function POST(req: Request) {
     if (brandingHex && !isBrandColor(brandingHex)) {
       return NextResponse.json({ error: "Primary brand colour must be a valid hex value, such as #0f766e." }, { status: 400 });
     }
-    if (!adminUserName?.trim() || !adminUserEmail?.trim() || typeof adminUserPassword !== "string" || adminUserPassword.length < 8) {
-      return NextResponse.json({ error: "Hospital administrator name, email/User ID, and a password of at least 8 characters are required." }, { status: 400 });
+    if (!adminUserName?.trim() || !adminUserEmail?.trim()) {
+      return NextResponse.json({ error: "Hospital administrator name and email/User ID are required." }, { status: 400 });
     }
+    if (typeof adminUserPassword === "string" && adminUserPassword && adminUserPassword.length < 8) return NextResponse.json({ error: "If provided, the initial password must be at least 8 characters." }, { status: 400 });
     const normalizedAdminEmail = adminUserEmail.trim().toLowerCase();
     const existingAdmin = (await query(`SELECT id FROM macula.users WHERE email = $1 LIMIT 1`, [normalizedAdminEmail])).rows[0];
     if (existingAdmin) return NextResponse.json({ error: "A user with this administrator email/User ID already exists." }, { status: 409 });
@@ -194,10 +196,11 @@ export async function POST(req: Request) {
     const { rows: orgRows } = await query(`INSERT INTO macula.organizations (id, name, slug, "brandingHex", "preferredAsrModel", "customSystemPrompt", "logoUrl", "brandFont", "brandTagline", location, "websiteUrl", "linkedinUrl", "facebookUrl", "instagramUrl", "xUrl", "youtubeUrl", "contactEmail", "contactPhone", "preferredTone", "callToAction", "hospitalPhotoUrls", "defaultDisclaimer") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21::jsonb,$22) RETURNING *`, organizationValues);
     await query(`INSERT INTO macula.roles (id, name, slug, description, "isSystem", "organizationId", "definitionId") VALUES ($1, 'Organization Administrator', 'organization-admin', 'Manage the hospital organization and its users.', FALSE, $2, $3)`, [roleId, organizationId, definition?.id || null]);
     if (definition) await query(`INSERT INTO macula.role_permissions ("roleId", "permissionId") SELECT $1, "permissionId" FROM macula.role_definition_permissions WHERE "roleDefinitionId" = $2 ON CONFLICT DO NOTHING`, [roleId, definition.id]);
-    const passwordHash = await bcrypt.hash(adminUserPassword, 12);
-    const { rows: adminRows } = await query(`INSERT INTO macula.users (id, name, email, password_hash, role, "roleId", "organizationId") VALUES ($1,$2,$3,$4,'ADMIN',$5,$6) RETURNING id, name, email, "organizationId"`, [adminUserId, adminUserName.trim(), normalizedAdminEmail, passwordHash, roleId, organizationId]);
+    const passwordHash = await bcrypt.hash(adminUserPassword || crypto.randomBytes(32).toString("hex"), 12);
+    const { rows: adminRows } = await query(`INSERT INTO macula.users (id, name, email, password_hash, role, "roleId", "organizationId", "mustSetPassword") VALUES ($1,$2,$3,$4,'ADMIN',$5,$6,TRUE) RETURNING id, name, email, "organizationId"`, [adminUserId, adminUserName.trim(), normalizedAdminEmail, passwordHash, roleId, organizationId]);
+    const emailResult = await issuePasswordSetupEmail({ userId: adminUserId, email: normalizedAdminEmail, name: adminUserName.trim(), organizationName: name.trim(), reason: "welcome" });
     if (selectedPlan) await query(`INSERT INTO macula.subscriptions (id, status, "currentPeriodStart", "currentPeriodEnd", "organizationId", "planId") VALUES ($1,'ACTIVE',NOW(),$2,$3,$4)`, [crypto.randomUUID(), new Date(Date.now() + 30 * 86400000), organizationId, selectedPlan.id]);
-    const result = { org: orgRows[0], adminUser: adminRows[0] };
+    const result = { org: orgRows[0], adminUser: adminRows[0], emailSent: emailResult.sent };
 
     organizationCache.clear();
     return NextResponse.json({ success: true, organization: result.org, adminUser: result.adminUser });

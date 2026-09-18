@@ -4,6 +4,7 @@ import { requireAuthenticatedUser, requireOrganizationScope } from "@/lib/tenant
 import { timeDbOperation } from "@/lib/perf";
 import { query } from "@/lib/worker-db";
 import crypto from "node:crypto";
+import { issuePasswordSetupEmail } from "@/lib/password-reset";
 
 export async function GET(req: Request) {
   try {
@@ -85,16 +86,20 @@ export async function POST(req: Request) {
     const name = typeof body.name === "string" ? body.name.trim() : "";
     const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
     const password = typeof body.password === "string" ? body.password : "";
-    if (!targetOrganizationId || !name || !email || password.length < 8) {
-      return NextResponse.json({ error: "Organization, physician name, email, and a password of at least 8 characters are required." }, { status: 400 });
+    if (!targetOrganizationId || !name || !email) {
+      return NextResponse.json({ error: "Organization, physician name, and email are required." }, { status: 400 });
     }
+    if (password && password.length < 8) return NextResponse.json({ error: "If provided, the initial password must be at least 8 characters." }, { status: 400 });
     const existingUser = (await query(`SELECT id FROM macula.users WHERE email = $1 LIMIT 1`, [email])).rows[0];
     if (existingUser) return NextResponse.json({ error: "A user with this email already exists." }, { status: 409 });
     if (currentUser?.isSuperAdmin || currentUser?.organizationId === targetOrganizationId) {
       const defaultRole = (await query<{ id: string }>(`SELECT id FROM macula.roles WHERE slug = 'attending-rmp' AND "organizationId" = $1 LIMIT 1`, [targetOrganizationId])).rows[0];
-      const { rows } = await query(`INSERT INTO macula.users (id, name, email, password_hash, "organizationId", "registrationNo", specialty, qualifications, designation, "profilePhotoUrl", "roleId") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id, name, email, "registrationNo", specialty, qualifications, designation, "profilePhotoUrl", "organizationId"`, [crypto.randomUUID(), name, email, await bcrypt.hash(password, 12), targetOrganizationId, body.registrationNo?.trim() || null, body.specialty?.trim() || null, body.qualifications?.trim() || null, body.designation?.trim() || null, body.profilePhotoUrl?.trim() || null, defaultRole?.id || null]);
+      const userId = crypto.randomUUID();
+      const { rows } = await query(`INSERT INTO macula.users (id, name, email, password_hash, "organizationId", "registrationNo", specialty, qualifications, designation, "profilePhotoUrl", "roleId", "mustSetPassword") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,TRUE) RETURNING id, name, email, "registrationNo", specialty, qualifications, designation, "profilePhotoUrl", "organizationId"`, [userId, name, email, await bcrypt.hash(password || crypto.randomBytes(32).toString("hex"), 12), targetOrganizationId, body.registrationNo?.trim() || null, body.specialty?.trim() || null, body.qualifications?.trim() || null, body.designation?.trim() || null, body.profilePhotoUrl?.trim() || null, defaultRole?.id || null]);
       const user = rows[0];
-      return NextResponse.json({ success: true, user }, { status: 201 });
+      const organization = (await query<{ name: string }>(`SELECT name FROM macula.organizations WHERE id=$1 LIMIT 1`, [targetOrganizationId])).rows[0];
+      const emailResult = await issuePasswordSetupEmail({ userId, email, name, organizationName: organization?.name || "your organization", reason: "welcome" });
+      return NextResponse.json({ success: true, user, emailSent: emailResult.sent }, { status: 201 });
     }
     return NextResponse.json({ error: "Forbidden: organization access denied." }, { status: 403 });
   } catch (error: any) {
@@ -114,6 +119,11 @@ export async function PATCH(req: Request) {
     if (!existing) return NextResponse.json({ error: "User not found." }, { status: 404 });
     if (!currentUser.isSuperAdmin && currentUser.organizationId !== existing.organizationId) {
       return NextResponse.json({ error: "Forbidden: organization access denied." }, { status: 403 });
+    }
+    if (body.resetPassword === true) {
+      const organization = (await query<{ name: string }>(`SELECT name FROM macula.organizations WHERE id=$1 LIMIT 1`, [existing.organizationId])).rows[0];
+      const emailResult = await issuePasswordSetupEmail({ userId, email: existing.email, name: existing.name, organizationName: organization?.name || "your organization", reason: "reset" });
+      return NextResponse.json({ success: true, emailSent: emailResult.sent, message: emailResult.sent ? "Password reset link sent." : "Reset token created, but email delivery is not configured." });
     }
     const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : existing.email;
     const duplicate = (await query(`SELECT id FROM macula.users WHERE email = $1 AND id <> $2 LIMIT 1`, [email, userId])).rows[0];

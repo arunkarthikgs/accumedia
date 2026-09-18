@@ -58,6 +58,11 @@ export default function NewOrganizationPage() {
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!form.name.trim() || !form.adminUserName.trim() || !form.adminUserEmail.trim() || !selectedPlanId) {
+      setActiveTab(!form.name.trim() || !form.adminUserName.trim() || !form.adminUserEmail.trim() ? "details" : "commercial");
+      setError("Complete the required hospital name, administrator name, administrator email, and commercial plan fields.");
+      return;
+    }
     setIsSaving(true);
     setError(null);
     try {
@@ -122,7 +127,7 @@ export default function NewOrganizationPage() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Administrator name" required value={form.adminUserName} onChange={(value) => update("adminUserName", value)} placeholder="Hospital administrator name" />
                 <Field label="Administrator email / User ID" required type="email" value={form.adminUserEmail} onChange={(value) => update("adminUserEmail", value)} placeholder="admin@hospital.example" />
-                <Field label="Initial password" required type="password" value={form.adminUserPassword} onChange={(value) => update("adminUserPassword", value)} placeholder="At least 8 characters" />
+                <Field label="Initial password" type="password" value={form.adminUserPassword} onChange={(value) => update("adminUserPassword", value)} placeholder="Optional; welcome email sets password" />
               </div>
               <p className="mt-2 text-[11px] text-muted">This account is created as the first Organization Administrator and can create additional hospital users.</p>
             </div>
@@ -174,7 +179,7 @@ export default function NewOrganizationPage() {
           <section className={activeTab === "commercial" ? "card space-y-4 p-6" : "hidden"}>
             <h2 className="border-b border-line pb-3 text-[11px] font-bold uppercase tracking-wider text-muted">Commercial plan</h2>
             <p className="text-xs text-muted">Select the database-defined RFP plan. The subscription is created with the hospital.</p>
-            <select required value={selectedPlanId} onChange={(event) => setSelectedPlanId(event.target.value)} className="w-full rounded border border-line bg-paper p-3 text-xs text-ink"><option value="">Select commercial plan</option>{plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name} · {plan.isCustom ? "Custom pricing" : `${plan.currency} ${Number(plan.monthlyPrice || 0).toLocaleString()} / ${plan.billingInterval}`} · {plan.monthlyCaseLimit ?? "Custom"} cases/month</option>)}</select>
+            <select value={selectedPlanId} onChange={(event) => setSelectedPlanId(event.target.value)} className="w-full rounded border border-line bg-paper p-3 text-xs text-ink" aria-required="true"><option value="">Select commercial plan *</option>{plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name} · {plan.isCustom ? "Custom pricing" : `${plan.currency} ${Number(plan.monthlyPrice || 0).toLocaleString()} / ${plan.billingInterval}`} · {plan.monthlyCaseLimit ?? "Custom"} cases/month</option>)}</select>
           </section>
 
           <div className="flex justify-end gap-3 border-t border-line pt-5">

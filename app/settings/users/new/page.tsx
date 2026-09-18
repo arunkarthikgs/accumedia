@@ -35,6 +35,10 @@ export default function NewPhysicianPage() {
   const update = (field: keyof typeof form, value: string) => setForm((current) => ({ ...current, [field]: value }));
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!form.organizationId || !form.name.trim() || !form.email.trim() || !form.specialty) {
+      setError("Organization, physician name, email, and specialty are required.");
+      return;
+    }
     setIsSaving(true);
     setError(null);
     try {
@@ -67,7 +71,7 @@ export default function NewPhysicianPage() {
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Physician name" required value={form.name} onChange={(value) => update("name", value)} placeholder="Dr. A. Sharma" />
         <Field label="Hospital email / User ID" required type="email" value={form.email} onChange={(value) => update("email", value)} placeholder="physician@hospital.org" />
-        <Field label="Initial password" required type="password" value={form.password} onChange={(value) => update("password", value)} placeholder="At least 8 characters" />
+        <Field label="Initial password" type="password" value={form.password} onChange={(value) => update("password", value)} placeholder="Optional; welcome email sets password" />
         <Field label="Medical council registration number" value={form.registrationNo} onChange={(value) => update("registrationNo", value)} placeholder="State council / national registration number" />
         <SpecialtySelect value={form.specialty} options={specialties} onChange={(value) => update("specialty", value)} />
         <Field label="Qualifications" value={form.qualifications} onChange={(value) => update("qualifications", value)} placeholder="MBBS, MD, FRCS" />

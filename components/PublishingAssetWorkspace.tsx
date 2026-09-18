@@ -69,7 +69,7 @@ export default function PublishingAssetWorkspace({ caseId, assets }: { caseId: s
       <span className="block truncate font-semibold">{asset.channelName || asset.channelKey}</span>
       <span className="mt-0.5 flex items-center gap-1.5 text-[10px] text-muted">
         <span className={`h-2 w-2 shrink-0 rounded-full ${STATUS_DOT_CLASS[asset.status] || "bg-slate-400"}`} title={`Status: ${statusLabel}`} aria-hidden="true" />
-        <span className="truncate">{asset.variant || statusLabel} · v{asset.version}</span>
+        <span className="truncate">{statusLabel} {asset.variant ? `· ${asset.variant}` : ""} · v{asset.version}</span>
         <span className="sr-only">Status: {statusLabel}</span>
       </span>
     </button>;

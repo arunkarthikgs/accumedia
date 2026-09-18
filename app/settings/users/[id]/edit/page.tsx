@@ -17,6 +17,7 @@ export default function EditUserPage() {
   const [specialties, setSpecialties] = useState<SpecialtyOption[]>([]);
   const [form, setForm] = useState({ name: "", email: "", password: "", registrationNo: "", specialty: "", qualifications: "", designation: "", profilePhotoUrl: "", isActive: true });
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -49,6 +50,24 @@ export default function EditUserPage() {
       setIsSaving(false);
     }
   };
+  const uploadProfilePhoto = async (file: File) => {
+    setIsUploadingPhoto(true);
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("target", "doctor");
+    formData.append("organizationId", organizationId || user?.organization?.id || "");
+    formData.append("userId", params.id);
+    try {
+      const response = await fetch("/api/profile-media/upload", { method: "POST", body: formData });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Unable to upload profile photo.");
+      update("profilePhotoUrl", data.url);
+    } catch (requestError: any) {
+      setError(requestError.message || "Unable to upload profile photo.");
+    } finally {
+      setIsUploadingPhoto(false);
+    }
+  };
 
   return <main className="readable-route min-h-full bg-paper p-6 text-ink md:p-8"><div className="mx-auto max-w-3xl space-y-6">
     <header><Link href={`/settings/users${organizationId ? `?organizationId=${encodeURIComponent(organizationId)}` : ""}`} className="mb-2 inline-flex items-center gap-1 text-xs font-semibold text-pine hover:underline"><ArrowLeft className="h-3 w-3" /> Physicians &amp; Medical Staff</Link><div className="flex items-center gap-2"><UserCircle className="h-5 w-5 text-pine" /><h1 className="text-2xl font-bold tracking-tight">Edit User Profile</h1></div><p className="mt-1 text-sm text-muted">Update the user’s professional profile and login details.</p></header>
@@ -66,6 +85,7 @@ export default function EditUserPage() {
         <Field label="Qualifications" value={form.qualifications} onChange={(value) => update("qualifications", value)} placeholder="MBBS, MD, FRCS" />
         <Field label="Designation" value={form.designation} onChange={(value) => update("designation", value)} placeholder="Consultant Cardiologist" />
         <Field label="Profile photo URL" type="url" value={form.profilePhotoUrl} onChange={(value) => update("profilePhotoUrl", value)} placeholder="https://.../doctor.jpg" />
+        <label className="block text-xs font-semibold text-ink">Upload profile photograph<input type="file" accept="image/*" disabled={isUploadingPhoto} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadProfilePhoto(file); event.currentTarget.value = ""; }} className="mt-1 block w-full rounded border border-line bg-paper px-3 py-2.5 text-xs" /><span className="mt-1 block text-[10px] font-normal text-muted">Up to 8 MB. The uploaded photo is saved to this doctor’s profile.</span></label>
       </div>
       <div className="flex justify-end gap-3 border-t border-line pt-5"><Link href={`/settings/users${organizationId ? `?organizationId=${encodeURIComponent(organizationId)}` : ""}`} className="rounded border border-line bg-surface px-4 py-2.5 text-xs font-semibold text-ink hover:border-pine">Cancel</Link><button type="submit" disabled={isSaving} className="inline-flex items-center gap-2 rounded bg-pine px-5 py-2.5 text-xs font-semibold text-white hover:bg-pine-dark disabled:opacity-50">{isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}{isSaving ? "Saving changes..." : "Save changes"}</button></div>
     </form>}

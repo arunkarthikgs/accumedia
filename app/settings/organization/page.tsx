@@ -37,6 +37,7 @@ export default function OrgSettingsPage() {
   const [subscription, setSubscription] = useState<any>(null);
   const [selectedPlanId, setSelectedPlanId] = useState("");
   const [planMessage, setPlanMessage] = useState<string | null>(null);
+  const [isUploadingHospitalPhoto, setIsUploadingHospitalPhoto] = useState(false);
   const saveButtonLabel: Record<typeof activeTab, string> = {
     details: "Save organisation details",
     brand: "Save brand settings",
@@ -112,6 +113,24 @@ export default function OrgSettingsPage() {
         : data.error || "Unable to save commercial plan.",
     );
     if (response.ok) setSubscription(data.subscription);
+  };
+  const uploadHospitalPhoto = async (file: File) => {
+    setIsUploadingHospitalPhoto(true);
+    const form = new FormData();
+    form.append("file", file);
+    form.append("target", "hospital");
+    form.append("organizationId", org.id);
+    try {
+      const response = await fetch("/api/profile-media/upload", { method: "POST", body: form });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Unable to upload hospital photo.");
+      setOrg((current: any) => ({ ...current, hospitalPhotoUrls: data.hospitalPhotoUrls }));
+      setMessage("Hospital photo uploaded. Save the brand settings to keep other changes.");
+    } catch (error: any) {
+      setMessage(error.message || "Unable to upload hospital photo.");
+    } finally {
+      setIsUploadingHospitalPhoto(false);
+    }
   };
 
   return (
@@ -310,6 +329,11 @@ export default function OrgSettingsPage() {
               placeholder="One image URL per line"
               className="mt-1 w-full text-xs p-3 rounded-lg border border-line bg-paper text-ink"
             />
+          </label>
+          <label className="block text-xs font-bold uppercase tracking-wider text-muted">
+            Upload hospital photograph
+            <input type="file" accept="image/*" disabled={isUploadingHospitalPhoto || !org} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadHospitalPhoto(file); event.currentTarget.value = ""; }} className="mt-1 block w-full rounded-lg border border-line bg-paper p-2 text-xs text-ink" />
+            <span className="mt-1 block text-[10px] font-normal normal-case tracking-normal text-muted">Images up to 8 MB. Uploaded photos are added to the hospital image library.</span>
           </label>
         </div>
         <div className={activeTab === "content" ? "space-y-5" : "hidden"}>

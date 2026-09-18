@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireOrganizationAccess } from "@/lib/tenant-auth";
 import { recordAudit } from "@/lib/audit";
 import { query } from "@/lib/worker-db";
+import { createCaseVersionSnapshot } from "@/lib/case-versions";
 import crypto from "node:crypto";
 
 export async function GET(
@@ -39,8 +40,15 @@ export async function PATCH(
       return NextResponse.json({ error: "masterRecord must be a JSON object." }, { status: 400 });
     }
 
-    const versionCount = Number((await query<{ count: number }>(`SELECT COUNT(*)::int AS count FROM macula.case_versions WHERE "caseId" = $1`, [id])).rows[0]?.count || 0);
-    await query(`INSERT INTO macula.case_versions (id, version, "changeType", raw_input, "guidedSubmission", "masterRecord", "safetyAudit", status, "caseId") VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7::jsonb, $8, $9)`, [crypto.randomUUID(), versionCount + 1, body.action === "restore" ? "restore" : "manual_edit", kase.raw_input, JSON.stringify(kase.guidedSubmission), JSON.stringify(kase.masterRecord), JSON.stringify(kase.safetyAudit), kase.status, id]);
+    const version = await createCaseVersionSnapshot({
+      caseId: id,
+      changeType: body.action === "restore" ? "restore" : "manual_edit",
+      rawInput: kase.raw_input,
+      guidedSubmission: kase.guidedSubmission,
+      masterRecord: kase.masterRecord,
+      safetyAudit: kase.safetyAudit,
+      status: kase.status,
+    });
 
     if (body.action === "restore") {
       const target = (await query<any>(`SELECT * FROM macula.case_versions WHERE id = $1 AND "caseId" = $2 LIMIT 1`, [body.versionId, id])).rows[0];
@@ -52,7 +60,7 @@ export async function PATCH(
 
     const { rows: updatedRows } = await query(`UPDATE macula.cases SET "masterRecord" = $1::jsonb, raw_input = $2, status = 'PENDING_REVIEW', mccr_approved_at = NULL, mccr_approved_by = NULL, reviewed_at = NULL, reviewed_by = NULL, "updatedAt" = NOW() WHERE id = $3 RETURNING *`, [JSON.stringify(body.masterRecord), typeof body.rawInput === "string" ? body.rawInput : kase.raw_input, id]);
     const updated = updatedRows[0];
-    await recordAudit({ organizationId: kase.organizationId, caseId: id, targetType: "CASE", targetId: id, action: "MCCR_EDITED", metadata: { version: versionCount + 1 } });
+    await recordAudit({ organizationId: kase.organizationId, caseId: id, targetType: "CASE", targetId: id, action: "MCCR_EDITED", metadata: { version } });
     return NextResponse.json({ success: true, case: updated });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || "Failed to update case review." }, { status: 500 });

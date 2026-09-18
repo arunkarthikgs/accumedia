@@ -8,6 +8,7 @@ import { requireAuthenticatedUser, requireOrganizationAccess } from "@/lib/tenan
 import { assertTokenQuota } from "@/lib/quotas";
 import { generateSeoKeywordSet } from "@/lib/seo-keyword-engine";
 import { query } from "@/lib/worker-db";
+import { createCaseVersionSnapshot } from "@/lib/case-versions";
 import crypto from "node:crypto";
 
 const REDACTION_MARKERS = [
@@ -227,8 +228,15 @@ Return ONLY a valid JSON object matching this exact schema:
     const seoQuality = seoKeywordResult.quality;
 
     if (previousCase) {
-      const versionCount = Number((await query<{ count: number }>(`SELECT COUNT(*)::int AS count FROM macula.case_versions WHERE "caseId"=$1`, [previousCase.id])).rows[0]?.count || 0);
-      await query(`INSERT INTO macula.case_versions (id, version, "changeType", "rawInput", "guidedSubmission", "masterRecord", "safetyAudit", status, "caseId") VALUES ($1,$2,'pre_synthesis_snapshot',$3,$4::jsonb,$5::jsonb,$6::jsonb,$7,$8)`, [crypto.randomUUID(), versionCount + 1, previousCase.raw_input, JSON.stringify(previousCase.guidedSubmission), JSON.stringify(previousCase.masterRecord), JSON.stringify(previousCase.safetyAudit), previousCase.status, previousCase.id]);
+      await createCaseVersionSnapshot({
+        caseId: previousCase.id,
+        changeType: "pre_synthesis_snapshot",
+        rawInput: previousCase.raw_input,
+        guidedSubmission: previousCase.guidedSubmission,
+        masterRecord: previousCase.masterRecord,
+        safetyAudit: previousCase.safetyAudit,
+        status: previousCase.status,
+      });
     }
 
     // 3. Update existing Case (if initiated during audio upload) OR create new Case
@@ -239,7 +247,15 @@ Return ONLY a valid JSON object matching this exact schema:
     }
 
     if (!previousCase) {
-      await query(`INSERT INTO macula.case_versions (id,version,"changeType","rawInput","guidedSubmission","masterRecord","safetyAudit",status,"caseId") VALUES ($1,1,'initial_synthesis',$2,$3::jsonb,$4::jsonb,$5::jsonb,$6,$7)`, [crypto.randomUUID(), finalizedCase.raw_input, JSON.stringify(finalizedCase.guidedSubmission), JSON.stringify(finalizedCase.masterRecord), JSON.stringify(finalizedCase.safetyAudit), finalizedCase.status, finalizedCase.id]);
+      await createCaseVersionSnapshot({
+        caseId: finalizedCase.id,
+        changeType: "initial_synthesis",
+        rawInput: finalizedCase.raw_input,
+        guidedSubmission: finalizedCase.guidedSubmission,
+        masterRecord: finalizedCase.masterRecord,
+        safetyAudit: finalizedCase.safetyAudit,
+        status: finalizedCase.status,
+      });
     }
 
     await query(`INSERT INTO macula.seo_keyword_sets (id, "caseId", "primaryKeyword", "secondaryKeywords", "longTailKeywords", "localKeywords", "questionKeywords", "semanticKeywords", "searchIntent", "qualityScore", "validationIssues", "contentHash") VALUES ($1,$2,$3,$4::jsonb,$5::jsonb,$6::jsonb,$7::jsonb,$8::jsonb,$9,$10,$11::jsonb,$12) ON CONFLICT ("caseId") DO UPDATE SET "primaryKeyword"=EXCLUDED."primaryKeyword", "secondaryKeywords"=EXCLUDED."secondaryKeywords", "longTailKeywords"=EXCLUDED."longTailKeywords", "localKeywords"=EXCLUDED."localKeywords", "questionKeywords"=EXCLUDED."questionKeywords", "semanticKeywords"=EXCLUDED."semanticKeywords", "searchIntent"=EXCLUDED."searchIntent", "qualityScore"=EXCLUDED."qualityScore", "validationIssues"=EXCLUDED."validationIssues", "contentHash"=EXCLUDED."contentHash", "updatedAt"=NOW()`, [crypto.randomUUID(), finalizedCase.id, seoKeywords.primaryKeyword || null, JSON.stringify(seoKeywords.secondaryKeywords || []), JSON.stringify(seoKeywords.longTailKeywords || []), JSON.stringify(seoKeywords.localKeywords || []), JSON.stringify(seoKeywords.questionKeywords || []), JSON.stringify(seoKeywords.semanticKeywords || []), seoKeywords.searchIntent || null, seoQuality.score, JSON.stringify(seoQuality.issues), seoQuality.contentHash]);

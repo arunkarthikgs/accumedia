@@ -10,10 +10,12 @@ import {
   History,
   Loader2,
   Pencil,
+  FileDown,
   ShieldAlert,
   XCircle,
 } from "lucide-react";
 import { fetchJsonOnce } from "@/lib/client-fetch";
+import { createCasePdf } from "@/lib/case-pdf";
 import { formatDateTime } from "@/lib/date-format";
 
 type ReviewCase = {
@@ -25,7 +27,7 @@ type ReviewCase = {
   masterRecord: Record<string, unknown>;
   safetyAudit: Record<string, unknown>;
   physician: { name: string; specialty: string | null };
-  organization: { name: string };
+  organization: { name: string; logoUrl?: string | null; brandingHex?: string | null };
   recordings: {
     rawTranscript: string | null;
     transcribedText: string | null;
@@ -447,6 +449,33 @@ export default function CaseReviewPage() {
     }
   };
 
+  const openPdfViewer = async (target: "clinical" | "record") => {
+    if (!reviewCase) return;
+    const viewer = window.open("about:blank", "_blank");
+    if (!viewer) {
+      setError("The PDF viewer was blocked. Allow pop-ups and try again.");
+      return;
+    }
+    viewer.document.title = "Preparing PDF viewer";
+    viewer.document.body.innerHTML = "<p style=\"font-family: sans-serif; padding: 2rem\">Preparing document…</p>";
+    setError(null);
+    try {
+      const bytes = await createCasePdf(reviewCase, target);
+      const pdfBuffer = bytes.buffer.slice(
+        bytes.byteOffset,
+        bytes.byteOffset + bytes.byteLength,
+      ) as ArrayBuffer;
+      const pdfUrl = URL.createObjectURL(
+        new Blob([pdfBuffer], { type: "application/pdf" }),
+      );
+      viewer.location.href = pdfUrl;
+      window.setTimeout(() => URL.revokeObjectURL(pdfUrl), 60_000);
+    } catch (pdfError: any) {
+      viewer.close();
+      setError(pdfError.message || "Unable to open the PDF viewer.");
+    }
+  };
+
   if (isLoading)
     return <main className="p-8 text-sm text-muted">Loading case review…</main>;
   if (!reviewCase)
@@ -486,7 +515,21 @@ export default function CaseReviewPage() {
               {reviewCase.physician.specialty || "General Medicine"}
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => openPdfViewer("clinical")}
+              className="flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-2 text-xs font-semibold text-ink hover:border-pine hover:text-pine"
+            >
+              <FileDown className="h-3.5 w-3.5" /> View clinical PDF
+            </button>
+            <button
+              type="button"
+              onClick={() => openPdfViewer("record")}
+              className="flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-2 text-xs font-semibold text-ink hover:border-pine hover:text-pine"
+            >
+              <FileDown className="h-3.5 w-3.5" /> View master record PDF
+            </button>
             <button
               disabled={isActing}
               onClick={rejectCase}

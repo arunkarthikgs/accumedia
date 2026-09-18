@@ -665,7 +665,7 @@ export default function NewCasePage() {
             className="flex items-center gap-1.5 self-start sm:self-auto rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-xs hover:border-teal-500 hover:text-teal-700 transition"
           >
             <Terminal className="h-3.5 w-3.5 text-teal-600" />
-            <span>Audit Trail & DB Inspector</span>
+            <span>Audit &amp; Prompt Inspector</span>
           </button>
         </div>
 

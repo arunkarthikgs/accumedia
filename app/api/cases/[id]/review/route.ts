@@ -7,7 +7,7 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
     const { id } = await props.params;
     const { rows } = await query<any>(`SELECT c.id, c.title, c.status, c.raw_input AS "rawInput", c."guidedSubmission" AS "guidedSubmission", c."masterRecord" AS "masterRecord", c."safetyAudit" AS "safetyAudit",
       json_build_object('id', u.id, 'name', u.name, 'specialty', u.specialty) AS physician,
-      json_build_object('name', o.name, 'id', o.id) AS organization,
+      json_build_object('name', o.name, 'id', o.id, 'logoUrl', o."logoUrl", 'brandingHex', o."brandingHex") AS organization,
       COALESCE((SELECT json_agg(json_build_object('id', ar.id, 'rawTranscript', ar."rawTranscript", 'transcribedText', ar."transcribedText", 'transcriptionAgent', ar."transcriptionAgent", 'fileName', ar."fileName", 'durationSeconds', ar."durationSeconds")) FROM macula.audio_recordings ar WHERE ar."caseId" = c.id), '[]') AS recordings,
       COALESCE((SELECT json_agg(json_build_object('id', sf.id, 'flagType', sf."flagType", 'detail', sf.detail, 'confidence', sf.confidence)) FROM macula.safety_flags sf WHERE sf."caseId" = c.id AND sf.status = 'OPEN'), '[]') AS "safetyFlags",
       COALESCE((SELECT json_agg(json_build_object('id', ga.id, 'channelKey', ga."channelKey", 'channelName', ga."channelName", 'outputType', ga."outputType", 'status', ga.status, 'version', ga.version, 'content', ga.content, 'validationWarnings', ga."validationWarnings", 'videoR2Key', ga."videoR2Key", 'videoDurationSeconds', ga."videoDurationSeconds", 'videoStatus', ga."videoStatus")) FROM macula.generated_assets ga WHERE ga."caseId" = c.id), '[]') AS assets,

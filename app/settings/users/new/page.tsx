@@ -17,6 +17,7 @@ export default function NewPhysicianPage() {
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [form, setForm] = useState({ organizationId: selectedOrganizationId, name: "", email: "", password: "", registrationNo: "", specialty: "", qualifications: "", designation: "", profilePhotoUrl: "" });
   const [isSaving, setIsSaving] = useState(false);
+  const [profilePhotoFile, setProfilePhotoFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -40,6 +41,16 @@ export default function NewPhysicianPage() {
       const response = await fetch("/api/users", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Unable to create physician.");
+      if (profilePhotoFile && data.user?.id) {
+        const uploadForm = new FormData();
+        uploadForm.append("file", profilePhotoFile);
+        uploadForm.append("target", "doctor");
+        uploadForm.append("organizationId", data.user.organizationId || form.organizationId);
+        uploadForm.append("userId", data.user.id);
+        const uploadResponse = await fetch("/api/profile-media/upload", { method: "POST", body: uploadForm });
+        const uploadData = await uploadResponse.json();
+        if (!uploadResponse.ok) throw new Error(uploadData.error || "Physician created, but the profile photo upload failed.");
+      }
       router.push(`/settings/users?organizationId=${encodeURIComponent(data.user.organizationId)}`);
     } catch (requestError: any) {
       setError(requestError.message || "Unable to create physician.");
@@ -62,6 +73,7 @@ export default function NewPhysicianPage() {
         <Field label="Qualifications" value={form.qualifications} onChange={(value) => update("qualifications", value)} placeholder="MBBS, MD, FRCS" />
         <Field label="Designation" value={form.designation} onChange={(value) => update("designation", value)} placeholder="Consultant Cardiologist" />
         <Field label="Profile photo URL" type="url" value={form.profilePhotoUrl} onChange={(value) => update("profilePhotoUrl", value)} placeholder="https://.../doctor.jpg" />
+        <label className="block text-xs font-semibold text-ink">Upload profile photograph<input type="file" accept="image/*" onChange={(event) => setProfilePhotoFile(event.target.files?.[0] || null)} className="mt-1 block w-full rounded border border-line bg-paper px-3 py-2.5 text-xs" /><span className="mt-1 block text-[10px] font-normal text-muted">Optional. Image files up to 8 MB.</span></label>
       </div>
       <div className="flex justify-end gap-3 border-t border-line pt-5"><Link href={`/settings/users${selectedOrganizationId ? `?organizationId=${encodeURIComponent(selectedOrganizationId)}` : ""}`} className="rounded border border-line bg-surface px-4 py-2.5 text-xs font-semibold text-ink hover:border-pine">Cancel</Link><button type="submit" disabled={isSaving} className="inline-flex items-center gap-2 rounded bg-pine px-5 py-2.5 text-xs font-semibold text-white hover:bg-pine-dark disabled:opacity-50">{isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}{isSaving ? "Creating physician..." : "Create physician"}</button></div>
     </form>

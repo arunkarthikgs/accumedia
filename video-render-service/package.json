@@ -2,16 +2,21 @@
   "name": "accumedia-video-render-service",
   "private": true,
   "type": "module",
-  "scripts": { "build": "tsc --outDir dist --module NodeNext --moduleResolution NodeNext --target ES2022 --esModuleInterop --skipLibCheck --types node video-render-service/server.ts video-render-service/image-renderer.ts lib/video-renderer.ts", "start": "node dist/video-render-service/server.js" },
+  "scripts": {
+    "build": "tsc --outDir dist --module NodeNext --moduleResolution NodeNext --target ES2022 --esModuleInterop --skipLibCheck --types node video-render-service/server.ts video-render-service/image-renderer.ts lib/video-renderer.ts",
+    "start": "node dist/video-render-service/server.js"
+  },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.654.0",
     "@aws-sdk/s3-request-presigner": "^3.654.0",
     "@types/node": "^20.16.5",
+    "@types/nodemailer": "^6.4.24",
     "express": "^4.21.1",
     "ffmpeg-static": "^5.3.0",
+    "nodemailer": "^7.0.13",
     "openai": "^4.61.0",
     "sharp": "^0.35.4",
-    "typescript": "^5.6.2",
-    "tsx": "^4.19.2"
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.2"
   }
 }

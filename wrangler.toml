@@ -22,4 +22,4 @@ service = "accumedia-video-renderer"
 
 [[services]]
 binding = "EMAIL_SERVICE"
-service = "accumedia-email-service"
+service = "accumedia-video-renderer"

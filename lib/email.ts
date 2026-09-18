@@ -31,12 +31,12 @@ export async function sendPasswordSetupEmail(input: { email: string; name: strin
   const serviceUrl = (process.env.EMAIL_SERVICE_URL || "").replace(/\/$/, "");
   if (serviceBinding || serviceUrl) {
     const response = serviceBinding
-      ? await serviceBinding.fetch(new Request("https://email-service/send", { method: "POST", headers: { "Content-Type": "application/json", "X-Email-Service-Secret": process.env.EMAIL_SERVICE_SECRET || "" }, body: JSON.stringify(message) }))
-      : await fetch(`${serviceUrl}/send`, { method: "POST", headers: { "Content-Type": "application/json", "X-Email-Service-Secret": process.env.EMAIL_SERVICE_SECRET || "" }, body: JSON.stringify(message) });
+      ? await serviceBinding.fetch(new Request("https://email-service/email/send", { method: "POST", headers: { "Content-Type": "application/json", "X-Email-Service-Secret": process.env.EMAIL_SERVICE_SECRET || "" }, body: JSON.stringify(message) }))
+      : await fetch(`${serviceUrl}/email/send`, { method: "POST", headers: { "Content-Type": "application/json", "X-Email-Service-Secret": process.env.EMAIL_SERVICE_SECRET || "" }, body: JSON.stringify(message) });
     if (!response.ok) throw new Error(`Email service delivery failed (${response.status}).`);
     return { sent: true };
   }
-  throw new Error("Email service is not configured. Deploy accumedia-email-service and configure SMTP secrets.");
+  throw new Error("Email service is not configured. Deploy accumedia-video-renderer with SMTP secrets.");
 }
 
 function escapeHtml(value: string) {

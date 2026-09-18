@@ -239,7 +239,7 @@ export default function AssetActionsPanel({
       }
       const queuedStatus = data.asset?.status || (scheduledAt ? "SCHEDULED" : "EXPORTED");
       setStatus(queuedStatus);
-      onStatusChange?.(asset.id, queuedStatus);
+      onStatusChange?.(asset.id, data.job?.status === "QUEUED" ? "QUEUED" : queuedStatus);
       setPublicationMessage(
         `${data.message || (data.connectorConfigured ? "Publication queued for the configured connector." : "Publication queued; configure the connector before processing it.")} ${data.job?.scheduledAt ? `Scheduled for ${new Date(data.job.scheduledAt).toLocaleString()}.` : ""}`.trim(),
       );

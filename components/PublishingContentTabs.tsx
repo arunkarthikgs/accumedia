@@ -19,6 +19,7 @@ type Asset = {
   outputType: string | null;
   variant?: string | null;
   status: string;
+  publicationStatus?: string | null;
   version: number;
   content: unknown;
   videoR2Key?: string | null;

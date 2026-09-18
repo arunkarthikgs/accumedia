@@ -37,6 +37,7 @@ export default async function CaseAssetsPage(props: {
                  'outputType', ga."outputType",
                  'variant', ga.variant,
                  'status', ga.status,
+                 'publicationStatus', (SELECT pj.status FROM macula.publication_jobs pj WHERE pj."assetId" = ga.id ORDER BY pj."createdAt" DESC LIMIT 1),
                  'version', ga.version,
                  'content', ga.content,
                  'videoR2Key', ga."videoR2Key",

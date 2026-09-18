@@ -10,6 +10,7 @@ type Asset = {
   outputType: string | null;
   variant?: string | null;
   status: string;
+  publicationStatus?: string | null;
   version: number;
   content: unknown;
   videoR2Key?: string | null;
@@ -25,6 +26,7 @@ function runtimeSeconds(asset: Asset) {
 }
 
 const STATUS_DOT_CLASS: Record<string, string> = {
+  QUEUED: "bg-ochre",
   APPROVED: "bg-sage",
   REVIEW: "bg-ochre",
   DRAFT: "bg-slate-400",
@@ -41,6 +43,7 @@ export default function PublishingAssetWorkspace({ caseId, assets, caseApproved 
   const orderedAssets = [...videoAssets, ...otherAssets];
   const [selectedAssetId, setSelectedAssetId] = useState(orderedAssets[0]?.id || "");
   const selectedAsset = orderedAssets.find((asset) => asset.id === selectedAssetId) || orderedAssets[0];
+  const displayStatus = (asset: Asset) => asset.publicationStatus === "QUEUED" ? "QUEUED" : asset.status;
   useEffect(() => {
     const assetId = window.location.hash.match(/^#asset-(.+)$/)?.[1];
     if (!assetId || !orderedAssets.some((asset) => asset.id === assetId)) return;
@@ -50,7 +53,8 @@ export default function PublishingAssetWorkspace({ caseId, assets, caseApproved 
     });
   }, [orderedAssets]);
   const assetsByStatus = workspaceAssets.reduce((counts: Record<string, number>, asset) => {
-    counts[asset.status] = (counts[asset.status] || 0) + 1;
+    const status = displayStatus(asset);
+    counts[status] = (counts[status] || 0) + 1;
     return counts;
   }, {});
   const assetsByType = workspaceAssets.reduce((counts: Record<string, number>, asset) => {
@@ -70,11 +74,12 @@ export default function PublishingAssetWorkspace({ caseId, assets, caseApproved 
 
   const assetButton = (asset: Asset) => {
     const selected = asset.id === selectedAsset.id;
-    const statusLabel = asset.status.toLowerCase().replaceAll("_", " ");
+    const status = displayStatus(asset);
+    const statusLabel = status.toLowerCase().replaceAll("_", " ");
     return <button key={asset.id} type="button" onClick={() => setSelectedAssetId(asset.id)} className={`min-w-40 rounded border px-3 py-2 text-left text-xs transition lg:min-w-0 ${selected ? "border-pine bg-pine-tint text-pine-dark" : "border-transparent text-ink hover:border-line hover:bg-paper"}`}>
       <span className="block truncate font-semibold">{asset.channelName || asset.channelKey}</span>
       <span className="mt-0.5 flex items-center gap-1.5 text-[10px] text-muted">
-        <span className={`h-2 w-2 shrink-0 rounded-full ${STATUS_DOT_CLASS[asset.status] || "bg-slate-400"}`} title={`Status: ${statusLabel}`} aria-hidden="true" />
+        <span className={`h-2 w-2 shrink-0 rounded-full ${STATUS_DOT_CLASS[status] || "bg-slate-400"}`} title={`Status: ${statusLabel}`} aria-hidden="true" />
         <span className="truncate">{statusLabel} {asset.variant ? `· ${asset.variant}` : ""} · v{asset.version}</span>
         <span className="sr-only">Status: {statusLabel}</span>
       </span>
@@ -85,7 +90,7 @@ export default function PublishingAssetWorkspace({ caseId, assets, caseApproved 
     <section className="rounded-lg border border-line bg-surface p-5" aria-label="Generated asset summary">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div><h2 className="text-sm font-bold text-ink">Generated assets</h2><p className="mt-1 text-xs text-muted">{assets.length} publication assets · {statusSummary || "No status available"}</p></div>
-        <div className="flex flex-wrap gap-2 text-xs">{(Object.entries(assetsByStatus) as [string, number][]).map(([status, count]) => <button key={status} type="button" onClick={() => setSelectedAssetId(orderedAssets.find((asset) => asset.status === status)?.id || selectedAsset.id)} className={status === "APPROVED" ? "rounded bg-sage-tint px-2.5 py-1 font-semibold text-sage hover:ring-1 hover:ring-sage/40" : status === "REVIEW" ? "rounded bg-ochre-tint px-2.5 py-1 font-semibold text-ochre hover:ring-1 hover:ring-ochre/40" : "rounded bg-paper px-2.5 py-1 font-semibold text-muted hover:ring-1 hover:ring-line"}>{count} {status.toLowerCase().replaceAll("_", " ")}</button>)}</div>
+        <div className="flex flex-wrap gap-2 text-xs">{(Object.entries(assetsByStatus) as [string, number][]).map(([status, count]) => <button key={status} type="button" onClick={() => setSelectedAssetId(orderedAssets.find((asset) => displayStatus(asset) === status)?.id || selectedAsset.id)} className={status === "APPROVED" ? "rounded bg-sage-tint px-2.5 py-1 font-semibold text-sage hover:ring-1 hover:ring-sage/40" : status === "REVIEW" || status === "QUEUED" ? "rounded bg-ochre-tint px-2.5 py-1 font-semibold text-ochre hover:ring-1 hover:ring-ochre/40" : "rounded bg-paper px-2.5 py-1 font-semibold text-muted hover:ring-1 hover:ring-line"}>{count} {status.toLowerCase().replaceAll("_", " ")}</button>)}</div>
       </div>
       <div className="mt-4 flex flex-wrap gap-2 border-t border-line pt-4">
         {(Object.entries(assetsByType) as [string, number][]).map(([type, count]) => <button key={type} type="button" onClick={() => setSelectedAssetId(orderedAssets.find((asset) => (asset.outputType?.replaceAll("_", " ") || asset.channelName) === type)?.id || selectedAsset.id)} className="rounded border border-line bg-paper px-2.5 py-1 text-[11px] font-medium text-ink hover:border-pine hover:text-pine">{type} <span className="text-muted">({count})</span></button>)}

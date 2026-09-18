@@ -24,6 +24,15 @@ function runtimeSeconds(asset: Asset) {
   return /minute|min/i.test(match[2]) ? Number(match[1]) * 60 : Number(match[1]);
 }
 
+const STATUS_DOT_CLASS: Record<string, string> = {
+  APPROVED: "bg-sage",
+  REVIEW: "bg-ochre",
+  DRAFT: "bg-slate-400",
+  SCHEDULED: "bg-pine",
+  EXPORTED: "bg-pine",
+  PUBLISHED: "bg-teal-600",
+};
+
 export default function PublishingAssetWorkspace({ caseId, assets }: { caseId: string; assets: Asset[] }) {
   const videoAssets = assets.filter((asset) => asset.outputType === "VIDEO_SCRIPT").sort((left, right) => runtimeSeconds(left) - runtimeSeconds(right));
   const otherAssets = assets.filter((asset) => asset.outputType !== "VIDEO_SCRIPT");
@@ -52,9 +61,14 @@ export default function PublishingAssetWorkspace({ caseId, assets }: { caseId: s
 
   const assetButton = (asset: Asset) => {
     const selected = asset.id === selectedAsset.id;
+    const statusLabel = asset.status.toLowerCase().replaceAll("_", " ");
     return <button key={asset.id} type="button" onClick={() => setSelectedAssetId(asset.id)} className={`min-w-40 rounded border px-3 py-2 text-left text-xs transition lg:min-w-0 ${selected ? "border-pine bg-pine-tint text-pine-dark" : "border-transparent text-ink hover:border-line hover:bg-paper"}`}>
       <span className="block truncate font-semibold">{asset.channelName || asset.channelKey}</span>
-      <span className="mt-0.5 block text-[10px] text-muted">{asset.variant || asset.status.toLowerCase().replaceAll("_", " ")} · v{asset.version}</span>
+      <span className="mt-0.5 flex items-center gap-1.5 text-[10px] text-muted">
+        <span className={`h-2 w-2 shrink-0 rounded-full ${STATUS_DOT_CLASS[asset.status] || "bg-slate-400"}`} title={`Status: ${statusLabel}`} aria-hidden="true" />
+        <span className="truncate">{asset.variant || statusLabel} · v{asset.version}</span>
+        <span className="sr-only">Status: {statusLabel}</span>
+      </span>
     </button>;
   };
 

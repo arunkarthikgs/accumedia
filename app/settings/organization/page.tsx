@@ -48,6 +48,8 @@ export default function OrgSettingsPage() {
   useEffect(() => {
     const selectedOrgId =
       new URLSearchParams(window.location.search).get("orgId") || "";
+    const requestedTab = new URLSearchParams(window.location.search).get("tab");
+    if (requestedTab === "brand") setActiveTab("brand");
     fetch("/api/admin/organizations")
       .then((response) => response.json())
       .then((data) => {

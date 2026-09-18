@@ -241,7 +241,7 @@ export default function UsersSettingsPage() {
                       </div>
                     </div>
                   </div>
-                  {canManageUsers && <Link href={`/settings/users/${doc.id}/edit?organizationId=${encodeURIComponent(selectedOrganizationId || doc.organization?.id || "")}`} className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-pine hover:underline"><Pencil className="h-3.5 w-3.5" /> Edit user</Link>}
+                  {canManageUsers && <div className="mt-4 flex flex-wrap gap-3"><Link href={`/settings/users/${doc.id}/edit?organizationId=${encodeURIComponent(selectedOrganizationId || doc.organization?.id || "")}`} className="inline-flex items-center gap-1 text-xs font-semibold text-pine hover:underline"><Pencil className="h-3.5 w-3.5" /> Edit user</Link><Link href={`/settings/users/${doc.id}/edit?organizationId=${encodeURIComponent(selectedOrganizationId || doc.organization?.id || "")}&photo=1`} className="inline-flex items-center gap-1 text-xs font-semibold text-pine hover:underline"><Pencil className="h-3.5 w-3.5" /> Profile photo</Link></div>}
                 </div>
               );
             })}

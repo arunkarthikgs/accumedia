@@ -348,6 +348,12 @@ export default function AdminOrganizationsPage() {
                           >
                             <Edit2 className="h-3 w-3 text-slate-500" /> Edit
                           </Link>
+                          <Link
+                            href={`/settings/organization?orgId=${org.id}&tab=details`}
+                            className="inline-flex items-center gap-1 rounded-lg border border-pine/30 bg-pine-tint px-2.5 py-1 text-[11px] font-semibold text-pine hover:bg-pine/10 transition shadow-2xs"
+                          >
+                            <Palette className="h-3 w-3" /> Hospital photos
+                          </Link>
                         </div>
                       </td>
                     </tr>

@@ -203,6 +203,9 @@ export default function UsersSettingsPage() {
                 .join("")
                 .slice(0, 2)
                 .toUpperCase();
+              const photoSrc = doc.profilePhotoR2Key
+                ? `/api/profile-media/serve?userId=${encodeURIComponent(doc.id)}`
+                : doc.profilePhotoUrl || "";
 
               return (
                 <div
@@ -210,9 +213,9 @@ export default function UsersSettingsPage() {
                   className="rounded-lg border border-line bg-surface p-5 transition hover:border-pine/50"
                 >
                   <div className="flex items-start gap-4">
-                    {doc.profilePhotoUrl ? (
-                      <button type="button" onClick={() => setPreviewPhoto({ name: doc.name, src: doc.profilePhotoR2Key ? `/api/profile-media/serve?userId=${encodeURIComponent(doc.id)}` : doc.profilePhotoUrl || "" })} className="flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg border border-pine/20 bg-pine-tint text-sm font-bold text-pine" title={`View ${doc.name}'s original photo`}>
-                        <img src={doc.profilePhotoR2Key ? `/api/profile-media/serve?userId=${encodeURIComponent(doc.id)}` : doc.profilePhotoUrl || ""} alt={`${doc.name} profile`} className="h-full w-full object-cover" />
+                    {photoSrc ? (
+                      <button type="button" onClick={() => setPreviewPhoto({ name: doc.name, src: photoSrc })} className="flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg border border-pine/20 bg-pine-tint text-sm font-bold text-pine" title={`View ${doc.name}'s original photo`}>
+                        <img src={photoSrc} alt={`${doc.name} profile`} className="h-full w-full object-cover" />
                       </button>
                     ) : <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg border border-pine/20 bg-pine-tint text-sm font-bold text-pine">{initials}</div>}
                     <div className="min-w-0 flex-1">

@@ -1,24 +1,35 @@
+import { getCloudflareContext } from "@opennextjs/cloudflare";
+
 export async function sendPasswordSetupEmail(input: { email: string; name: string; organizationName: string; token: string; reason: "welcome" | "reset" }) {
-  const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.EMAIL_FROM;
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "");
-  if (!apiKey || !from || !appUrl) {
-    console.warn("Password setup email not sent: RESEND_API_KEY, EMAIL_FROM, and NEXT_PUBLIC_APP_URL are required.");
+  const from = process.env.SMTP_FROM || process.env.EMAIL_FROM;
+  if (!from || !appUrl) {
+    console.warn("Password setup email not sent: SMTP_FROM/EMAIL_FROM and NEXT_PUBLIC_APP_URL are required.");
     return { sent: false };
   }
   const subject = input.reason === "welcome" ? `Welcome to Accumedia, ${input.name}` : "Reset your Accumedia password";
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      from,
-      to: [input.email],
-      subject,
-      html: `<p>Hello ${escapeHtml(input.name)},</p><p>${input.reason === "welcome" ? `Your ${escapeHtml(input.organizationName)} Accumedia account is ready.` : "A password reset was requested for your Accumedia account."}</p><p><a href="${appUrl}/reset-password?token=${encodeURIComponent(input.token)}">Set your password</a></p><p>This link expires in 24 hours and can be used only once.</p>`,
-    }),
-  });
-  if (!response.ok) throw new Error(`Email delivery failed (${response.status}).`);
-  return { sent: true };
+  const message = {
+    to: input.email,
+    from,
+    subject,
+    html: `<p>Hello ${escapeHtml(input.name)},</p><p>${input.reason === "welcome" ? `Your ${escapeHtml(input.organizationName)} Accumedia account is ready.` : "A password reset was requested for your Accumedia account."}</p><p><a href="${appUrl}/reset-password?token=${encodeURIComponent(input.token)}">Set your password</a></p><p>This link expires in 24 hours and can be used only once.</p>`,
+  };
+  let serviceBinding: { fetch(request: Request): Promise<Response> } | undefined;
+  try {
+    const runtimeEnv = getCloudflareContext({ async: false }).env as typeof globalThis & { EMAIL_SERVICE?: { fetch(request: Request): Promise<Response> } };
+    serviceBinding = runtimeEnv.EMAIL_SERVICE;
+  } catch {
+    // Local development can use EMAIL_SERVICE_URL instead.
+  }
+  const serviceUrl = (process.env.EMAIL_SERVICE_URL || "").replace(/\/$/, "");
+  if (serviceBinding || serviceUrl) {
+    const response = serviceBinding
+      ? await serviceBinding.fetch(new Request("https://email-service/send", { method: "POST", headers: { "Content-Type": "application/json", "X-Email-Service-Secret": process.env.EMAIL_SERVICE_SECRET || "" }, body: JSON.stringify(message) }))
+      : await fetch(`${serviceUrl}/send`, { method: "POST", headers: { "Content-Type": "application/json", "X-Email-Service-Secret": process.env.EMAIL_SERVICE_SECRET || "" }, body: JSON.stringify(message) });
+    if (!response.ok) throw new Error(`Email service delivery failed (${response.status}).`);
+    return { sent: true };
+  }
+  throw new Error("Email service is not configured. Deploy accumedia-email-service and configure SMTP secrets.");
 }
 
 function escapeHtml(value: string) {

@@ -19,3 +19,7 @@ ALLOW_EXTERNAL_ASR = "true"
 [[services]]
 binding = "VIDEO_RENDER_SERVICE"
 service = "accumedia-video-renderer"
+
+[[services]]
+binding = "EMAIL_SERVICE"
+service = "accumedia-email-service"

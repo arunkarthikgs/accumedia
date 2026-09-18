@@ -11,6 +11,7 @@
     "start": "next start",
     "deploy:scheduler": "wrangler deploy --config wrangler.scheduler.toml",
     "deploy:video-renderer": "wrangler deploy --config video-render-cloudflare/wrangler.jsonc",
+    "deploy:email-service": "wrangler deploy --config email-service/wrangler.jsonc",
     "dev:scheduler": "wrangler dev --config wrangler.scheduler.toml",
     "lint": "next lint",
     "postinstall": "prisma generate"

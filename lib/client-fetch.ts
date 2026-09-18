@@ -4,6 +4,14 @@ type CacheEntry = { promise: Promise<unknown>; expiresAt: number };
 
 const requestCache = new Map<string, CacheEntry>();
 
+export function clearJsonCache(urlPrefix?: string) {
+  for (const key of requestCache.keys()) {
+    if (!urlPrefix || key.endsWith(`:${urlPrefix}`) || key.includes(`:${urlPrefix}?`)) {
+      requestCache.delete(key);
+    }
+  }
+}
+
 export function fetchJsonOnce<T>(url: string, init?: RequestInit, ttlMs = 1500): Promise<T> {
   const method = (init?.method || "GET").toUpperCase();
   if (method !== "GET") return fetch(url, init).then((response) => response.json() as Promise<T>);

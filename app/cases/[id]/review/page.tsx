@@ -16,7 +16,7 @@ import {
   ShieldAlert,
   XCircle,
 } from "lucide-react";
-import { fetchJsonOnce } from "@/lib/client-fetch";
+import { clearJsonCache, fetchJsonOnce } from "@/lib/client-fetch";
 import { createCasePdf } from "@/lib/case-pdf";
 import { formatDateTime } from "@/lib/date-format";
 
@@ -418,7 +418,15 @@ export default function CaseReviewPage() {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Approval failed.");
-      router.push("/admin/cases");
+      try {
+        Object.keys(sessionStorage)
+          .filter((key) => key.startsWith("macula:case-list:"))
+          .forEach((key) => sessionStorage.removeItem(key));
+      } catch {
+        // Ignore unavailable browser storage.
+      }
+      clearJsonCache("/api/admin/cases");
+      router.replace(`/admin/cases?refresh=${Date.now()}`);
     } catch (actionError: any) {
       setError(actionError.message || "Approval failed.");
     } finally {
@@ -443,7 +451,15 @@ export default function CaseReviewPage() {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Rejection failed.");
-      router.push("/admin/cases");
+      try {
+        Object.keys(sessionStorage)
+          .filter((key) => key.startsWith("macula:case-list:"))
+          .forEach((key) => sessionStorage.removeItem(key));
+      } catch {
+        // Ignore unavailable browser storage.
+      }
+      clearJsonCache("/api/admin/cases");
+      router.replace(`/admin/cases?refresh=${Date.now()}`);
     } catch (actionError: any) {
       setError(actionError.message || "Rejection failed.");
     } finally {

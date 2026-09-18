@@ -151,6 +151,7 @@ export default function AssetActionsPanel({
   const [draftText, setDraftText] = useState(readableDraft(asset.content));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [publishPlatform, setPublishPlatform] = useState(
     defaultPlatform(asset),
   );
@@ -185,6 +186,7 @@ export default function AssetActionsPanel({
   ) => {
     setIsSubmitting(true);
     setError(null);
+    setActionMessage(null);
     try {
       const res = await fetch(`/api/cases/${caseId}/assets/${asset.id}`, {
         method: "PATCH",
@@ -201,6 +203,7 @@ export default function AssetActionsPanel({
       setVersion(json.asset.version);
       setDraftText(readableDraft(json.asset.content));
       setIsEditing(false);
+      setActionMessage(action === "regenerate" ? `Asset regenerated successfully as version ${json.asset.version}.` : action === "approve" ? "Asset approved." : "Asset edit saved.");
     } catch (err: any) {
       setError(err.message || "Action failed.");
     } finally {
@@ -313,6 +316,11 @@ export default function AssetActionsPanel({
       {publicationMessage && (
         <div className="text-xs text-pine bg-pine-tint border border-pine/30 rounded p-2">
           {publicationMessage}
+        </div>
+      )}
+      {actionMessage && (
+        <div className="text-xs text-pine bg-pine-tint border border-pine/30 rounded p-2">
+          {actionMessage}
         </div>
       )}
 

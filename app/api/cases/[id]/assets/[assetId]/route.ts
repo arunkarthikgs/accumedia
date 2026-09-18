@@ -56,16 +56,20 @@ export async function PATCH(
     if (action === "regenerate") {
       // Find the ChannelDefinition this asset was generated from so the
       // regeneration uses the same prompt/output-type contract.
-      const channel = asset.promptTemplateId
+      const configuredChannel = asset.promptTemplateId
         ? (await query<any>(`SELECT * FROM macula.channel_definitions WHERE id = $1 AND ("organizationId" IS NULL OR "organizationId" = $2) LIMIT 1`, [asset.promptTemplateId, asset.organizationId])).rows[0]
         : null;
-
-      if (!channel) {
-        return NextResponse.json(
-          { error: "Cannot regenerate — original channel definition not found." },
-          { status: 400 }
-        );
-      }
+      const channel = configuredChannel || {
+        id: null,
+        channelKey: asset.channelKey,
+        displayName: asset.channelName,
+        outputType: asset.outputType,
+        systemPrompt: "",
+        promptVersion: 1,
+        durationLabel: asset.variant,
+        wordCountMin: null,
+        wordCountMax: null,
+      };
 
       await snapshotCurrentVersion(asset.id, asset.content, asset.version, "regenerate");
 

@@ -264,11 +264,11 @@ export default function ImagesPanel({ caseId, mccrApproved }: { caseId: string; 
                     {img.publicUseApproved ? "Use publicly: Yes" : "Use publicly: No"}
                   </button>
                   {img.sourceType === "ai_generated" && (
-                    <button onClick={() => regenerate(img)} className="rounded border border-line p-1 text-muted hover:border-pine hover:text-pine">
+                    <button onClick={() => regenerate(img)} title="Regenerate image" aria-label="Regenerate image" className="rounded border border-line p-1 text-muted hover:border-pine hover:text-pine">
                       <RefreshCw className="h-3 w-3" />
                     </button>
                   )}
-                  <button onClick={() => remove(img.id)} className="rounded border border-line p-1 text-brick hover:bg-brick-tint">
+                  <button onClick={() => remove(img.id)} title="Delete image" aria-label="Delete image" className="rounded border border-line p-1 text-brick hover:bg-brick-tint">
                     <Trash2 className="h-3 w-3" />
                   </button>
                 </div>

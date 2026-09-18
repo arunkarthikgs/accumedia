@@ -906,6 +906,8 @@ export default function NewCasePage() {
               <button
                 type="button"
                 onClick={togglePlayback}
+                title={isPlaying ? "Pause audio" : "Play audio"}
+                aria-label={isPlaying ? "Pause audio" : "Play audio"}
                 className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-600 text-white shadow-xs hover:bg-teal-700 transition"
               >
                 {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 fill-current ml-0.5" />}
@@ -914,6 +916,8 @@ export default function NewCasePage() {
               <button
                 type="button"
                 onClick={restartPlayback}
+                title="Restart audio"
+                aria-label="Restart audio"
                 className="flex h-8 w-8 items-center justify-center rounded-lg border border-teal-200 bg-white text-teal-800 hover:bg-teal-50 transition"
               >
                 <RotateCcw className="h-3.5 w-3.5" />

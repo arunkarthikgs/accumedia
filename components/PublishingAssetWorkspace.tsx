@@ -33,7 +33,7 @@ const STATUS_DOT_CLASS: Record<string, string> = {
   PUBLISHED: "bg-teal-600",
 };
 
-export default function PublishingAssetWorkspace({ caseId, assets }: { caseId: string; assets: Asset[] }) {
+export default function PublishingAssetWorkspace({ caseId, assets, caseApproved }: { caseId: string; assets: Asset[]; caseApproved: boolean }) {
   const [workspaceAssets, setWorkspaceAssets] = useState(assets);
   useEffect(() => setWorkspaceAssets(assets), [assets]);
   const videoAssets = workspaceAssets.filter((asset) => asset.outputType === "VIDEO_SCRIPT").sort((left, right) => runtimeSeconds(left) - runtimeSeconds(right));
@@ -100,7 +100,7 @@ export default function PublishingAssetWorkspace({ caseId, assets }: { caseId: s
       </div>
     </nav>
     <div id={`asset-${selectedAsset.id}`}>
-      <AssetActionsPanel key={selectedAsset.id} caseId={caseId} asset={selectedAsset} onStatusChange={updateAssetStatus} />
+      <AssetActionsPanel key={selectedAsset.id} caseId={caseId} caseApproved={caseApproved} asset={selectedAsset} onStatusChange={updateAssetStatus} />
     </div>
     </section>
   </div>;

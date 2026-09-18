@@ -18,6 +18,7 @@ import { formatDateTime } from "@/lib/date-format";
 
 interface AssetActionsPanelProps {
   caseId: string;
+  caseApproved: boolean;
   onStatusChange?: (assetId: string, status: string) => void;
   asset: {
     id: string;
@@ -143,6 +144,7 @@ function readableDraft(content: any) {
  */
 export default function AssetActionsPanel({
   caseId,
+  caseApproved,
   asset,
   onStatusChange,
 }: AssetActionsPanelProps) {
@@ -559,6 +561,11 @@ export default function AssetActionsPanel({
             )}
             {status === "APPROVED" && (
               <div className="flex w-full flex-wrap items-end gap-2 border-t border-line pt-3">
+                {!caseApproved && (
+                  <p className="w-full rounded border border-ochre/30 bg-ochre-tint px-3 py-2 text-[11px] text-ochre">
+                    Approve the clinical case before queueing this asset for publication.
+                  </p>
+                )}
                 <label className="text-[10px] text-muted">
                   Platform
                   <select
@@ -584,7 +591,7 @@ export default function AssetActionsPanel({
                   />
                 </label>
                 <button
-                  disabled={isSubmitting || isQueueingPublication}
+                  disabled={!caseApproved || isSubmitting || isQueueingPublication}
                   onClick={queuePublication}
                   className="flex items-center gap-1 rounded bg-pine px-3 py-1.5 text-[11px] font-medium text-white disabled:opacity-50"
                 >

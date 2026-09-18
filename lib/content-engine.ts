@@ -53,12 +53,16 @@ video: video_title, short_description, detailed_description, key_learning_points
 (3-5), keywords (5-10), hashtags (5-10), thumbnail_title, cta.
 Return JSON matching those fields exactly.`,
 
-  SEO_BLOG: `Write an SEO-oriented blog article (1000-1800 words) based only on the
+  SEO_BLOG: `Write an SEO-oriented blog article of approximately 1,000-1,800 words based only on the
 approved clinical record below. First decide if this is patient-education or
-professional/clinical content. Include: seo_title, h1, url_slug, meta_title,
+professional/clinical content. Include content_type with exactly one of
+"patient-education" or "professional-clinical". Also include: seo_title, h1, url_slug, meta_title,
 meta_description, primary_keyword, secondary_keywords (5-10), long_tail_keywords
-(5-10), search_intent, suggested_headings, full_article, faq_section (3-6 Q&A),
-image_alt_text, featured_image_brief. No promotional/guaranteed-outcome claims.
+  (5-10), search_intent, suggested_headings (H2/H3), full_article, faq_section (3-6 Q&A),
+  internal_link_suggestions, external_reference_suggestions, image_alt_text,
+  featured_image_brief, schema_recommendations. internal_link_suggestions and
+  external_reference_suggestions must be arrays; schema_recommendations must identify
+  appropriate schema types and required fields. No promotional/guaranteed-outcome claims.
 Return JSON matching those fields.`,
 };
 

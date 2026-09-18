@@ -20,6 +20,8 @@ export default function SubscriptionPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [quota, setQuota] = useState<any>(null);
+  const [editingPlan, setEditingPlan] = useState<any>(null);
+  const [planForm, setPlanForm] = useState({ name: "", sortOrder: 0, monthlyCaseLimit: "", monthlyAudioMinutes: "", monthlyAiTokens: "", monthlyAssetLimit: "", monthlyPrice: "", currency: "INR", billingInterval: "monthly", setupFee: "", isCustom: false, overagePolicy: "" });
 
   useEffect(() => {
     fetch("/api/admin/organizations")
@@ -115,6 +117,25 @@ export default function SubscriptionPage() {
       return setMessage(data.error || "Unable to save subscription.");
     setSubscription(data.subscription);
     setMessage("Subscription plan saved.");
+  };
+
+  const savePlanDefinition = async () => {
+    const response = await fetch("/api/admin/subscription", {
+      method: editingPlan ? "PATCH" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(editingPlan ? { action: "update_plan", planId: editingPlan.id, ...planForm } : planForm),
+    });
+    const data = await response.json();
+    if (!response.ok) return setMessage(data.error || "Unable to save plan definition.");
+    setPlans((current) => editingPlan ? current.map((plan) => plan.id === data.plan.id ? data.plan : plan) : [...current, data.plan]);
+    setEditingPlan(null);
+    setPlanForm({ name: "", sortOrder: 0, monthlyCaseLimit: "", monthlyAudioMinutes: "", monthlyAiTokens: "", monthlyAssetLimit: "", monthlyPrice: "", currency: "INR", billingInterval: "monthly", setupFee: "", isCustom: false, overagePolicy: "" });
+    setMessage("Plan definition saved.");
+  };
+
+  const editPlan = (plan: any) => {
+    setEditingPlan(plan);
+    setPlanForm({ name: plan.name, sortOrder: plan.sortOrder || 0, monthlyCaseLimit: plan.monthlyCaseLimit ?? "", monthlyAudioMinutes: plan.monthlyAudioMinutes ?? "", monthlyAiTokens: plan.monthlyAiTokens ?? "", monthlyAssetLimit: plan.monthlyAssetLimit ?? "", monthlyPrice: plan.monthlyPrice ?? "", currency: plan.currency || "INR", billingInterval: plan.billingInterval || "monthly", setupFee: plan.setupFee ?? "", isCustom: Boolean(plan.isCustom), overagePolicy: plan.overagePolicy || "" });
   };
 
   const lifecycle = async (action: "cancel" | "renew" | "activate") => {
@@ -318,6 +339,20 @@ export default function SubscriptionPage() {
           {message && <p className="mt-3 text-xs text-muted">{message}</p>}
         </section>
       )}
+      <section className="rounded-lg border border-line bg-surface p-6">
+        <h2 className="text-sm font-bold text-ink">Plan catalog administration</h2>
+        <p className="mt-1 text-xs text-muted">Create and update plan pricing, content limits, AI limits, and overage policy.</p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {([['name','Plan name'],['monthlyCaseLimit','Cases/month'],['monthlyAudioMinutes','Audio minutes'],['monthlyAiTokens','AI tokens'],['monthlyAssetLimit','Assets/month'],['monthlyPrice','Monthly price'],['setupFee','Setup fee'],['overagePolicy','Overage policy']] as const).map(([field,label]) => (
+            <label key={field} className={field === 'overagePolicy' ? 'sm:col-span-2 lg:col-span-4 text-xs font-semibold text-ink' : 'text-xs font-semibold text-ink'}>{label}<input value={String(planForm[field])} onChange={(event) => setPlanForm((current) => ({ ...current, [field]: event.target.value }))} className="mt-1 w-full rounded border border-line bg-paper px-3 py-2 text-xs" /></label>
+          ))}
+          <label className="text-xs font-semibold text-ink">Currency<select value={planForm.currency} onChange={(event) => setPlanForm((current) => ({ ...current, currency: event.target.value }))} className="mt-1 w-full rounded border border-line bg-paper px-3 py-2 text-xs"><option>INR</option><option>USD</option><option>EUR</option></select></label>
+          <label className="text-xs font-semibold text-ink">Billing interval<select value={planForm.billingInterval} onChange={(event) => setPlanForm((current) => ({ ...current, billingInterval: event.target.value }))} className="mt-1 w-full rounded border border-line bg-paper px-3 py-2 text-xs"><option>monthly</option><option>yearly</option></select></label>
+          <label className="flex items-center gap-2 self-end pb-2 text-xs font-semibold text-ink"><input type="checkbox" checked={planForm.isCustom} onChange={(event) => setPlanForm((current) => ({ ...current, isCustom: event.target.checked }))} /> Custom pricing</label>
+        </div>
+        <div className="mt-4 flex gap-2"><button type="button" onClick={savePlanDefinition} disabled={!planForm.name.trim()} className="rounded bg-pine px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">{editingPlan ? "Update plan" : "Create plan"}</button>{editingPlan && <button type="button" onClick={() => setEditingPlan(null)} className="rounded border border-line px-4 py-2 text-xs font-semibold text-ink">Cancel</button>}</div>
+        <div className="mt-5 divide-y divide-line border-t border-line">{plans.map((plan) => <div key={`edit-${plan.id}`} className="flex items-center justify-between py-3 text-xs"><span className="font-semibold text-ink">{plan.name}</span><button type="button" onClick={() => editPlan(plan)} className="text-pine hover:underline">Edit</button></div>)}</div>
+      </section>
     </main>
   );
 }

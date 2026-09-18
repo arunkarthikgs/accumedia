@@ -855,7 +855,7 @@ export default function NewCasePage() {
               <div className="flex items-center gap-2.5">
                 <CheckCircle2 className="h-4 w-4 text-teal-600 shrink-0" />
                 <div>
-                  <span className="font-bold text-teal-900">Case Created in DB: </span>
+                  <span className="font-bold text-teal-900">Case reference: </span>
                   <span className="font-mono text-teal-800">{activeCaseId}</span>
                   <div className="text-[11px] text-teal-700 mt-0.5 flex items-center gap-2">
                     <span>

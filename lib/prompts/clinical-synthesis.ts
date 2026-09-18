@@ -24,6 +24,7 @@ The response must include:
 - One structured Master Clinical Content Record containing the topic, specialty, target audience,
 	primary educational message, clinical learning, decision-making, key differentiator or insight,
 	patient-safety considerations, terminology to retain, terminology to simplify,
+	clinical terminology accuracy audit items requiring clinician verification,
 	confidentiality flags, and promotional/outcome claims requiring caution.
 - A clinical record covering presentation, examination, investigations, management, outcome, and follow-up.
 - A compliance and safety audit listing detected/redacted PHI, NMC ethics findings, and a confidence score from 0 to 100.

@@ -41,7 +41,7 @@ export async function GET(req: Request) {
       clinicalRefinerPrompt: {
         agent: "OpenAI GPT-4o (gpt-4o)",
         temperature: 0.1,
-        systemPrompt: clinicalRefinerPrompt?.content || organization?.clinicalRefinerPrompt || DEFAULT_CLINICAL_REFINER_PROMPT,
+        systemPrompt: clinicalRefinerPrompt?.content || DEFAULT_CLINICAL_REFINER_PROMPT,
         promptTemplateId: clinicalRefinerPrompt?.id || null,
         promptVersion: clinicalRefinerPrompt?.version || null,
         promptSource: clinicalRefinerPrompt?.organizationId ? "organization" : clinicalRefinerPrompt ? "global" : "fallback",

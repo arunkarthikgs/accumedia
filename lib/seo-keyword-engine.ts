@@ -1,7 +1,11 @@
 import { assessSeoQuality, normalizeSearchIntent } from "@/lib/seo-quality";
 import { createOpenAIChatCompletion } from "@/lib/openai-fetch";
 
-export const DEFAULT_SEO_KEYWORD_PROMPT = `Generate a standalone SEO keyword strategy for this approved clinical record. Return JSON only with primaryKeyword, secondaryKeywords, longTailKeywords, localKeywords, questionKeywords, semanticKeywords, and searchIntent. Use educational, medically accurate language. Do not include patient identifiers, provider names, facility names, unsupported claims, or guaranteed outcomes.`;
+export const DEFAULT_SEO_KEYWORD_PROMPT = `Generate a standalone SEO keyword strategy for this approved clinical record.
+Return JSON only with exactly these fields:
+primaryKeyword (one string), secondaryKeywords (5-10 strings), longTailKeywords (5-10 strings), localKeywords (5-10 strings), questionKeywords (5-10 strings), semanticKeywords (5-10 strings), and searchIntent (one string).
+Location-specific variations are optional and should be included in localKeywords only when clinically and geographically appropriate; never invent a location.
+Use educational, medically accurate language. Do not include patient identifiers, provider names, facility names, unsupported claims, or guaranteed outcomes.`;
 
 export async function generateSeoKeywordSet(input: { masterRecord: Record<string, unknown>; prompt?: string }) {
   const response = await createOpenAIChatCompletion({

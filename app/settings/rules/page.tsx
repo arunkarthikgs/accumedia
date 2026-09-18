@@ -78,7 +78,7 @@ export default function RulesSettingsPage() {
             Dynamic Compliance Guardrails &amp; Channels
           </h1>
           <p className="text-xs text-muted">
-            All synthesis prompts, regex redactors, and distribution targets are managed as live database records.
+            All synthesis prompts, redaction rules, and distribution targets are managed centrally and updated safely.
           </p>
         </div>
 
@@ -129,7 +129,7 @@ export default function RulesSettingsPage() {
                 type="submit"
                 className="w-full rounded-lg bg-pine py-2 text-xs font-semibold text-white hover:bg-pine-dark"
               >
-                Add Compliance Rule to DB
+                Add Compliance Rule
               </button>
             </form>
 

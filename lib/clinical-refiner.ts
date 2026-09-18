@@ -1,5 +1,17 @@
 import { createOpenAIChatCompletion } from "@/lib/openai-fetch";
 
+const AMBIGUOUS_TERMINOLOGY: Array<{ source: RegExp; sourceLabel: string; suggestion: string }> = [
+  { source: /\bdense\s+syndrome\b/i, sourceLabel: "dense syndrome", suggestion: "dense vitreous hemorrhage" },
+];
+
+function enforceTerminologyReviewMarkers(sourceText: string, refinedText: string): string {
+  if (refinedText.toLowerCase().includes("clinical_terminology_review")) return refinedText;
+  const markers = AMBIGUOUS_TERMINOLOGY
+    .filter((item) => item.source.test(sourceText))
+    .map((item) => `[CLINICAL_TERMINOLOGY_REVIEW: ${item.sourceLabel} | possible terminology: ${item.suggestion} | verification required]`);
+  return markers.length > 0 ? `${refinedText.trim()}\n\n${markers.join("\n")}` : refinedText;
+}
+
 export const DEFAULT_CLINICAL_REFINER_PROMPT = `You are an expert clinical documentation and medical transcription refiner for healthcare practitioners.
 
 Your task:
@@ -7,8 +19,9 @@ Your task:
 2. Correct misrecognized clinical terminology, anatomical names, surgical procedures, and brand/generic drug names with standard medical spellings.
 3. Fix punctuation, paragraph breaks, and capitalization of standard medical acronyms.
 4. Strictly DO NOT hallucinate, diagnose, infer unstated labs, or invent clinical details that were not in the dictation.
-5. Tokens in the form [REDACTED_*] are privacy placeholders. Preserve each token exactly as written. Never expand, explain, rename, infer, or attach a placeholder to unrelated clinical terminology.
-6. Output ONLY the refined clinical dictation narrative in clean markdown paragraphs. Do not add conversational intro or outro.`;
+5. If a clinical term is ambiguous, garbled, or potentially misrecognized, preserve the source wording and append a concise marker in this exact format: [CLINICAL_TERMINOLOGY_REVIEW: source wording | possible terminology: suggestion | verification required]. Do not silently replace ambiguous terminology.
+6. Tokens in the form [REDACTED_*] are privacy placeholders. Preserve each token exactly as written. Never expand, explain, rename, infer, or attach a placeholder to unrelated clinical terminology.
+7. Output ONLY the refined clinical dictation narrative in clean markdown paragraphs. Do not add conversational intro or outro.`;
 
 export async function refineClinicalText(
   rawAsrText: string,
@@ -34,7 +47,8 @@ export async function refineClinicalText(
     ],
   });
 
-  const refinedText = response.choices?.[0]?.message?.content?.trim() || rawAsrText;
+  const modelText = response.choices?.[0]?.message?.content?.trim() || rawAsrText;
+  const refinedText = enforceTerminologyReviewMarkers(rawAsrText, modelText);
   const sourceTokens = rawAsrText.match(/\[REDACTED_[A-Z0-9_]+\]/g) || [];
   const refinedTokens = refinedText.match(/\[REDACTED_[A-Z0-9_]+\]/g) || [];
   const sourceTokenCounts = new Map<string, number>();

@@ -94,13 +94,13 @@ export default function AppNavigation({ children }: { children: React.ReactNode 
           </Link>
         </div>
 
-        {/* Database Status Tag */}
+        {/* Workspace status tag */}
         <div className="px-6 py-3 bg-paper border-b border-line flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="h-2 w-2 rounded-full bg-sage animate-pulse" />
-            <span className="text-[11px] font-medium text-muted">AWS RDS (macula)</span>
+            <span className="text-[11px] font-medium text-muted">Secure workspace</span>
           </div>
-          <span className="text-[10px] bg-pine-tint text-pine px-2 py-0.5 rounded font-mono">v15 App</span>
+          <span className="text-[10px] bg-pine-tint text-pine px-2 py-0.5 rounded font-mono">v15</span>
         </div>
 
         {/* Navigation Section */}

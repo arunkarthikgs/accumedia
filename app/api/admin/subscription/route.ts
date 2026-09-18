@@ -36,6 +36,19 @@ export async function GET(req: Request) {
   }
 }
 
+export async function POST(req: Request) {
+  try {
+    await requireSubscriptionManager();
+    const body = await req.json();
+    const name = typeof body.name === "string" ? body.name.trim() : "";
+    if (!name) return NextResponse.json({ error: "Plan name is required." }, { status: 400 });
+    const { rows } = await query(`INSERT INTO macula.plans (id, name, "sortOrder", "monthlyCaseLimit", "monthlyAudioMinutes", "monthlyAiTokens", "monthlyAssetLimit", "monthlyPrice", currency, "billingInterval", "setupFee", "isCustom", "overagePolicy") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING ${planColumns}`, [crypto.randomUUID(), name, Number(body.sortOrder || 0), body.monthlyCaseLimit || null, body.monthlyAudioMinutes || null, body.monthlyAiTokens || null, body.monthlyAssetLimit || null, body.monthlyPrice || null, body.currency || "INR", body.billingInterval || "monthly", body.setupFee || null, Boolean(body.isCustom), body.overagePolicy || null]);
+    return NextResponse.json({ success: true, plan: rows[0] }, { status: 201 });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message || "Failed to create plan." }, { status: 500 });
+  }
+}
+
 export async function PUT(req: Request) {
   try {
     const { organizationId, planId, status, currentPeriodEnd } = await req.json();
@@ -58,7 +71,14 @@ export async function PUT(req: Request) {
 
 export async function PATCH(req: Request) {
   try {
-    const { organizationId, action } = await req.json();
+    const body = await req.json();
+    const { organizationId, action } = body;
+    if (action === "update_plan") {
+      await requireSubscriptionManager();
+      if (!body.planId || !body.name) return NextResponse.json({ error: "planId and name are required." }, { status: 400 });
+      const { rows } = await query(`UPDATE macula.plans SET name=$1, "sortOrder"=$2, "monthlyCaseLimit"=$3, "monthlyAudioMinutes"=$4, "monthlyAiTokens"=$5, "monthlyAssetLimit"=$6, "monthlyPrice"=$7, currency=$8, "billingInterval"=$9, "setupFee"=$10, "isCustom"=$11, "overagePolicy"=$12, "updatedAt"=NOW() WHERE id=$13 RETURNING ${planColumns}`, [body.name.trim(), Number(body.sortOrder || 0), body.monthlyCaseLimit || null, body.monthlyAudioMinutes || null, body.monthlyAiTokens || null, body.monthlyAssetLimit || null, body.monthlyPrice || null, body.currency || "INR", body.billingInterval || "monthly", body.setupFee || null, Boolean(body.isCustom), body.overagePolicy || null, body.planId]);
+      return NextResponse.json({ success: true, plan: rows[0] });
+    }
     if (!organizationId || !["activate", "cancel", "renew", "past_due"].includes(action)) return NextResponse.json({ error: "organizationId and a valid lifecycle action are required." }, { status: 400 });
     await requireSubscriptionManager();
     await requireOrganizationAccess(organizationId);

@@ -12,15 +12,15 @@ export async function POST(req: Request) {
     const { userId, password } = await req.json();
     if (!userId || !password) return NextResponse.json({ error: "User ID and password are required." }, { status: 400 });
 
-    const { rows } = await query<{ id: string; password_hash: string | null }>(
-      `SELECT id, password_hash
+    const { rows } = await query<{ id: string; password_hash: string | null; is_active: boolean }>(
+      `SELECT id, password_hash, "isActive" AS is_active
        FROM macula.users
        WHERE email = $1 OR id = $1
        LIMIT 1`,
       [userId]
     );
     const user = rows[0];
-    if (!user?.password_hash || !(await bcrypt.compare(password, user.password_hash))) {
+    if (!user?.is_active || !user.password_hash || !(await bcrypt.compare(password, user.password_hash))) {
       return NextResponse.json({ error: "Invalid credentials." }, { status: 401 });
     }
 

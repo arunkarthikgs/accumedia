@@ -14,6 +14,7 @@ interface Physician {
   id: string;
   name: string;
   email: string;
+  isActive: boolean;
   registrationNo?: string | null;
   specialty?: string | null;
   qualifications?: string | null;
@@ -231,8 +232,8 @@ export default function UsersSettingsPage() {
                         )}
                         <div className="flex items-center gap-2">
                           <Shield className="h-3.5 w-3.5 flex-shrink-0 text-sage" />
-                          <span className="text-[11px] font-semibold text-sage">
-                            {doc.role?.name || "Consultant RMP"}
+                          <span className={`text-[11px] font-semibold ${doc.isActive ? "text-sage" : "text-brick"}`}>
+                            {doc.isActive ? (doc.role?.name || "Consultant RMP") : "Account suspended"}
                           </span>
                         </div>
                         {doc.designation && <div className="text-[11px] text-ink">{doc.designation}</div>}

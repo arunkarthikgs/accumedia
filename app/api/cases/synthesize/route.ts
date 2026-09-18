@@ -119,6 +119,14 @@ Return ONLY a valid JSON object matching this exact schema:
     "patientSafetyConsiderations": ["safety consideration or not provided"],
     "terminologyRetain": ["medical terms that should remain unchanged"],
     "terminologySimplify": ["terms that should be explained in plain language"],
+    "clinicalTerminologyAudit": [
+      {
+        "sourceWording": "ambiguous or possibly misrecognized source wording",
+        "issue": "why the wording requires review",
+        "suggestedTerminology": "standardized terminology only when clearly supported",
+        "verificationRequired": true
+      }
+    ],
     "confidentialityFlags": ["potential confidentiality or patient-identification issue"],
     "promotionalClaimsRequiringCaution": ["claim requiring caution or none"],
     "chiefComplaints": ["complaint 1", "complaint 2"],
@@ -199,6 +207,7 @@ Return ONLY a valid JSON object matching this exact schema:
       patientSafetyConsiderations: Array.isArray(rawMasterRecord.patientSafetyConsiderations) ? rawMasterRecord.patientSafetyConsiderations : ["Not provided"],
       terminologyRetain: Array.isArray(rawMasterRecord.terminologyRetain) ? rawMasterRecord.terminologyRetain : [],
       terminologySimplify: Array.isArray(rawMasterRecord.terminologySimplify) ? rawMasterRecord.terminologySimplify : [],
+      clinicalTerminologyAudit: Array.isArray(rawMasterRecord.clinicalTerminologyAudit) ? rawMasterRecord.clinicalTerminologyAudit : [],
       confidentialityFlags: Array.isArray(rawMasterRecord.confidentialityFlags) ? rawMasterRecord.confidentialityFlags : [],
       promotionalClaimsRequiringCaution: Array.isArray(rawMasterRecord.promotionalClaimsRequiringCaution) ? rawMasterRecord.promotionalClaimsRequiringCaution : [],
       ...rawMasterRecord,

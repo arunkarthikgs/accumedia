@@ -5,7 +5,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { ArrowLeft, CheckCircle2, Loader2, UserCircle } from "lucide-react";
 
-type UserRecord = { id: string; name: string; email: string; registrationNo?: string | null; specialty?: string | null; qualifications?: string | null; designation?: string | null; profilePhotoUrl?: string | null; organization?: { id: string; name: string } };
+type UserRecord = { id: string; name: string; email: string; isActive: boolean; registrationNo?: string | null; specialty?: string | null; qualifications?: string | null; designation?: string | null; profilePhotoUrl?: string | null; organization?: { id: string; name: string } };
 type SpecialtyOption = { name: string; category: string };
 
 export default function EditUserPage() {
@@ -15,7 +15,7 @@ export default function EditUserPage() {
   const organizationId = searchParams.get("organizationId") || "";
   const [user, setUser] = useState<UserRecord | null>(null);
   const [specialties, setSpecialties] = useState<SpecialtyOption[]>([]);
-  const [form, setForm] = useState({ name: "", email: "", password: "", registrationNo: "", specialty: "", qualifications: "", designation: "", profilePhotoUrl: "" });
+  const [form, setForm] = useState({ name: "", email: "", password: "", registrationNo: "", specialty: "", qualifications: "", designation: "", profilePhotoUrl: "", isActive: true });
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -27,13 +27,13 @@ export default function EditUserPage() {
         const found = (data.users || []).find((item: UserRecord) => item.id === params.id);
         if (!found) throw new Error("User not found in this organisation.");
         setUser(found);
-        setForm({ name: found.name, email: found.email, password: "", registrationNo: found.registrationNo || "", specialty: found.specialty || "", qualifications: found.qualifications || "", designation: found.designation || "", profilePhotoUrl: found.profilePhotoUrl || "" });
+        setForm({ name: found.name, email: found.email, password: "", registrationNo: found.registrationNo || "", specialty: found.specialty || "", qualifications: found.qualifications || "", designation: found.designation || "", profilePhotoUrl: found.profilePhotoUrl || "", isActive: found.isActive });
       })
       .catch((requestError: Error) => setError(requestError.message));
     fetch("/api/specialties", { credentials: "same-origin" }).then((response) => response.json()).then((data) => setSpecialties(data.specialties || [])).catch(() => undefined);
   }, [params.id, organizationId]);
 
-  const update = (field: keyof typeof form, value: string) => setForm((current) => ({ ...current, [field]: value }));
+  const update = (field: keyof typeof form, value: string | boolean) => setForm((current) => ({ ...current, [field]: value }));
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsSaving(true);
@@ -56,6 +56,7 @@ export default function EditUserPage() {
     {!user && !error && <div className="card p-8 text-center text-sm text-muted">Loading user profile...</div>}
     {user && <form onSubmit={submit} className="card space-y-5 p-6">
       <div className="rounded border border-line bg-paper px-3 py-2 text-xs text-muted">Organisation: <strong className="text-ink">{user.organization?.name || "Current organisation"}</strong></div>
+      <label className="flex items-center gap-2 text-xs font-semibold text-ink"><input type="checkbox" checked={form.isActive} onChange={(event) => update("isActive", event.target.checked as unknown as string)} /> Account active and permitted to sign in</label>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="User name" required value={form.name} onChange={(value) => update("name", value)} placeholder="Dr. A. Sharma" />
         <Field label="Email / User ID" required type="email" value={form.email} onChange={(value) => update("email", value)} placeholder="physician@hospital.org" />

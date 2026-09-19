@@ -40,6 +40,10 @@ export default function LoginPage() {
   const [userId, setUserId] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [forgotPassword, setForgotPassword] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetMessage, setResetMessage] = useState<string | null>(null);
+  const [isResetting, setIsResetting] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeVisual, setActiveVisual] = useState(0);
 
@@ -79,6 +83,33 @@ export default function LoginPage() {
     } finally {
       window.clearTimeout(timeout);
       if (!navigationStarted) setIsSubmitting(false);
+    }
+  };
+
+  const requestPasswordReset = async () => {
+    if (!resetEmail.trim()) {
+      setError("Enter your account email to request a password reset.");
+      return;
+    }
+    setIsResetting(true);
+    setError(null);
+    setResetMessage(null);
+    try {
+      const response = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: resetEmail }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setError(data.error || "Unable to request a password reset.");
+        return;
+      }
+      setResetMessage(data.message);
+    } catch {
+      setError("Unable to reach the password reset service.");
+    } finally {
+      setIsResetting(false);
     }
   };
 
@@ -212,7 +243,18 @@ export default function LoginPage() {
             <label className="block">
               <div className="mb-2 flex items-center justify-between">
                 <span className="text-xs font-semibold text-ink">Password</span>
-                <button type="button" className="text-xs font-semibold text-pine hover:text-pine-dark">Forgot password?</button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setResetEmail(userId.includes("@") ? userId : "");
+                    setForgotPassword((current) => !current);
+                    setResetMessage(null);
+                    setError(null);
+                  }}
+                  className="text-xs font-semibold text-pine hover:text-pine-dark"
+                >
+                  Forgot password?
+                </button>
               </div>
               <input
                 value={password}
@@ -224,6 +266,24 @@ export default function LoginPage() {
                 className="w-full rounded-lg border border-line bg-surface px-3.5 py-3 text-sm text-ink outline-none transition placeholder:text-muted/70 focus:border-pine focus:ring-4 focus:ring-pine-tint"
               />
             </label>
+            {forgotPassword && (
+              <div className="rounded-lg border border-line bg-pine-tint/40 p-4">
+                <p className="text-xs leading-5 text-muted">Enter your account email and we&apos;ll send a secure reset link.</p>
+                <input
+                  value={resetEmail}
+                  onChange={(event) => setResetEmail(event.target.value)}
+                  type="email"
+                  placeholder="you@hospital.org"
+                  autoComplete="email"
+                  required
+                  className="mt-3 w-full rounded-lg border border-line bg-surface px-3.5 py-3 text-sm text-ink outline-none transition placeholder:text-muted/70 focus:border-pine focus:ring-4 focus:ring-pine-tint"
+                />
+                <button type="button" onClick={() => void requestPasswordReset()} disabled={isResetting} className="mt-3 w-full rounded-lg border border-pine px-4 py-3 text-sm font-semibold text-pine transition hover:bg-pine hover:text-white disabled:opacity-50">
+                  {isResetting ? "Sending…" : "Send reset link"}
+                </button>
+                {resetMessage && <p role="status" className="mt-3 text-xs leading-5 text-pine">{resetMessage}</p>}
+              </div>
+            )}
             <button type="submit" disabled={isSubmitting} className="flex w-full items-center justify-center gap-2 rounded-lg bg-pine px-4 py-3 text-sm font-semibold text-white transition hover:bg-pine-dark disabled:opacity-50">
               {isSubmitting ? "Signing in…" : "Continue"}
               <ArrowRight className="h-4 w-4" />

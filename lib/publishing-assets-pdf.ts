@@ -238,7 +238,7 @@ export async function createPublishingAssetsPdf(input: PublishingAssetsPdfInput)
       if (!text) continue;
       const lines = wrapText(text, font, BODY_SIZE, CONTENT_WIDTH - 18);
       ensureSpace(lines.length * LINE_HEIGHT + 2);
-      page.drawText(String.fromCharCode(0x95), { x: MARGIN + 2, y: cursorY, size: 8, font, color: accent });
+      page.drawText("\u2022", { x: MARGIN + 2, y: cursorY, size: 8, font, color: accent });
       for (const line of lines) {
         ensureSpace(LINE_HEIGHT);
         page.drawText(line, { x: MARGIN + 16, y: cursorY, size: BODY_SIZE, font, color: INK });

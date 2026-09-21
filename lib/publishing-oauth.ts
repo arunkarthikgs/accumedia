@@ -39,8 +39,8 @@ export function getOAuthAuthorizationUrl(platform: OAuthPlatform, organizationId
   const stateInput: Omit<OAuthState, "nonce" | "exp"> = { platform, organizationId };
   const params = new URLSearchParams({ response_type: "code", client_id: clientId, redirect_uri: redirectUri, state: "" });
   if (platform === "linkedin") params.set("scope", "openid profile w_member_social");
-  if (platform === "facebook" || platform === "instagram") params.set("scope", "pages_show_list,pages_read_engagement,pages_manage_posts,instagram_basic,instagram_content_publish");
-  if (platform === "youtube") { params.set("scope", "https://www.googleapis.com/auth/youtube.upload"); params.set("access_type", "offline"); params.set("prompt", "consent"); }
+  if (platform === "facebook" || platform === "instagram") params.set("scope", "pages_show_list,pages_read_engagement,pages_manage_posts,instagram_basic,instagram_content_publish,instagram_manage_insights");
+  if (platform === "youtube") { params.set("scope", "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly"); params.set("access_type", "offline"); params.set("prompt", "consent"); }
   if (platform === "x") {
     const verifier = encode(crypto.randomBytes(32).toString("hex"));
     const challenge = crypto.createHash("sha256").update(verifier).digest("base64url");

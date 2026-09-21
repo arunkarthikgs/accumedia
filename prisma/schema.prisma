@@ -92,6 +92,7 @@ enum OutputType {
   FACEBOOK_POST
   X_POST
   YOUTUBE_REELS_METADATA
+  INSTAGRAM_REEL
   SEO_BLOG
 
   @@schema("macula")
@@ -135,6 +136,7 @@ model Organization {
   usageLogs          AIUsageLog[]
   publicationJobs    PublicationJob[]
   publicationConnections PublicationConnection[]
+  publicationStats   PublicationStat[]
   imageGenerationJobs ImageGenerationJob[]
   aiPromptTemplates  AiPromptTemplate[]
   auditLogs          AuditLog[]
@@ -468,6 +470,7 @@ model PublicationJob {
   case           Case             @relation(fields: [caseId], references: [id], onDelete: Cascade)
   assetId        String
   asset          GeneratedAsset   @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  stats          PublicationStat[]
 
   @@index([organizationId, status])
   @@index([organizationId, status, scheduledAt])
@@ -476,6 +479,34 @@ model PublicationJob {
   @@index([scheduledAt])
   @@schema("macula")
   @@map("publication_jobs")
+}
+
+// Time-series engagement snapshots pulled from each platform's API after a
+// job reaches PUBLISHED. One row per poll so trends can be plotted; the
+// latest row per job is the "current" stat.
+model PublicationStat {
+  id            String   @id @default(uuid())
+  platform      String
+  status        String   @default("OK") // "OK" | "UNSUPPORTED" | "ERROR"
+  impressions   Int?
+  likes         Int?
+  comments      Int?
+  shares        Int?
+  clicks        Int?
+  videoViews    Int?
+  errorMessage  String?  @db.Text
+  raw           Json?
+  fetchedAt     DateTime @default(now())
+
+  jobId          String
+  job            PublicationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  organizationId String
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([jobId, fetchedAt])
+  @@index([organizationId, fetchedAt])
+  @@schema("macula")
+  @@map("publication_stats")
 }
 
 model PublicationConnection {

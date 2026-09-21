@@ -117,3 +117,118 @@ async function parseJsonResponse(response: Response, provider: string) {
   if (!response.ok) throw new Error(`${provider} publishing failed (${response.status}): ${JSON.stringify(data).slice(0, 500)}`);
   return data as Record<string, any>;
 }
+
+export type PublicationStatResult = {
+  status: "OK" | "UNSUPPORTED" | "ERROR";
+  impressions?: number | null;
+  likes?: number | null;
+  comments?: number | null;
+  shares?: number | null;
+  clicks?: number | null;
+  videoViews?: number | null;
+  errorMessage?: string;
+  raw?: unknown;
+};
+
+function toNumber(value: unknown): number | null {
+  const num = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
+  return Number.isFinite(num) ? num : null;
+}
+
+function insightValue(insights: Array<{ name: string; values?: Array<{ value: unknown }> }> | undefined, name: string) {
+  const metric = insights?.find((entry) => entry.name === name);
+  return toNumber(metric?.values?.[0]?.value);
+}
+
+// Best-effort per-platform stats fetch. Every provider has its own API shape,
+// permission model, and support tier — failures are captured as a status
+// rather than thrown so one bad platform doesn't block the whole poll batch.
+export async function fetchConnectionStats(connection: PublicationConnectionData, externalId: string): Promise<PublicationStatResult> {
+  const platform = connection.platform.toLowerCase();
+  const accessToken = connection.accessTokenEncrypted ? decryptPublishingSecret(connection.accessTokenEncrypted) : "";
+
+  if (platform === "cms") {
+    return { status: "UNSUPPORTED", errorMessage: "CMS connector has no engagement stats to report." };
+  }
+  if (!accessToken) {
+    return { status: "ERROR", errorMessage: `${platform} access token is not configured.` };
+  }
+
+  try {
+    if (platform === "facebook") {
+      const response = await fetch(`https://graph.facebook.com/v20.0/${externalId}?fields=likes.summary(true),comments.summary(true),shares&access_token=${encodeURIComponent(accessToken)}`);
+      const data = await parseJsonResponse(response, "Facebook");
+      return {
+        status: "OK",
+        likes: toNumber(data.likes?.summary?.total_count),
+        comments: toNumber(data.comments?.summary?.total_count),
+        shares: toNumber(data.shares?.count),
+        raw: data,
+      };
+    }
+
+    if (platform === "instagram") {
+      const response = await fetch(`https://graph.facebook.com/v20.0/${externalId}/insights?metric=impressions,reach,likes,comments,saved,shares&access_token=${encodeURIComponent(accessToken)}`);
+      const data = await parseJsonResponse(response, "Instagram");
+      const insights = data.data as Array<{ name: string; values?: Array<{ value: unknown }> }> | undefined;
+      return {
+        status: "OK",
+        impressions: insightValue(insights, "impressions"),
+        likes: insightValue(insights, "likes"),
+        comments: insightValue(insights, "comments"),
+        shares: insightValue(insights, "shares"),
+        raw: data,
+      };
+    }
+
+    if (platform === "x") {
+      const response = await fetch(`https://api.x.com/2/tweets/${externalId}?tweet.fields=public_metrics`, { headers: { Authorization: `Bearer ${accessToken}` } });
+      const data = await parseJsonResponse(response, "X");
+      const metrics = data.data?.public_metrics as Record<string, unknown> | undefined;
+      return {
+        status: "OK",
+        impressions: toNumber(metrics?.impression_count),
+        likes: toNumber(metrics?.like_count),
+        comments: toNumber(metrics?.reply_count),
+        shares: toNumber(metrics?.retweet_count),
+        raw: data,
+      };
+    }
+
+    if (platform === "youtube") {
+      const response = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=statistics&id=${externalId}`, { headers: { Authorization: `Bearer ${accessToken}` } });
+      const data = await parseJsonResponse(response, "YouTube");
+      const statistics = data.items?.[0]?.statistics as Record<string, unknown> | undefined;
+      return {
+        status: "OK",
+        videoViews: toNumber(statistics?.viewCount),
+        likes: toNumber(statistics?.likeCount),
+        comments: toNumber(statistics?.commentCount),
+        raw: data,
+      };
+    }
+
+    if (platform === "linkedin") {
+      // Requires LinkedIn Marketing Developer Platform partner approval;
+      // without it this endpoint returns 403 and we report UNSUPPORTED.
+      const urn = externalId.startsWith("urn:") ? externalId : `urn:li:share:${externalId}`;
+      const response = await fetch(`https://api.linkedin.com/rest/socialActions/${encodeURIComponent(urn)}`, {
+        headers: { Authorization: `Bearer ${accessToken}`, "LinkedIn-Version": "202401", "X-Restli-Protocol-Version": "2.0.0" },
+      });
+      if (response.status === 403 || response.status === 404) {
+        return { status: "UNSUPPORTED", errorMessage: "LinkedIn engagement stats require Marketing Developer Platform partner access." };
+      }
+      const data = await parseJsonResponse(response, "LinkedIn");
+      return {
+        status: "OK",
+        likes: toNumber(data.likesSummary?.totalLikes),
+        comments: toNumber(data.commentsSummary?.totalFirstLevelComments),
+        raw: data,
+      };
+    }
+
+    return { status: "UNSUPPORTED", errorMessage: `No stats connector is registered for ${platform}.` };
+  } catch (error: any) {
+    return { status: "ERROR", errorMessage: (error?.message || "Failed to fetch stats.").slice(0, 500) };
+  }
+}

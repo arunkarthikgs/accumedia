@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { fetchJsonOnce } from "@/lib/client-fetch";
+import { clearJsonCache, fetchJsonOnce } from "@/lib/client-fetch";
 import { formatDate, formatDateTime } from "@/lib/date-format";
 import JSZip from "jszip";
 import {
@@ -322,14 +322,13 @@ export default function AdminCasesPage() {
         } catch {
           // Ignore unavailable browser storage.
         }
+        clearJsonCache("/api/admin/cases");
         setCases((prev) =>
           prev.map((c) => (c.id === caseId ? { ...c, ...json.case } : c)),
         );
         setRejectionModalCase(null);
         setRejectionInputReason("");
-        if (currentPage === 1) {
-          await loadCases();
-        } else {
+        if (currentPage !== 1) {
           setCurrentPage(1);
         }
       } else {
@@ -341,8 +340,11 @@ export default function AdminCasesPage() {
             (flagList ? ` (${flagList})` : ""),
         );
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to update status:", err);
+      setApproveError(
+        err.message || `${newStatus === "REJECTED" ? "Rejection" : "Approval"} failed.`,
+      );
     } finally {
       setIsSubmittingAction(false);
     }

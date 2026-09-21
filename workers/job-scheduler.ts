@@ -28,6 +28,7 @@ export default {
       await Promise.all([
         trigger(env, "/api/image-jobs/process"),
         trigger(env, "/api/admin/publishing/process"),
+        trigger(env, "/api/admin/publishing/stats"),
       ]);
     })());
   },

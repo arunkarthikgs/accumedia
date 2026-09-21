@@ -55,6 +55,16 @@ video: video_title, short_description, detailed_description, key_learning_points
 (3-5), keywords (5-10), hashtags (5-10), thumbnail_title, cta.
 Return JSON matching those fields exactly.`,
 
+  INSTAGRAM_REEL: `Create a concise Instagram Reel package based only on the approved clinical
+record below. Write for a general patient and family audience while keeping the
+clinical meaning accurate and avoiding promotional or guaranteed-outcome claims.
+Return JSON with exactly these fields: hook (one short opening line), on_screen_text
+(5-8 short sequential frames), voiceover_script (90-150 words), caption (80-150
+words), hashtags (5-10 relevant hashtags), and cta (one soft educational call to
+action). The voiceover must stand alone, use plain language, and fit a vertical
+short-form video. Do not include emojis, camera directions, or claims not supported
+by the approved clinical record.`,
+
   SEO_BLOG: `Write an SEO-oriented blog article of approximately 1,000-1,800 words based only on the
 approved clinical record below. First decide if this is patient-education or
 professional/clinical content. Include content_type with exactly one of
@@ -199,7 +209,7 @@ function safeJsonParse(raw: string) {
  * Falls back to the six required output types if the org hasn't configured
  * ChannelDefinitions yet, so no org ships with zero required outputs.
  */
-export async function runAdaptationEngine(caseId: string, loadedCase?: any) {
+export async function runAdaptationEngine(caseId: string, loadedCase?: any, options?: { channelKeys?: string[] }) {
   const kase = loadedCase || (await query<any>(`SELECT c.*, row_to_json(o) AS organization FROM macula.cases c JOIN macula.organizations o ON o.id = c."organizationId" WHERE c.id = $1 LIMIT 1`, [caseId])).rows[0];
   if (!kase) throw new Error("Case not found.");
 
@@ -219,7 +229,11 @@ export async function runAdaptationEngine(caseId: string, loadedCase?: any) {
 
   const existingAssets = existingAssetResult.rows;
   const existingChannelKeys = new Set(existingAssets.map((asset) => asset.channelKey));
-  const missingChannels = channels.filter((channel) => !existingChannelKeys.has(channel.channelKey));
+  let missingChannels = channels.filter((channel) => !existingChannelKeys.has(channel.channelKey));
+  if (options?.channelKeys) {
+    const requested = new Set(options.channelKeys);
+    missingChannels = missingChannels.filter((channel) => requested.has(channel.channelKey));
+  }
   if (missingChannels.length === 0) return [];
 
   const platformLimitResult = await query<{ maxCharacters: number | null }>(`SELECT "maxCharacters" FROM macula.platform_limits WHERE platform = 'x' LIMIT 1`);

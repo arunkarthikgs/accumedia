@@ -94,11 +94,11 @@ export default function RoleTaskMatrixPage() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Role-Task Permission Matrix</h1>
           <p className="text-sm text-slate-600">
-            Dynamically configure and audit which clinical roles are authorized to execute actions in the database.
+            Dynamically configure and audit which clinical roles are authorized to execute actions.
           </p>
         </div>
         <span className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1 bg-teal-50 text-teal-800 border border-teal-200 rounded-full">
-          <Shield className="w-3.5 h-3.5" /> Enforced in PostgreSQL
+          <Shield className="w-3.5 h-3.5" /> Access controls enforced
         </span>
       </div>
 

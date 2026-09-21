@@ -5,7 +5,7 @@ import { query } from "@/lib/worker-db";
 export async function GET(_req: Request, props: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await props.params;
-    const { rows } = await query<any>(`SELECT c.id, c.title, c.status, c.raw_input AS "rawInput", c."guidedSubmission" AS "guidedSubmission", c."masterRecord" AS "masterRecord", c."safetyAudit" AS "safetyAudit",
+    const { rows } = await query<any>(`/* review-${Date.now()} */ SELECT c.id, c.title, c.status, c.raw_input AS "rawInput", c."guidedSubmission" AS "guidedSubmission", c."masterRecord" AS "masterRecord", c."safetyAudit" AS "safetyAudit",
       json_build_object('id', u.id, 'name', u.name, 'specialty', u.specialty) AS physician,
       json_build_object('name', o.name, 'id', o.id, 'logoUrl', o."logoUrl", 'brandingHex', o."brandingHex") AS organization,
       COALESCE((SELECT json_agg(json_build_object('id', ar.id, 'rawTranscript', ar."rawTranscript", 'transcribedText', ar."transcribedText", 'transcriptionAgent', ar."transcriptionAgent", 'fileName', ar."fileName", 'durationSeconds', ar."durationSeconds")) FROM macula.audio_recordings ar WHERE ar."caseId" = c.id), '[]') AS recordings,
@@ -15,8 +15,15 @@ export async function GET(_req: Request, props: { params: Promise<{ id: string }
       FROM macula.cases c JOIN macula.users u ON u.id = c."physicianId" JOIN macula.organizations o ON o.id = c."organizationId" WHERE c.id = $1 LIMIT 1`, [id]);
     const kase = rows[0];
     if (!kase) return NextResponse.json({ error: "Case not found." }, { status: 404 });
+    const currentStatus = (await query<{ status: string }>(
+      `SELECT status FROM macula.cases WHERE id = $1 FOR UPDATE`,
+      [id],
+    )).rows[0]?.status;
+    if (currentStatus) kase.status = currentStatus;
     await requireOrganizationAccess(kase.organization.id);
-    return NextResponse.json({ case: kase });
+    return NextResponse.json({ case: kase }, {
+      headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
+    });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || "Unable to load case review." }, { status: 500 });
   }

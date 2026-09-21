@@ -52,6 +52,11 @@ function allPatterns(rules: DatabaseRedactionRule[] = []): ParsedRedactionRule[]
 
 type RedactionMatch = ParsedRedactionRule & { start: number; end: number };
 
+function isGenericAdmissionContext(value: string): boolean {
+  return /\badmitted\s+for\b/i.test(value) ||
+    /\badmitted\s+(?:to|in)\s+(?:the\s+)?(?:inpatient|step[- ]down|telemetry|medical|surgical|general\s+(?:surgery|medicine)|observation|emergency|intensive\s+care|icu|ward|unit|service|clinic)\b/i.test(value);
+}
+
 function collectMatches(value: string, rules: DatabaseRedactionRule[] = []): RedactionMatch[] {
   const matches: RedactionMatch[] = [];
   for (const rule of allPatterns(rules)) {
@@ -59,6 +64,10 @@ function collectMatches(value: string, rules: DatabaseRedactionRule[] = []): Red
     const pattern = new RegExp(rule.pattern.source, flags);
     for (const match of value.matchAll(pattern)) {
       const start = match.index ?? 0;
+      const contextStart = value.lastIndexOf(".", start) + 1;
+      const contextEnd = value.indexOf(".", start + match[0].length);
+      const context = value.slice(contextStart, contextEnd === -1 ? value.length : contextEnd);
+      if (isGenericAdmissionContext(context)) continue;
       matches.push({ ...rule, start, end: start + match[0].length });
     }
   }
@@ -90,6 +99,34 @@ export function redactClinicalValue<T>(value: T, rules?: DatabaseRedactionRule[]
   if (value && typeof value === "object") {
     return Object.fromEntries(
       Object.entries(value).map(([key, item]) => [key, redactClinicalValue(item, rules)])
+    ) as T;
+  }
+  return value;
+}
+
+function admissionSentences(sourceText: string): string[] {
+  return sourceText.match(/[^.!?\n]*(?:\bwas|\bwere|\bis|\bare)\s+admitted\b[^.!?\n]*[.!?]?/gi) || [];
+}
+
+/** Restore generic clinical admission sentences if the model invents a PHI marker. */
+export function restoreGenericAdmissionRedactions<T>(value: T, sourceText: string): T {
+  const sourceSentences = admissionSentences(sourceText);
+  if (sourceSentences.length === 0) return value;
+  if (typeof value === "string") {
+    let repaired: string = value;
+    for (const sourceSentence of sourceSentences) {
+      const generatedSentencePattern = new RegExp(
+        `[^.!?\\n]*\\[REDACTED_[A-Z0-9_]+\\][^.!?\\n]*[.!?]?`,
+        "gi",
+      );
+      repaired = repaired.replace(generatedSentencePattern, sourceSentence.trim());
+    }
+    return repaired as T;
+  }
+  if (Array.isArray(value)) return value.map((item) => restoreGenericAdmissionRedactions(item, sourceText)) as T;
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, restoreGenericAdmissionRedactions(item, sourceText)])
     ) as T;
   }
   return value;

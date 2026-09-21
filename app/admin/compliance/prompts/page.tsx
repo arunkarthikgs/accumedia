@@ -227,7 +227,7 @@ export default function CompliancePromptsAdminPage() {
 
       setStatusMessage({
         type: "success",
-        text: "Changes saved and published to PostgreSQL live database.",
+        text: "Changes saved and published successfully.",
       });
       const refreshed = await fetch(`/api/compliance/prompts?orgId=${selectedOrgId}`);
       const refreshedJson = await refreshed.json();

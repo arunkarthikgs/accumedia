@@ -21,7 +21,19 @@ export async function GET(
     const asset = (await query<any>(`SELECT ga.id, ga."status", ga."caseId", c."organizationId", c.status AS case_status FROM macula.generated_assets ga JOIN macula.cases c ON c.id=ga."caseId" WHERE ga.id=$1 LIMIT 1`, [assetId])).rows[0];
     if (!asset) return NextResponse.json({ error: "Asset not found." }, { status: 404 });
     await requireOrganizationAccess(asset.organizationId);
-    const { rows: jobs } = await query(`SELECT * FROM macula.publication_jobs WHERE "assetId"=$1 ORDER BY "createdAt" DESC`, [assetId]);
+    const { rows: jobs } = await query(
+      `SELECT pj.*, (
+         SELECT row_to_json(latest) FROM (
+           SELECT id, status, impressions, likes, comments, shares, clicks, "videoViews", "errorMessage", "fetchedAt"
+           FROM macula.publication_stats ps
+           WHERE ps."jobId" = pj.id
+           ORDER BY ps."fetchedAt" DESC
+           LIMIT 1
+         ) latest
+       ) AS "latestStat"
+       FROM macula.publication_jobs pj WHERE pj."assetId"=$1 ORDER BY pj."createdAt" DESC`,
+      [assetId],
+    );
     return NextResponse.json({ jobs });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || "Failed to load publication jobs." }, { status: 500 });

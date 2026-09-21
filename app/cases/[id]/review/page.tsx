@@ -278,6 +278,7 @@ export default function CaseReviewPage() {
   const [auditCursor, setAuditCursor] = useState<string | null>(null);
   const [isLoadingEarlierAuditEvents, setIsLoadingEarlierAuditEvents] =
     useState(false);
+  const [showApprovalNextStep, setShowApprovalNextStep] = useState(false);
   const [activeReviewSection, setActiveReviewSection] = useState<
     "clinical" | "record" | "history" | "assets"
   >("clinical");
@@ -288,7 +289,8 @@ export default function CaseReviewPage() {
     async function loadCase() {
       try {
         const data = await fetchJsonOnce<{ case: ReviewCase }>(
-          `/api/cases/${params.id}/review`,
+          `/api/cases/${params.id}/review?reviewRefresh=${Date.now()}`,
+          { cache: "no-store" },
         );
         const found = data.case as ReviewCase | undefined;
         if (!found) throw new Error("Case not found.");
@@ -438,7 +440,10 @@ export default function CaseReviewPage() {
         // Ignore unavailable browser storage.
       }
       clearJsonCache("/api/admin/cases");
-      router.replace(`/admin/cases?refresh=${Date.now()}`);
+      setReviewCase((current) =>
+        current ? { ...current, status: "APPROVED" } : current,
+      );
+      setShowApprovalNextStep(true);
     } catch (actionError: any) {
       setError(actionError.message || "Approval failed.");
     } finally {
@@ -567,22 +572,24 @@ export default function CaseReviewPage() {
             >
               <XCircle className="h-3.5 w-3.5" /> Reject
             </button>
-            <button
-              disabled={
-                isActing ||
-                openFlags.length > 0 ||
-                reviewCase.status === "APPROVED"
-              }
-              onClick={approveCase}
-              className="flex items-center gap-1.5 rounded-lg bg-pine px-3 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {isActing ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <CheckCircle2 className="h-3.5 w-3.5" />
-              )}
-              {reviewCase.status === "APPROVED" ? "Approved" : "Approve case"}
-            </button>
+            {reviewCase.status === "APPROVED" ? (
+              <span className="flex items-center gap-1.5 rounded-lg bg-sage-tint px-3 py-2 text-xs font-semibold text-sage" role="status">
+                <CheckCircle2 className="h-3.5 w-3.5" /> Approved
+              </span>
+            ) : (
+              <button
+                disabled={isActing || openFlags.length > 0}
+                onClick={approveCase}
+                className="flex items-center gap-1.5 rounded-lg bg-pine px-3 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isActing ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                )}
+                Approve case
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -590,6 +597,44 @@ export default function CaseReviewPage() {
       {error && (
         <div className="rounded-lg border border-brick/30 bg-brick-tint p-3 text-sm text-brick">
           {error}
+        </div>
+      )}
+      {showApprovalNextStep && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="approval-next-step-title"
+        >
+          <section className="w-full max-w-md rounded-lg border border-line bg-surface p-6 shadow-xl">
+            <div className="flex items-start gap-3">
+              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-sage" />
+              <div>
+                <h2 id="approval-next-step-title" className="text-base font-bold text-ink">
+                  Case approved
+                </h2>
+                <p className="mt-1 text-sm leading-relaxed text-muted">
+                  The clinical record is approved. Generate publishing assets now or return to Case Management.
+                </p>
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => router.push("/admin/cases")}
+                className="rounded border border-line px-3 py-2 text-xs font-semibold text-ink hover:border-pine"
+              >
+                Back to Case Management
+              </button>
+              <button
+                type="button"
+                onClick={() => router.push(`/cases/${reviewCase.id}/assets`)}
+                className="rounded bg-pine px-3 py-2 text-xs font-semibold text-white hover:bg-pine-dark"
+              >
+                Generate assets now
+              </button>
+            </div>
+          </section>
         </div>
       )}
       {openFlags.length > 0 && (

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { formatDateTime } from "@/lib/date-format";
 import { useEffect, useState } from "react";
+import PublicationStatsModal from "@/components/PublicationStatsModal";
 import {
   ArrowLeft,
   CalendarClock,
@@ -13,6 +14,18 @@ import {
   Send,
   XCircle,
 } from "lucide-react";
+
+type LatestStat = {
+  status: "OK" | "UNSUPPORTED" | "ERROR";
+  impressions: number | null;
+  likes: number | null;
+  comments: number | null;
+  shares: number | null;
+  clicks: number | null;
+  videoViews: number | null;
+  errorMessage: string | null;
+  fetchedAt: string;
+} | null;
 
 type Job = {
   id: string;
@@ -25,6 +38,7 @@ type Job = {
   createdAt: string;
   case: { id: string; title: string };
   asset: { id: string; channelName: string; status: string };
+  latestStat?: LatestStat;
 };
 
 const STATUS_STYLES: Record<string, string> = {
@@ -52,6 +66,7 @@ export default function PublishingPage() {
   const [connectionMessage, setConnectionMessage] = useState<string | null>(
     null,
   );
+  const [statsJob, setStatsJob] = useState<{ id: string; platform: string } | null>(null);
 
   useEffect(() => {
     async function loadOrganization() {
@@ -354,6 +369,7 @@ export default function PublishingPage() {
                   <th className="px-5 py-3">Status</th>
                   <th className="px-5 py-3">Schedule</th>
                   <th className="px-5 py-3">Attempts</th>
+                  <th className="px-5 py-3">Stats</th>
                   <th className="px-5 py-3">Actions</th>
                 </tr>
               </thead>
@@ -391,6 +407,42 @@ export default function PublishingPage() {
                     <td className="px-5 py-4 text-muted">
                       {job.attemptCount ?? 0}
                     </td>
+                    <td className="px-5 py-4 text-muted">
+                      {job.status !== "PUBLISHED" ? (
+                        "—"
+                      ) : !job.latestStat ? (
+                        "Pending"
+                      ) : (
+                        <button
+                          onClick={() => setStatsJob({ id: job.id, platform: job.platform })}
+                          className="font-semibold text-pine hover:underline"
+                        >
+                          {job.latestStat.status === "OK" ? (
+                            <span className="flex flex-wrap gap-x-2 gap-y-1">
+                              {job.latestStat.impressions != null && (
+                                <span>{job.latestStat.impressions.toLocaleString()} views</span>
+                              )}
+                              {job.latestStat.videoViews != null && (
+                                <span>{job.latestStat.videoViews.toLocaleString()} views</span>
+                              )}
+                              {job.latestStat.likes != null && (
+                                <span>{job.latestStat.likes.toLocaleString()} likes</span>
+                              )}
+                              {job.latestStat.comments != null && (
+                                <span>{job.latestStat.comments.toLocaleString()} comments</span>
+                              )}
+                              {job.latestStat.shares != null && (
+                                <span>{job.latestStat.shares.toLocaleString()} shares</span>
+                              )}
+                            </span>
+                          ) : (
+                            <span title={job.latestStat.errorMessage || ""} className="text-brick">
+                              {job.latestStat.status === "UNSUPPORTED" ? "Not supported" : "Fetch failed"}
+                            </span>
+                          )}
+                        </button>
+                      )}
+                    </td>
                     <td className="px-5 py-4">
                       {job.status === "FAILED" && (
                         <button
@@ -413,7 +465,7 @@ export default function PublishingPage() {
                 ))}
                 {jobs.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-5 py-12">
+                    <td colSpan={8} className="px-5 py-12">
                       <div className="mx-auto max-w-md text-center">
                         <p className="font-semibold text-ink">
                           No publishing jobs yet
@@ -438,6 +490,13 @@ export default function PublishingPage() {
           </div>
         )}
       </section>
+      {statsJob && (
+        <PublicationStatsModal
+          jobId={statsJob.id}
+          platform={statsJob.platform}
+          onClose={() => setStatsJob(null)}
+        />
+      )}
     </main>
   );
 }

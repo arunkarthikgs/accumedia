@@ -25,6 +25,7 @@ const DEFAULT_CHANNELS: Array<{
     | "FACEBOOK_POST"
     | "X_POST"
     | "YOUTUBE_REELS_METADATA"
+    | "INSTAGRAM_REEL"
     | "SEO_BLOG";
   targetAudience: string;
   durationLabel?: string;
@@ -39,6 +40,7 @@ const DEFAULT_CHANNELS: Array<{
   { channelKey: "FACEBOOK_POST", displayName: "Facebook Post", outputType: "FACEBOOK_POST", targetAudience: "Patients & families" },
   { channelKey: "X_POST", displayName: "X / Twitter", outputType: "X_POST", targetAudience: "Mixed" },
   { channelKey: "YOUTUBE_REELS", displayName: "YouTube / Reels Metadata", outputType: "YOUTUBE_REELS_METADATA", targetAudience: "Mixed" },
+  { channelKey: "INSTAGRAM_REEL", displayName: "Instagram Reel", outputType: "INSTAGRAM_REEL", targetAudience: "Mixed" },
   { channelKey: "SEO_BLOG", displayName: "SEO Blog Article", outputType: "SEO_BLOG", targetAudience: "Mixed" },
 ];
 

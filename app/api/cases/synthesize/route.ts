@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { MANDATORY_CLINICAL_SYNTHESIS_PROMPT } from "@/lib/prompts/clinical-synthesis";
 import { createOpenAIChatCompletion } from "@/lib/openai-fetch";
 import { getResolvedAiPrompts } from "@/lib/ai-prompts";
-import { findUnredactedRuleMatches, redactClinicalText, redactClinicalValue } from "@/lib/prompts/clinical-redaction";
+import { findUnredactedRuleMatches, redactClinicalText, redactClinicalValue, restoreGenericAdmissionRedactions } from "@/lib/prompts/clinical-redaction";
 import { logAIUsage } from "@/lib/ai-usage";
 import { requireAuthenticatedUser, requireOrganizationAccess } from "@/lib/tenant-auth";
 import { assertTokenQuota } from "@/lib/quotas";
@@ -82,7 +82,10 @@ export async function POST(req: Request) {
 
     // 2. Synthesize Master Clinical Record & Redacted PHI Audit via GPT-4o
     const redactionRules = (await query<{ patternOrCheck: string; description: string }>(`SELECT "patternOrCheck", description FROM macula.compliance_rules WHERE "ruleType"='DPDP_REDACTION' AND "isActive"=TRUE AND ("organizationId" IS NULL OR "organizationId"=$1)`, [organizationId])).rows;
-    const sanitizedInput = redactClinicalText(rawText.trim(), redactionRules);
+    const sanitizedInput = restoreGenericAdmissionRedactions(
+      redactClinicalText(rawText.trim(), redactionRules),
+      rawText,
+    );
     const unresolvedRules = findUnredactedRuleMatches(sanitizedInput, redactionRules);
     if (unresolvedRules.length > 0) {
       if (caseId) {
@@ -193,7 +196,10 @@ Return ONLY a valid JSON object matching this exact schema:
       synthesisResponse.choices[0]?.message?.content || "{}"
     );
 
-    const sanitizedOutput = redactClinicalValue(parsedOutput, redactionRules);
+    const sanitizedOutput = redactClinicalValue(
+      restoreGenericAdmissionRedactions(parsedOutput, rawText),
+      redactionRules,
+    );
     const generatedTitle = sanitizedOutput.caseTitle || "Clinical Case Record";
     const rawMasterRecord = sanitizedOutput.masterRecord || {};
     const masterRecord = {

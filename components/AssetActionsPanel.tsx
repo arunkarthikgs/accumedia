@@ -58,6 +58,8 @@ function defaultPlatform(asset: AssetActionsPanelProps["asset"]) {
     asset.channelKey === "YOUTUBE_REELS"
   )
     return "youtube";
+  if (asset.outputType === "INSTAGRAM_REEL" || asset.channelKey === "INSTAGRAM_REEL")
+    return "instagram";
   if (asset.outputType === "SEO_BLOG" || asset.channelKey === "SEO_BLOG")
     return "cms";
   return "linkedin";

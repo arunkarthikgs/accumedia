@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import ArrowLeft from "lucide-react/dist/esm/icons/arrow-left";
 import FileText from "lucide-react/dist/esm/icons/file-text";
 import ImageIcon from "lucide-react/dist/esm/icons/image";
@@ -29,14 +29,50 @@ type Asset = {
 
 export default function PublishingContentTabs({ caseId, assets, mccrApproved }: { caseId: string; assets: Asset[]; mccrApproved: boolean }) {
   const [activeTab, setActiveTab] = useState<"assets" | "images">("assets");
+  const [currentAssets, setCurrentAssets] = useState(assets);
+
+  useEffect(() => {
+    setCurrentAssets(assets);
+    const handleGeneratedAssets = (event: Event) => {
+      const generatedAssets = (event as CustomEvent<Asset[]>).detail;
+      if (!Array.isArray(generatedAssets) || generatedAssets.length === 0) return;
+      setCurrentAssets((current) => {
+        const byId = new Map(current.map((asset) => [asset.id, asset]));
+        generatedAssets.forEach((asset) => byId.set(asset.id, asset));
+        return Array.from(byId.values());
+      });
+    };
+    window.addEventListener("publishing-assets-generated", handleGeneratedAssets);
+    let cancelled = false;
+    const refreshAssets = async () => {
+      for (let attempt = 0; attempt < 4 && !cancelled; attempt += 1) {
+        try {
+          const response = await fetch(`/api/cases/${caseId}/review?assetsRefresh=${Date.now()}`, { cache: "no-store" });
+          if (response.ok) {
+            const data = await response.json();
+            const freshAssets = Array.isArray(data.case?.assets) ? data.case.assets as Asset[] : null;
+            if (freshAssets) setCurrentAssets(freshAssets);
+          }
+        } catch {
+          // Keep the server-rendered list if a refresh attempt fails.
+        }
+        if (attempt < 3) await new Promise((resolve) => window.setTimeout(resolve, 750));
+      }
+    };
+    refreshAssets();
+    return () => {
+      cancelled = true;
+      window.removeEventListener("publishing-assets-generated", handleGeneratedAssets);
+    };
+  }, [caseId, assets]);
 
   return <section>
     <div className="flex gap-1 border-b border-line" role="tablist" aria-label="Publishing content">
-      <button type="button" role="tab" aria-selected={activeTab === "assets"} onClick={() => setActiveTab("assets")} className={`flex items-center gap-2 border-b-2 px-4 py-3 text-xs font-semibold transition ${activeTab === "assets" ? "border-pine text-pine-dark" : "border-transparent text-muted hover:text-ink"}`}><FileText className="h-4 w-4" /> Publishing assets <span className="rounded bg-paper px-1.5 py-0.5 text-[10px] text-muted">{assets.length}</span></button>
+      <button type="button" role="tab" aria-selected={activeTab === "assets"} onClick={() => setActiveTab("assets")} className={`flex items-center gap-2 border-b-2 px-4 py-3 text-xs font-semibold transition ${activeTab === "assets" ? "border-pine text-pine-dark" : "border-transparent text-muted hover:text-ink"}`}><FileText className="h-4 w-4" /> Publishing assets <span className="rounded bg-paper px-1.5 py-0.5 text-[10px] text-muted">{currentAssets.length}</span></button>
       <button type="button" role="tab" aria-selected={activeTab === "images"} onClick={() => setActiveTab("images")} className={`flex items-center gap-2 border-b-2 px-4 py-3 text-xs font-semibold transition ${activeTab === "images" ? "border-pine text-pine-dark" : "border-transparent text-muted hover:text-ink"}`}><ImageIcon className="h-4 w-4" /> Images</button>
     </div>
     <div className="pt-5">
-      {activeTab === "assets" ? assets.length > 0 ? <PublishingAssetWorkspace caseId={caseId} assets={assets} caseApproved={mccrApproved} /> : <div className="rounded-lg border border-dashed border-line bg-surface p-12 text-center"><FileText className="mx-auto h-9 w-9 text-muted" strokeWidth={1.5} /><p className="mt-3 text-sm font-medium text-ink">No publishing assets compiled yet</p><p className="mt-1 text-xs text-muted">Approve the clinical record, then generate assets from this studio.</p><Link href={`/cases/${caseId}/review`} className="mt-4 inline-flex items-center gap-1.5 rounded border border-line bg-surface px-3 py-2 text-xs font-semibold text-ink hover:border-pine hover:text-pine"><ArrowLeft className="h-3.5 w-3.5" /> Back to audit review</Link></div> : <ImagesPanel caseId={caseId} mccrApproved={mccrApproved} />}
+      {activeTab === "assets" ? currentAssets.length > 0 ? <PublishingAssetWorkspace caseId={caseId} assets={currentAssets} caseApproved={mccrApproved} /> : <div className="rounded-lg border border-dashed border-line bg-surface p-12 text-center"><FileText className="mx-auto h-9 w-9 text-muted" strokeWidth={1.5} /><p className="mt-3 text-sm font-medium text-ink">No publishing assets compiled yet</p><p className="mt-1 text-xs text-muted">Approve the clinical record, then generate assets from this studio.</p><Link href={`/cases/${caseId}/review`} className="mt-4 inline-flex items-center gap-1.5 rounded border border-line bg-surface px-3 py-2 text-xs font-semibold text-ink hover:border-pine hover:text-pine"><ArrowLeft className="h-3.5 w-3.5" /> Back to audit review</Link></div> : <ImagesPanel caseId={caseId} mccrApproved={mccrApproved} />}
     </div>
   </section>;
 }

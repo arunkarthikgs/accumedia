@@ -33,13 +33,16 @@ export async function GET(req: Request) {
     }
     const caseIds = jobRows.map((job) => job.caseId).filter(Boolean);
     const assetIds = jobRows.map((job) => job.assetId).filter(Boolean);
-    const [{ rows: cases }, { rows: assets }] = await Promise.all([
+    const jobIds = jobRows.map((job) => job.id);
+    const [{ rows: cases }, { rows: assets }, { rows: stats }] = await Promise.all([
       caseIds.length ? query<{ id: string; title: string }>(`SELECT id, title FROM macula.cases WHERE id = ANY($1::text[])`, [caseIds]) : Promise.resolve({ rows: [] }),
       assetIds.length ? query<{ id: string; channelName: string; status: string }>(`SELECT id, "channelName", status FROM macula.generated_assets WHERE id = ANY($1::text[])`, [assetIds]) : Promise.resolve({ rows: [] }),
+      jobIds.length ? query<any>(`SELECT DISTINCT ON ("jobId") "jobId", status, impressions, likes, comments, shares, clicks, "videoViews", "errorMessage", "fetchedAt" FROM macula.publication_stats WHERE "jobId" = ANY($1::text[]) ORDER BY "jobId", "fetchedAt" DESC`, [jobIds]) : Promise.resolve({ rows: [] }),
     ]);
     const caseById = new Map(cases.map((item) => [item.id, item]));
     const assetById = new Map(assets.map((item) => [item.id, item]));
-    const jobs = jobRows.map((job) => ({ ...job, case: caseById.get(job.caseId) || { id: job.caseId, title: "Unknown case" }, asset: assetById.get(job.assetId) || { id: job.assetId, channelName: "Unknown asset", status: "UNKNOWN" } }));
+    const statByJobId = new Map(stats.map((item) => [item.jobId, item]));
+    const jobs = jobRows.map((job) => ({ ...job, case: caseById.get(job.caseId) || { id: job.caseId, title: "Unknown case" }, asset: assetById.get(job.assetId) || { id: job.assetId, channelName: "Unknown asset", status: "UNKNOWN" }, latestStat: statByJobId.get(job.id) || null }));
     return NextResponse.json({ jobs }, { headers: { "Cache-Control": "no-store" } });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || "Failed to load publishing jobs." }, { status: 500 });

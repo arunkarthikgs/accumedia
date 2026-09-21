@@ -302,6 +302,7 @@ export default function CaseWorkflowStudio() {
               { key: "LINKEDIN_SHORT", label: "LinkedIn Carousel" },
               { key: "FACEBOOK", label: "Facebook Patient Post" },
               { key: "X_TWITTER", label: "X / Twitter Thread" },
+              { key: "INSTAGRAM_REEL", label: "Instagram Reel" },
               { key: "BLOG_SEO", label: "SEO Blog Post" },
             ].map((tab) => (
               <button

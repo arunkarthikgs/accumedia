@@ -12,14 +12,14 @@ export async function POST(_req: Request, props: { params: Promise<{ id: string;
     const asset = (await query<any>(`SELECT ga.id, ga.content, ga.status, ga."outputType", ga."videoStatus", EXTRACT(EPOCH FROM (NOW() - ga."updatedAt")) AS "renderAgeSeconds", c.id AS case_id, c.title, c."organizationId", o."brandingHex", o."defaultDisclaimer", o."logoUrl" FROM macula.generated_assets ga JOIN macula.cases c ON c.id = ga."caseId" JOIN macula.organizations o ON o.id = c."organizationId" WHERE ga.id = $1 LIMIT 1`, [assetId])).rows[0];
     if (!asset || asset.case_id !== id) return NextResponse.json({ error: "Asset not found." }, { status: 404 });
     await requireOrganizationAccess(asset.organizationId);
-    if (asset.status !== "APPROVED") return NextResponse.json({ error: "Approve the video script asset before rendering." }, { status: 409 });
-    if (asset.outputType !== "VIDEO_SCRIPT") return NextResponse.json({ error: "Only video script assets can be rendered." }, { status: 400 });
+    if (asset.status !== "APPROVED") return NextResponse.json({ error: "Approve the asset before rendering." }, { status: 409 });
+    if (!["VIDEO_SCRIPT", "INSTAGRAM_REEL"].includes(asset.outputType)) return NextResponse.json({ error: "Only video and Instagram Reel assets can be rendered." }, { status: 400 });
     const renderAgeSeconds = Number(asset.renderAgeSeconds);
     const activeRender = ["QUEUED", "PROCESSING"].includes(asset.videoStatus) &&
       renderAgeSeconds >= 0 && renderAgeSeconds < 15 * 60;
     if (activeRender) return NextResponse.json({ status: asset.videoStatus });
     const content = asset.content as Record<string, unknown>;
-    const script = typeof content.script === "string" ? content.script : typeof content.draft_text === "string" ? content.draft_text : String(content.raw_text || "");
+    const script = typeof content.script === "string" ? content.script : typeof content.voiceover_script === "string" ? content.voiceover_script : typeof content.draft_text === "string" ? content.draft_text : String(content.raw_text || "");
     if (!script.trim()) return NextResponse.json({ error: "The video script is empty." }, { status: 400 });
     const job = await submitVideoRenderJob({ caseId: id, assetId, organizationId: asset.organizationId, script, title: asset.title, accent: normalizeBrandColor(asset.brandingHex), disclaimer: asset.defaultDisclaimer, logoUrl: asset.logoUrl }, new URL(_req.url).origin);
     await query(`UPDATE macula.generated_assets SET "videoStatus" = 'PROCESSING', "updatedAt" = NOW() WHERE id = $1`, [assetId]);

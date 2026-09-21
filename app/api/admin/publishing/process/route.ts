@@ -46,8 +46,14 @@ export async function POST(req: Request) {
       try {
         const assetContent = job.asset.content as Record<string, unknown>;
         const matchingImage = job.case.images.find((image) => image.publicUseApproved && image.phiReviewStatus === "CLEAR" && image.storageUrl);
-        const mediaUrl = typeof assetContent.videoUrl === "string" ? assetContent.videoUrl : matchingImage?.storageUrl;
-        const published = await publishToConnection(connection, { title: job.case.title, text: contentToText(assetContent), asset: assetContent, mediaUrl });
+        const publicVideoUrl = job.asset.videoR2Key && process.env.R2_PUBLIC_URL
+          ? `${process.env.R2_PUBLIC_URL.replace(/\/+$/, "")}/${job.asset.videoR2Key}`
+          : null;
+        const isReel = job.asset.outputType === "INSTAGRAM_REEL";
+        const mediaUrl = isReel
+          ? (typeof assetContent.videoUrl === "string" ? assetContent.videoUrl : publicVideoUrl)
+          : (typeof assetContent.videoUrl === "string" ? assetContent.videoUrl : publicVideoUrl || matchingImage?.storageUrl);
+        const published = await publishToConnection(connection, { title: job.case.title, text: contentToText(assetContent), asset: { ...assetContent, outputType: job.asset.outputType, videoDurationSeconds: job.asset.videoDurationSeconds }, mediaUrl });
         await query(`UPDATE macula.publication_jobs SET status='PUBLISHED', "publishedAt"=$1, "externalId"=$2, "failureReason"=NULL, "nextAttemptAt"=NULL, "updatedAt"=NOW() WHERE id=$3`, [new Date(), published.externalId, job.id]);
         await query(`UPDATE macula.generated_assets SET status='PUBLISHED', "updatedAt"=NOW() WHERE id=$1`, [job.assetId]);
         results.push({ id: job.id, status: "PUBLISHED", externalId: published.externalId });

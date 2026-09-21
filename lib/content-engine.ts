@@ -209,7 +209,11 @@ function safeJsonParse(raw: string) {
  * Falls back to the six required output types if the org hasn't configured
  * ChannelDefinitions yet, so no org ships with zero required outputs.
  */
-export async function runAdaptationEngine(caseId: string, loadedCase?: any, options?: { channelKeys?: string[] }) {
+export async function runAdaptationEngine(
+  caseId: string,
+  loadedCase?: any,
+  options?: { channelKeys?: string[]; onProgress?: (completed: number, total: number, channelKey: string) => void }
+) {
   const kase = loadedCase || (await query<any>(`SELECT c.*, row_to_json(o) AS organization FROM macula.cases c JOIN macula.organizations o ON o.id = c."organizationId" WHERE c.id = $1 LIMIT 1`, [caseId])).rows[0];
   if (!kase) throw new Error("Case not found.");
 
@@ -248,8 +252,10 @@ export async function runAdaptationEngine(caseId: string, loadedCase?: any, opti
   );
   await assertPublishingGenerationQuota(kase.organizationId, missingChannels.length, estimatedTokens);
 
-  return await mapWithConcurrency(missingChannels, 3, (channel) =>
-    generateChannelAsset({
+  const total = missingChannels.length;
+  let completed = 0;
+  return await mapWithConcurrency(missingChannels, 3, async (channel) => {
+    const asset = await generateChannelAsset({
       caseId,
       masterRecord: kase.masterRecord as Record<string, any>,
       organization: kase.organization,
@@ -257,8 +263,11 @@ export async function runAdaptationEngine(caseId: string, loadedCase?: any, opti
       skipAssetQuota: true,
       skipTokenQuota: true,
       generationContext,
-    })
-  );
+    });
+    completed += 1;
+    options?.onProgress?.(completed, total, channel.channelKey);
+    return asset;
+  });
     } finally {
       await client.query(`SELECT pg_advisory_unlock(hashtextextended($1, 0))`, [`publishing-assets:${caseId}`]).catch(() => undefined);
     }

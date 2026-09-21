@@ -83,7 +83,18 @@ export async function publishToConnection(connection: PublicationConnectionData,
 
   if (platform === "instagram") {
     if (!connection.externalAccountId || !payload.mediaUrl) throw new Error("Instagram publishing requires an approved image or video media URL and business account.");
-    const container = await parseJsonResponse(await fetch(`https://graph.facebook.com/v20.0/${connection.externalAccountId}/media`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ image_url: payload.mediaUrl, caption: text, access_token: accessToken }) }), "Instagram");
+    const isReel = payload.asset.outputType === "INSTAGRAM_REEL";
+    const container = await parseJsonResponse(await fetch(`https://graph.facebook.com/v20.0/${connection.externalAccountId}/media`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(isReel ? { media_type: "REELS", video_url: payload.mediaUrl, caption: text, share_to_feed: true, access_token: accessToken } : { image_url: payload.mediaUrl, caption: text, access_token: accessToken }) }), "Instagram");
+    if (isReel) {
+      let status = "IN_PROGRESS";
+      for (let attempt = 0; attempt < 15 && status === "IN_PROGRESS"; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        const processing = await parseJsonResponse(await fetch(`https://graph.facebook.com/v20.0/${container.id}?fields=status_code,status&access_token=${encodeURIComponent(accessToken)}`), "Instagram Reel");
+        status = String(processing.status_code || processing.status || "").toUpperCase();
+        if (["ERROR", "EXPIRED", "FINISHED_WITH_ERRORS"].includes(status)) throw new Error(`Instagram Reel processing failed: ${status}.`);
+      }
+      if (status !== "FINISHED") throw new Error("Instagram Reel video processing did not finish before the publishing window closed.");
+    }
     const published = await parseJsonResponse(await fetch(`https://graph.facebook.com/v20.0/${connection.externalAccountId}/media_publish`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ creation_id: container.id, access_token: accessToken }) }), "Instagram");
     return { externalId: published.id || `instagram-${Date.now()}` };
   }

@@ -19,6 +19,7 @@ export default function GenerateAssetsButton({ caseId }: { caseId: string }) {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [isError, setIsError] = useState(false);
+  const [progress, setProgress] = useState<{ completed: number; total: number } | null>(null);
 
   const openPicker = async () => {
     setIsPickerOpen(true);
@@ -56,26 +57,61 @@ export default function GenerateAssetsButton({ caseId }: { caseId: string }) {
     setLoading(true);
     setMessage(null);
     setIsError(false);
+    setProgress({ completed: 0, total: selected.size });
     try {
       const response = await fetch(`/api/cases/${caseId}/assets/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ channelKeys: Array.from(selected) }),
       });
-      const data = await response.json();
-      if (!response.ok) {
+      if (!response.ok || !response.body) {
+        const data = await response.json().catch(() => ({}));
         setIsError(true);
         setMessage(data.error || "Unable to generate publishing assets.");
         return;
       }
-      setMessage(`${data.assetsGenerated} publishing asset${data.assetsGenerated === 1 ? "" : "s"} generated.`);
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let finalEvent: any = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          const event = JSON.parse(line);
+          if (event.type === "progress") {
+            setProgress({ completed: event.completed, total: event.total });
+          } else if (event.type === "done" || event.type === "error") {
+            finalEvent = event;
+          }
+        }
+      }
+
+      if (!finalEvent) {
+        setIsError(true);
+        setMessage("Unable to generate publishing assets.");
+        return;
+      }
+      if (finalEvent.type === "error") {
+        setIsError(true);
+        setMessage(finalEvent.error || "Unable to generate publishing assets.");
+        return;
+      }
+      setMessage(`${finalEvent.assetsGenerated} publishing asset${finalEvent.assetsGenerated === 1 ? "" : "s"} generated.`);
       setIsPickerOpen(false);
-      window.dispatchEvent(new CustomEvent("publishing-assets-generated", { detail: data.assets || [] }));
+      window.dispatchEvent(new CustomEvent("publishing-assets-generated", { detail: finalEvent.assets || [] }));
     } catch (error: any) {
       setIsError(true);
       setMessage(error.message || "Unable to connect to the publishing asset service.");
     } finally {
       setLoading(false);
+      setProgress(null);
     }
   };
 
@@ -154,6 +190,22 @@ export default function GenerateAssetsButton({ caseId }: { caseId: string }) {
                 </div>
               )}
             </div>
+            {loading && progress && (
+              <div className="border-t border-line px-5 py-3">
+                <div className="mb-1.5 flex items-center justify-between text-[11px] font-semibold text-ink">
+                  <span>Generating assets…</span>
+                  <span>
+                    {progress.completed}/{progress.total} · {progress.total > 0 ? Math.round((progress.completed / progress.total) * 100) : 0}%
+                  </span>
+                </div>
+                <div className="h-2 w-full overflow-hidden rounded-full bg-paper">
+                  <div
+                    className="h-full rounded-full bg-pine transition-[width] duration-300 ease-out"
+                    style={{ width: `${progress.total > 0 ? Math.round((progress.completed / progress.total) * 100) : 0}%` }}
+                  />
+                </div>
+              </div>
+            )}
             <div className="flex items-center justify-between border-t border-line px-5 py-4">
               <span className="text-[11px] text-muted">{selected.size} selected</span>
               <button

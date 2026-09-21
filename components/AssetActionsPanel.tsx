@@ -391,7 +391,7 @@ export default function AssetActionsPanel({
         </div>
       </section>
 
-      {asset.outputType === "VIDEO_SCRIPT" && status === "APPROVED" && (
+      {(asset.outputType === "VIDEO_SCRIPT" || asset.outputType === "INSTAGRAM_REEL") && status === "APPROVED" && (
         <section className="rounded border border-line bg-surface p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -399,7 +399,7 @@ export default function AssetActionsPanel({
                 <Video className="h-3.5 w-3.5 text-pine" /> Rendered video
               </h3>
               <p className="mt-1 text-[10px] text-muted">
-                Create an MP4 with AI narration and organization branding, or
+                Create a portrait MP4 with AI narration and organization branding, or
                 upload a doctor voice recording.
               </p>
             </div>

@@ -37,30 +37,49 @@ export async function POST(
   props: { params: Promise<{ id: string }> }
 ) {
   const startedAt = performance.now();
-  try {
-    const { id } = await props.params;
-    const body = await req.json().catch(() => ({}));
-    const channelKeys = Array.isArray(body.channelKeys) && body.channelKeys.length ? body.channelKeys.map(String) : undefined;
-    const kase = (await query<any>(`SELECT c.*, c.mccr_approved_at AS "mccrApprovedAt", row_to_json(o) AS organization FROM macula.cases c JOIN macula.organizations o ON o.id = c."organizationId" WHERE c.id = $1 LIMIT 1`, [id])).rows[0];
-    const caseLoadedAt = performance.now();
-    if (!kase) return NextResponse.json({ error: "Case not found." }, { status: 404 });
-    await requireOrganizationAccess(kase.organizationId);
-    const accessCheckedAt = performance.now();
-    if (kase.status !== "APPROVED" || !kase.mccrApprovedAt) return NextResponse.json({ error: "Approve the clinical record before generating publishing assets." }, { status: 409 });
-    const assets = await runAdaptationEngine(id, kase, { channelKeys });
-    const completedAt = performance.now();
-    return NextResponse.json({ success: true, assetsGenerated: assets.length, assets }, {
-      headers: {
-        "Cache-Control": "no-store",
-        "Server-Timing": [
-          `case;dur=${(caseLoadedAt - startedAt).toFixed(1)}`,
-          `access;dur=${(accessCheckedAt - caseLoadedAt).toFixed(1)}`,
-          `generation;dur=${(completedAt - accessCheckedAt).toFixed(1)}`,
-          `publishing-assets;dur=${(completedAt - startedAt).toFixed(1)}`,
-        ].join(", "),
-      },
-    });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message || "Failed to generate publishing assets." }, { status: 500 });
-  }
+  const { id } = await props.params;
+  const body = await req.json().catch(() => ({}));
+  const channelKeys = Array.isArray(body.channelKeys) && body.channelKeys.length ? body.channelKeys.map(String) : undefined;
+
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const send = (event: Record<string, any>) => controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
+      try {
+        const kase = (await query<any>(`SELECT c.*, c.mccr_approved_at AS "mccrApprovedAt", row_to_json(o) AS organization FROM macula.cases c JOIN macula.organizations o ON o.id = c."organizationId" WHERE c.id = $1 LIMIT 1`, [id])).rows[0];
+        if (!kase) {
+          send({ type: "error", error: "Case not found." });
+          return;
+        }
+        await requireOrganizationAccess(kase.organizationId);
+        if (kase.status !== "APPROVED" || !kase.mccrApprovedAt) {
+          send({ type: "error", error: "Approve the clinical record before generating publishing assets." });
+          return;
+        }
+        const assets = await runAdaptationEngine(id, kase, {
+          channelKeys,
+          onProgress: (completed, total, channelKey) => send({ type: "progress", completed, total, channelKey }),
+        });
+        const completedAt = performance.now();
+        send({
+          type: "done",
+          success: true,
+          assetsGenerated: assets.length,
+          assets,
+          durationMs: Number((completedAt - startedAt).toFixed(1)),
+        });
+      } catch (error: any) {
+        send({ type: "error", error: error.message || "Failed to generate publishing assets." });
+      } finally {
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "application/x-ndjson",
+      "Cache-Control": "no-store",
+    },
+  });
 }

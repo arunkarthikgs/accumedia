@@ -32,6 +32,47 @@ function label(value: string) {
   return value.replace(/([a-z])([A-Z])/g, "$1 $2").replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+// Common emoji used in publishing captions, mapped to a bracketed text equivalent
+// since the PDF's standard WinAnsi font cannot render pictographic glyphs.
+const EMOJI_TEXT_FALLBACK: Record<string, string> = {
+  "🌡️": "(thermometer)", "🌡": "(thermometer)", "🩺": "(stethoscope)", "💊": "(pill)", "💉": "(injection)",
+  "🏥": "(hospital)", "🚑": "(ambulance)", "❤️": "(heart)", "❤": "(heart)", "💙": "(heart)", "🧠": "(brain)",
+  "🦷": "(tooth)", "👁️": "(eye)", "👁": "(eye)", "🔬": "(microscope)", "🧬": "(dna)",
+  "✅": "(check)", "✔️": "(check)", "✔": "(check)", "❌": "(cross)", "⚠️": "(warning)", "⚠": "(warning)",
+  "📌": "(pin)", "📍": "(location)", "📷": "(camera)", "🎥": "(video)", "📢": "(announcement)", "📣": "(megaphone)",
+  "👍": "(thumbs up)", "👏": "(applause)", "🙏": "(thank you)", "😊": "(smile)", "🙂": "(smile)", "😉": "(wink)",
+  "🎉": "(celebration)", "⭐": "(star)", "⭐️": "(star)", "🔥": "(fire)", "💡": "(idea)", "🚀": "(rocket)",
+  "📈": "(chart up)", "📊": "(chart)", "➡️": "(arrow right)", "➡": "(arrow right)", "🗓️": "(calendar)", "🗓": "(calendar)",
+  "📅": "(calendar)", "⏰": "(alarm clock)", "💬": "(speech bubble)",
+};
+
+let cachedEncodableCheck: { font: PDFFont; cache: Map<string, boolean> } | null = null;
+
+function isEncodable(font: PDFFont, char: string) {
+  if (!cachedEncodableCheck || cachedEncodableCheck.font !== font) cachedEncodableCheck = { font, cache: new Map() };
+  const { cache } = cachedEncodableCheck;
+  const cached = cache.get(char);
+  if (cached !== undefined) return cached;
+  let result = true;
+  try {
+    font.widthOfTextAtSize(char, 10);
+  } catch {
+    result = false;
+  }
+  cache.set(char, result);
+  return result;
+}
+
+function sanitizeForFont(text: string, font: PDFFont): string {
+  return Array.from(text)
+    .map((char) => {
+      if (isEncodable(font, char)) return char;
+      return EMOJI_TEXT_FALLBACK[char] ?? "";
+    })
+    .join("")
+    .replace(/[ \t]{2,}/g, " ");
+}
+
 function stringifyValue(value: unknown): string {
   if (value === null || value === undefined || value === "") return "Not provided";
   if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return String(value);
@@ -72,9 +113,9 @@ function addPageHeader(page: PDFPage, title: string, subtitle: string, organizat
     page.drawRectangle({ x: PAGE_WIDTH - MARGIN - 44, y: PAGE_HEIGHT - MARGIN - 42, width: 44, height: 34, color: accent });
     page.drawText(initials || "CI", { x: PAGE_WIDTH - MARGIN - 36, y: PAGE_HEIGHT - MARGIN - 30, size: 12, font: boldFont, color: rgb(1, 1, 1) });
   }
-  page.drawText(organizationName.toUpperCase(), { x: MARGIN, y: PAGE_HEIGHT - MARGIN, size: 8, font: boldFont, color: accent });
-  page.drawText(title, { x: MARGIN, y: PAGE_HEIGHT - MARGIN - 29, size: firstPage ? 24 : 15, font: boldFont, color: INK });
-  page.drawText(subtitle, { x: MARGIN, y: PAGE_HEIGHT - MARGIN - (firstPage ? 50 : 46), size: 9, font, color: MUTED });
+  page.drawText(sanitizeForFont(organizationName.toUpperCase(), boldFont), { x: MARGIN, y: PAGE_HEIGHT - MARGIN, size: 8, font: boldFont, color: accent });
+  page.drawText(sanitizeForFont(title, boldFont), { x: MARGIN, y: PAGE_HEIGHT - MARGIN - 29, size: firstPage ? 24 : 15, font: boldFont, color: INK });
+  page.drawText(sanitizeForFont(subtitle, font), { x: MARGIN, y: PAGE_HEIGHT - MARGIN - (firstPage ? 50 : 46), size: 9, font, color: MUTED });
   page.drawLine({ start: { x: MARGIN, y: PAGE_HEIGHT - MARGIN - (firstPage ? 66 : 61) }, end: { x: PAGE_WIDTH - MARGIN, y: PAGE_HEIGHT - MARGIN - (firstPage ? 66 : 61) }, thickness: 1, color: BORDER });
 }
 
@@ -109,13 +150,13 @@ export async function createPublishingAssetsPdf(input: PublishingAssetsPdfInput)
   const addHeading = (heading: string) => {
     ensureSpace(42);
     cursorY -= 14;
-    page.drawText(heading.toUpperCase(), { x: MARGIN, y: cursorY, size: 8, font: boldFont, color: accent });
+    page.drawText(sanitizeForFont(heading.toUpperCase(), boldFont), { x: MARGIN, y: cursorY, size: 8, font: boldFont, color: accent });
     page.drawLine({ start: { x: MARGIN, y: cursorY - 8 }, end: { x: PAGE_WIDTH - MARGIN, y: cursorY - 8 }, thickness: 1.2, color: accent });
     cursorY -= 28;
   };
   const addParagraph = (text: string, options: { bold?: boolean; color?: ReturnType<typeof rgb> } = {}) => {
-    const content = text.trim() || "Not provided";
     const activeFont = options.bold ? boldFont : font;
+    const content = sanitizeForFont(text.trim(), activeFont) || "Not provided";
     const size = options.bold ? 9 : BODY_SIZE;
     const maxWidth = PAGE_WIDTH - MARGIN * 2 - (options.bold ? 0 : 4);
     const words = content.split(/\s+/);
@@ -140,9 +181,9 @@ export async function createPublishingAssetsPdf(input: PublishingAssetsPdfInput)
     ensureSpace(56);
     cursorY -= 14;
     page.drawRectangle({ x: MARGIN, y: cursorY - 26, width: PAGE_WIDTH - MARGIN * 2, height: 30, color: SOFT, borderColor: BORDER, borderWidth: 0.7 });
-    page.drawText(`${index}. ${asset.channelName || asset.channelKey}`, { x: MARGIN + 12, y: cursorY - 12, size: 11, font: boldFont, color: INK });
+    page.drawText(sanitizeForFont(`${index}. ${asset.channelName || asset.channelKey}`, boldFont), { x: MARGIN + 12, y: cursorY - 12, size: 11, font: boldFont, color: INK });
     const meta = [asset.outputType ? label(asset.outputType) : null, asset.variant, `v${asset.version}`, label(asset.status)].filter(Boolean).join("  ·  ");
-    page.drawText(meta, { x: MARGIN + 12, y: cursorY - 23, size: 7.5, font, color: MUTED });
+    page.drawText(sanitizeForFont(meta, font), { x: MARGIN + 12, y: cursorY - 23, size: 7.5, font, color: MUTED });
     cursorY -= 40;
   };
 
@@ -150,10 +191,10 @@ export async function createPublishingAssetsPdf(input: PublishingAssetsPdfInput)
   page.drawRectangle({ x: MARGIN, y: cursorY - 52, width: PAGE_WIDTH - MARGIN * 2, height: 64, color: SOFT, borderColor: BORDER, borderWidth: 0.7 });
   page.drawText("CASE DETAILS", { x: MARGIN + 16, y: cursorY - 8, size: 7.5, font: boldFont, color: accent });
   page.drawText("Organization", { x: MARGIN + 16, y: cursorY - 27, size: 7.5, font, color: MUTED });
-  page.drawText(input.organization.name, { x: MARGIN + 16, y: cursorY - 41, size: 9.5, font: boldFont, color: INK });
+  page.drawText(sanitizeForFont(input.organization.name, boldFont), { x: MARGIN + 16, y: cursorY - 41, size: 9.5, font: boldFont, color: INK });
   page.drawText("Attending physician / RMP", { x: MARGIN + 230, y: cursorY - 27, size: 7.5, font, color: MUTED });
-  page.drawText(input.physician.name, { x: MARGIN + 230, y: cursorY - 41, size: 9.5, font: boldFont, color: INK });
-  page.drawText(input.physician.specialty || "General Medicine", { x: MARGIN + 230, y: cursorY - 53, size: 7.5, font, color: MUTED });
+  page.drawText(sanitizeForFont(input.physician.name, boldFont), { x: MARGIN + 230, y: cursorY - 41, size: 9.5, font: boldFont, color: INK });
+  page.drawText(sanitizeForFont(input.physician.specialty || "General Medicine", font), { x: MARGIN + 230, y: cursorY - 53, size: 7.5, font, color: MUTED });
   cursorY -= 78;
 
   input.assets.forEach((asset, index) => {
@@ -167,7 +208,7 @@ export async function createPublishingAssetsPdf(input: PublishingAssetsPdfInput)
   const pages = document.getPages();
   pages.forEach((currentPage, index) => {
     currentPage.drawLine({ start: { x: MARGIN, y: 39 }, end: { x: PAGE_WIDTH - MARGIN, y: 39 }, thickness: 0.5, color: BORDER });
-    currentPage.drawText(`${input.organization.name}  |  Publishing asset descriptions`, { x: MARGIN, y: 24, size: 7.5, font, color: MUTED });
+    currentPage.drawText(sanitizeForFont(`${input.organization.name}  |  Publishing asset descriptions`, font), { x: MARGIN, y: 24, size: 7.5, font, color: MUTED });
     currentPage.drawText(`Page ${index + 1} of ${pages.length}`, { x: PAGE_WIDTH - MARGIN - 70, y: 24, size: 7.5, font, color: MUTED });
   });
   return document.save();

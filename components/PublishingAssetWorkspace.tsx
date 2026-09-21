@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { FileDown, Loader2 } from "lucide-react";
 import AssetActionsPanel from "@/components/AssetActionsPanel";
+import { createPublishingAssetsPdf } from "@/lib/publishing-assets-pdf";
 
 type Asset = {
   id: string;
@@ -36,8 +38,24 @@ const STATUS_DOT_CLASS: Record<string, string> = {
   PUBLISHED: "bg-teal-600",
 };
 
-export default function PublishingAssetWorkspace({ caseId, assets, caseApproved }: { caseId: string; assets: Asset[]; caseApproved: boolean }) {
+export default function PublishingAssetWorkspace({
+  caseId,
+  caseTitle,
+  organization,
+  physician,
+  assets,
+  caseApproved,
+}: {
+  caseId: string;
+  caseTitle: string;
+  organization: { name: string; logoUrl?: string | null; brandingHex?: string | null };
+  physician: { name: string; specialty?: string | null };
+  assets: Asset[];
+  caseApproved: boolean;
+}) {
   const [workspaceAssets, setWorkspaceAssets] = useState(assets);
+  const [isPrinting, setIsPrinting] = useState(false);
+  const [printError, setPrintError] = useState<string | null>(null);
   useEffect(() => setWorkspaceAssets(assets), [assets]);
   const videoAssets = workspaceAssets.filter((asset) => asset.outputType === "VIDEO_SCRIPT").sort((left, right) => runtimeSeconds(left) - runtimeSeconds(right));
   const otherAssets = workspaceAssets.filter((asset) => asset.outputType !== "VIDEO_SCRIPT");
@@ -73,6 +91,43 @@ export default function PublishingAssetWorkspace({ caseId, assets, caseApproved 
     setWorkspaceAssets((current) => current.map((asset) => asset.id === assetId ? { ...asset, status } : asset));
   };
 
+  const printAllAssets = async () => {
+    setPrintError(null);
+    const viewer = window.open("about:blank", "_blank");
+    if (!viewer) {
+      setPrintError("The PDF viewer was blocked. Allow pop-ups and try again.");
+      return;
+    }
+    viewer.document.title = "Preparing PDF viewer";
+    viewer.document.body.innerHTML = "<p style=\"font-family: sans-serif; padding: 2rem\">Preparing document…</p>";
+    setIsPrinting(true);
+    try {
+      const bytes = await createPublishingAssetsPdf({
+        title: caseTitle,
+        organization,
+        physician: { name: physician.name, specialty: physician.specialty || null },
+        assets: orderedAssets.map((asset) => ({
+          channelName: asset.channelName,
+          channelKey: asset.channelKey,
+          outputType: asset.outputType,
+          variant: asset.variant,
+          status: displayStatus(asset),
+          version: asset.version,
+          content: asset.content,
+        })),
+      });
+      const pdfBuffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+      const pdfUrl = URL.createObjectURL(new Blob([pdfBuffer], { type: "application/pdf" }));
+      viewer.location.href = pdfUrl;
+      window.setTimeout(() => URL.revokeObjectURL(pdfUrl), 60_000);
+    } catch (error: any) {
+      viewer.close();
+      setPrintError(error.message || "Unable to generate the publishing asset PDF.");
+    } finally {
+      setIsPrinting(false);
+    }
+  };
+
   const assetButton = (asset: Asset) => {
     const selected = asset.id === selectedAsset.id;
     const status = displayStatus(asset);
@@ -91,8 +146,15 @@ export default function PublishingAssetWorkspace({ caseId, assets, caseApproved 
     <section className="rounded-lg border border-line bg-surface p-5" aria-label="Generated asset summary">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div><h2 className="text-sm font-bold text-ink">Generated assets</h2><p className="mt-1 text-xs text-muted">{assets.length} publication assets · {statusSummary || "No status available"}</p></div>
-        <div className="flex flex-wrap gap-2 text-xs">{(Object.entries(assetsByStatus) as [string, number][]).map(([status, count]) => <button key={status} type="button" onClick={() => setSelectedAssetId(orderedAssets.find((asset) => displayStatus(asset) === status)?.id || selectedAsset.id)} className={status === "APPROVED" ? "rounded bg-sage-tint px-2.5 py-1 font-semibold text-sage hover:ring-1 hover:ring-sage/40" : status === "REVIEW" || status === "QUEUED" ? "rounded bg-ochre-tint px-2.5 py-1 font-semibold text-ochre hover:ring-1 hover:ring-ochre/40" : "rounded bg-paper px-2.5 py-1 font-semibold text-muted hover:ring-1 hover:ring-line"}>{count} {status.toLowerCase().replaceAll("_", " ")}</button>)}</div>
+        <div className="flex flex-wrap items-start gap-2 text-xs">
+          <button type="button" onClick={printAllAssets} disabled={isPrinting} className="flex items-center gap-1.5 rounded border border-line bg-paper px-2.5 py-1.5 font-semibold text-ink hover:border-pine hover:text-pine disabled:opacity-50">
+            {isPrinting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
+            {isPrinting ? "Preparing PDF…" : "Print all as PDF"}
+          </button>
+          {(Object.entries(assetsByStatus) as [string, number][]).map(([status, count]) => <button key={status} type="button" onClick={() => setSelectedAssetId(orderedAssets.find((asset) => displayStatus(asset) === status)?.id || selectedAsset.id)} className={status === "APPROVED" ? "rounded bg-sage-tint px-2.5 py-1 font-semibold text-sage hover:ring-1 hover:ring-sage/40" : status === "REVIEW" || status === "QUEUED" ? "rounded bg-ochre-tint px-2.5 py-1 font-semibold text-ochre hover:ring-1 hover:ring-ochre/40" : "rounded bg-paper px-2.5 py-1 font-semibold text-muted hover:ring-1 hover:ring-line"}>{count} {status.toLowerCase().replaceAll("_", " ")}</button>)}
+        </div>
       </div>
+      {printError && <p role="alert" className="mt-3 rounded border border-brick/30 bg-brick-tint px-3 py-2 text-xs font-medium text-brick">{printError}</p>}
       <div className="mt-4 flex flex-wrap gap-2 border-t border-line pt-4">
         {(Object.entries(assetsByType) as [string, number][]).map(([type, count]) => <button key={type} type="button" onClick={() => setSelectedAssetId(orderedAssets.find((asset) => (asset.outputType?.replaceAll("_", " ") || asset.channelName) === type)?.id || selectedAsset.id)} className="rounded border border-line bg-paper px-2.5 py-1 text-[11px] font-medium text-ink hover:border-pine hover:text-pine">{type} <span className="text-muted">({count})</span></button>)}
       </div>

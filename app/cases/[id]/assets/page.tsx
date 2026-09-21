@@ -28,7 +28,7 @@ export default async function CaseAssetsPage(props: {
     const { rows } = await query<any>(`
       SELECT c.id, c.title, c.status, c."organizationId", c.mccr_approved_at AS "mccrApprovedAt",
              json_build_object('name', u.name, 'specialty', u.specialty) AS physician,
-             json_build_object('name', o.name) AS organization,
+             json_build_object('name', o.name, 'logoUrl', o."logoUrl", 'brandingHex', o."brandingHex") AS organization,
              COALESCE((
                SELECT json_agg(json_build_object(
                  'id', ga.id,
@@ -124,7 +124,14 @@ export default async function CaseAssetsPage(props: {
           </div>
         </div>
 
-        <PublishingContentTabs caseId={caseData.id} assets={caseData.assets} mccrApproved={Boolean(caseData.mccrApprovedAt)} />
+        <PublishingContentTabs
+          caseId={caseData.id}
+          caseTitle={caseData.title}
+          organization={caseData.organization}
+          physician={caseData.physician}
+          assets={caseData.assets}
+          mccrApproved={Boolean(caseData.mccrApprovedAt)}
+        />
       </div>
     </div>
   );

@@ -877,12 +877,6 @@ export default function CaseReviewPage() {
                   </span>
                 </div>
               ))}
-              <Link
-                href={`/cases/${reviewCase.id}/assets`}
-                className="mt-3 inline-flex rounded bg-pine px-3 py-1.5 font-semibold text-white"
-              >
-                Review assets and images
-              </Link>
             </div>
           </section>
           <section className="rounded-lg border border-line bg-surface p-5">

@@ -20,6 +20,7 @@ interface AssetActionsPanelProps {
   caseId: string;
   caseApproved: boolean;
   onStatusChange?: (assetId: string, status: string) => void;
+  onVideoRendered?: (assetId: string, videoStatus: string, videoR2Key: boolean) => void;
   asset: {
     id: string;
     channelKey: string;
@@ -149,6 +150,7 @@ export default function AssetActionsPanel({
   caseApproved,
   asset,
   onStatusChange,
+  onVideoRendered,
 }: AssetActionsPanelProps) {
   const [content, setContent] = useState(asset.content);
   const [status, setStatus] = useState(asset.status);
@@ -276,6 +278,7 @@ export default function AssetActionsPanel({
         setVideoStatus(statusData.status);
         if (statusData.status === "READY") {
           setVideoUrl(`${statusData.videoUrl}?ts=${Date.now()}`);
+          onVideoRendered?.(asset.id, "READY", true);
           return;
         }
         if (String(statusData.status).startsWith("FAILED")) {

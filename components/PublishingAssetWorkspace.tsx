@@ -91,6 +91,10 @@ export default function PublishingAssetWorkspace({
     setWorkspaceAssets((current) => current.map((asset) => asset.id === assetId ? { ...asset, status } : asset));
   };
 
+  const updateAssetVideoStatus = (assetId: string, videoStatus: string, videoR2Key: boolean) => {
+    setWorkspaceAssets((current) => current.map((asset) => asset.id === assetId ? { ...asset, videoStatus, videoR2Key: videoR2Key ? asset.videoR2Key || "rendered" : asset.videoR2Key } : asset));
+  };
+
   const printAllAssets = async () => {
     setPrintError(null);
     const viewer = window.open("about:blank", "_blank");
@@ -168,7 +172,7 @@ export default function PublishingAssetWorkspace({
       </div>
     </nav>
     <div id={`asset-${selectedAsset.id}`}>
-      <AssetActionsPanel key={selectedAsset.id} caseId={caseId} caseApproved={caseApproved} asset={selectedAsset} onStatusChange={updateAssetStatus} />
+      <AssetActionsPanel key={selectedAsset.id} caseId={caseId} caseApproved={caseApproved} asset={selectedAsset} onStatusChange={updateAssetStatus} onVideoRendered={updateAssetVideoStatus} />
     </div>
     </section>
   </div>;

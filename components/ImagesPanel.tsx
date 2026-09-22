@@ -240,7 +240,7 @@ export default function ImagesPanel({ caseId, organizationId, mccrApproved }: { 
             : "I confirm this image does not identify a patient and appropriate consent exists for public use, where required."}
         </label>
         <button
-          disabled={!uploadFile || isUploading}
+          disabled={!uploadFile || !consentConfirmed || isUploading}
           onClick={upload}
           className="flex items-center gap-1 rounded border border-line bg-surface px-3 py-1.5 text-[11px] font-medium text-ink hover:border-pine disabled:opacity-40"
         >
@@ -289,7 +289,9 @@ export default function ImagesPanel({ caseId, organizationId, mccrApproved }: { 
                 <div className="flex items-center gap-1.5 pt-1">
                   <button
                     onClick={() => togglePublicUse(img)}
-                    className="flex-1 rounded border border-line px-1.5 py-1 text-[10px] font-medium text-ink hover:border-pine"
+                    disabled={!img.publicUseApproved && (!img.consentConfirmed || img.phiReviewStatus !== "CLEAR")}
+                    title={!img.publicUseApproved && img.phiReviewStatus !== "CLEAR" ? "Resolve PHI review before approving for public use." : undefined}
+                    className="flex-1 rounded border border-line px-1.5 py-1 text-[10px] font-medium text-ink hover:border-pine disabled:opacity-40 disabled:hover:border-line"
                   >
                     {img.publicUseApproved ? "Use publicly: Yes" : "Use publicly: No"}
                   </button>

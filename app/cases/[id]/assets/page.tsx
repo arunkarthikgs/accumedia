@@ -128,6 +128,7 @@ export default async function CaseAssetsPage(props: {
           caseId={caseData.id}
           caseTitle={caseData.title}
           organization={caseData.organization}
+          organizationId={caseData.organizationId}
           physician={caseData.physician}
           assets={caseData.assets}
           mccrApproved={Boolean(caseData.mccrApprovedAt)}

@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ImagePlus, Upload, ShieldCheck, ShieldAlert, RefreshCw, Trash2, Loader2 } from "lucide-react";
+import { ImagePlus, Upload, ShieldCheck, ShieldAlert, RefreshCw, Trash2, Loader2, Cpu } from "lucide-react";
+import PromptInspectorModal from "@/components/PromptInspectorModal";
 
 interface ImageAssetData {
   id: string;
@@ -35,7 +36,7 @@ const CHANNELS = [
  * with explicit consent capture, and a public-use toggle that can never be
  * turned on without consent confirmed. Nothing here auto-publishes.
  */
-export default function ImagesPanel({ caseId, mccrApproved }: { caseId: string; mccrApproved: boolean }) {
+export default function ImagesPanel({ caseId, organizationId, mccrApproved }: { caseId: string; organizationId: string; mccrApproved: boolean }) {
   const [images, setImages] = useState<ImageAssetData[]>([]);
   const [jobs, setJobs] = useState<ImageJobData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -47,6 +48,7 @@ export default function ImagesPanel({ caseId, mccrApproved }: { caseId: string; 
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [queueMessage, setQueueMessage] = useState<string | null>(null);
+  const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
 
   const load = async () => {
     setIsLoading(true);
@@ -164,7 +166,16 @@ export default function ImagesPanel({ caseId, mccrApproved }: { caseId: string; 
       <div className="flex items-center gap-2 border-b border-line pb-3">
         <ImagePlus className="h-4 w-4 text-pine" />
         <h3 className="font-serif text-sm font-semibold text-ink">Image assets</h3>
+        <button
+          type="button"
+          onClick={() => setIsRulesModalOpen(true)}
+          className="ml-auto flex items-center gap-1 rounded border border-line px-2 py-1 text-[10px] font-medium text-muted hover:border-pine hover:text-pine"
+        >
+          <Cpu className="h-3 w-3" /> View AI image rules
+        </button>
       </div>
+
+      <PromptInspectorModal isOpen={isRulesModalOpen} onClose={() => setIsRulesModalOpen(false)} orgId={organizationId} />
 
       {error && <div className="text-xs text-brick bg-brick-tint border border-brick/30 rounded p-2">{error}</div>}
       {queueMessage && <div className="text-xs text-pine bg-pine-tint border border-pine/30 rounded p-2">{queueMessage}</div>}

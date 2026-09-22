@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 import { DEFAULT_ASR_TRANSCRIPTION_PROMPT, getASRPromptProfile } from "@/lib/asr/prompts";
 import { MANDATORY_CLINICAL_SYNTHESIS_PROMPT } from "@/lib/prompts/clinical-synthesis";
 import { DEFAULT_CLINICAL_REFINER_PROMPT } from "@/lib/clinical-refiner";
+import { DEFAULT_IMAGE_GENERATION_PROMPT, DEFAULT_IMAGE_SAFETY_PROMPT } from "@/lib/image-prompts";
 import { getResolvedAiPrompts } from "@/lib/ai-prompts";
 import { requireAuthenticatedUser, requireOrganizationAccess } from "@/lib/tenant-auth";
 import { query } from "@/lib/worker-db";
@@ -31,11 +32,13 @@ export async function GET(req: Request) {
     const selectedModel = requestedModel || recording?.transcriptionAgent || process.env.DEFAULT_ASR_MODEL || "whisper-1";
     const asrPromptProfile = getASRPromptProfile(selectedModel);
     const resolvedPrompts = organization?.id
-      ? await getResolvedAiPrompts(organization.id, ["ASR_TRANSCRIPTION", "CLINICAL_REFINER", "MASTER_SYNTHESIS", "SEO_KEYWORDS"])
+      ? await getResolvedAiPrompts(organization.id, ["ASR_TRANSCRIPTION", "CLINICAL_REFINER", "MASTER_SYNTHESIS", "SEO_KEYWORDS", "IMAGE_GENERATION", "IMAGE_SAFETY"])
       : new Map();
     const clinicalRefinerPrompt = resolvedPrompts.get("CLINICAL_REFINER");
     const masterSynthesisPrompt = resolvedPrompts.get("MASTER_SYNTHESIS");
     const seoKeywordPrompt = resolvedPrompts.get("SEO_KEYWORDS");
+    const imageGenerationPrompt = resolvedPrompts.get("IMAGE_GENERATION");
+    const imageSafetyPrompt = resolvedPrompts.get("IMAGE_SAFETY");
     const prompts = {
       asrTranscriptionPrompt: asrPromptProfile,
       asrGovernedPrompt: {
@@ -67,6 +70,22 @@ export async function GET(req: Request) {
         promptTemplateId: seoKeywordPrompt?.id || null,
         promptVersion: seoKeywordPrompt?.version || null,
         promptSource: seoKeywordPrompt?.organizationId ? "organization" : seoKeywordPrompt ? "global" : "fallback",
+      },
+      imageGenerationPrompt: {
+        agent: "OpenAI gpt-image-1",
+        systemPrompt: imageGenerationPrompt?.content || DEFAULT_IMAGE_GENERATION_PROMPT,
+        promptTemplateId: imageGenerationPrompt?.id || null,
+        promptVersion: imageGenerationPrompt?.version || null,
+        promptSource: imageGenerationPrompt?.organizationId ? "organization" : imageGenerationPrompt ? "global" : "fallback",
+      },
+      imageSafetyPrompt: {
+        agent: "OpenAI GPT-4o (gpt-4o)",
+        name: "Clinical Image Safety",
+        description: "Screens generated or uploaded clinical imagery for privacy, safety, and public-use risks.",
+        systemPrompt: imageSafetyPrompt?.content || DEFAULT_IMAGE_SAFETY_PROMPT,
+        promptTemplateId: imageSafetyPrompt?.id || null,
+        promptVersion: imageSafetyPrompt?.version || null,
+        promptSource: imageSafetyPrompt?.organizationId ? "organization" : imageSafetyPrompt ? "global" : "fallback",
       },
       channelPrompts: organization?.channelDefinitions.map((c) => ({
         channelKey: c.channelKey,

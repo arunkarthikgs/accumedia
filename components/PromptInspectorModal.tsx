@@ -213,6 +213,62 @@ export default function PromptInspectorModal({
                       <p className="mt-2 text-[11px] font-medium text-slate-600">Used after Master Clinical Record approval to create the SEO keyword strategy.</p>
                     </div>
                   )}
+
+                  {/* Image Generation Prompt */}
+                  {data.prompts?.imageGenerationPrompt?.systemPrompt && (
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="mb-2 flex items-center justify-between">
+                        <div>
+                          <span className="font-semibold text-slate-800">
+                            Image Generation ({data.prompts.imageGenerationPrompt.agent})
+                          </span>
+                          <span className="ml-2 rounded-md bg-teal-100 px-1.5 py-0.5 text-[10px] font-mono text-teal-800">
+                            v{data.prompts.imageGenerationPrompt.promptVersion || "fallback"}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => copyToClipboard(data.prompts.imageGenerationPrompt.systemPrompt, "image_gen")}
+                          className="flex items-center gap-1 text-[11px] text-teal-700 hover:underline"
+                        >
+                          {copiedKey === "image_gen" ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
+                          {copiedKey === "image_gen" ? "Copied" : "Copy"}
+                        </button>
+                      </div>
+                      <pre className="rounded-lg bg-slate-900 p-3 font-mono text-[11px] text-slate-100 whitespace-pre-wrap leading-relaxed">
+                        {data.prompts.imageGenerationPrompt.systemPrompt}
+                      </pre>
+                      <p className="mt-2 text-[11px] font-medium text-slate-600">Used when a channel requests a generated educational image for a publishing channel.</p>
+                    </div>
+                  )}
+
+                  {/* Clinical Image Safety Prompt */}
+                  {data.prompts?.imageSafetyPrompt?.systemPrompt && (
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="mb-2 flex items-center justify-between">
+                        <div>
+                          <span className="font-semibold text-slate-800">
+                            {data.prompts.imageSafetyPrompt.name} ({data.prompts.imageSafetyPrompt.agent})
+                          </span>
+                          <span className="ml-2 rounded-md bg-teal-100 px-1.5 py-0.5 text-[10px] font-mono text-teal-800">
+                            v{data.prompts.imageSafetyPrompt.promptVersion || "fallback"}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => copyToClipboard(data.prompts.imageSafetyPrompt.systemPrompt, "image_safety")}
+                          className="flex items-center gap-1 text-[11px] text-teal-700 hover:underline"
+                        >
+                          {copiedKey === "image_safety" ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
+                          {copiedKey === "image_safety" ? "Copied" : "Copy"}
+                        </button>
+                      </div>
+                      <pre className="rounded-lg bg-slate-900 p-3 font-mono text-[11px] text-slate-100 whitespace-pre-wrap leading-relaxed">
+                        {data.prompts.imageSafetyPrompt.systemPrompt}
+                      </pre>
+                      <p className="mt-2 text-[11px] font-medium text-slate-600">{data.prompts.imageSafetyPrompt.description} Runs on every generated or doctor-uploaded image before it can be marked available for public use.</p>
+                    </div>
+                  )}
                 </div>
             </>
           )}

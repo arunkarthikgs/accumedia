@@ -4,17 +4,6 @@ import { FormEvent, useEffect, useState } from "react";
 import { ArrowRight, LockKeyhole, ShieldCheck } from "lucide-react";
 import BrandLogo from "@/components/BrandLogo";
 
-const DEMO_ACCOUNTS = [
-  { label: "Super Admin", value: "superadmin@macula.health", password: "MaculaAdmin@2026!", detail: "Full governance access" },
-  { label: "Organization Administrator", value: "admin@hospital.in", password: "MaculaAdmin@2026!", detail: "Manipal Hospital Retina Institute" },
-  { label: "Physician", value: "doctor@hospital.in", password: "MaculaDoctor@2026!", detail: "Clinical operations" },
-  { label: "Organization Administrator", value: "role-admin@bangalore-hospital.test", password: "MaculaTest@2026!", detail: "Bangalore Hospital role test" },
-  { label: "Attending RMP", value: "role-rmp@bangalore-hospital.test", password: "MaculaTest@2026!", detail: "Bangalore Hospital role test" },
-  { label: "Compliance Officer", value: "role-compliance@bangalore-hospital.test", password: "MaculaTest@2026!", detail: "Bangalore Hospital role test" },
-  { label: "Publishing Editor", value: "role-publishing@bangalore-hospital.test", password: "MaculaTest@2026!", detail: "Bangalore Hospital role test" },
-  { label: "Auditor", value: "role-auditor@bangalore-hospital.test", password: "MaculaTest@2026!", detail: "Bangalore Hospital role test" },
-];
-
 const LOGIN_VISUALS = [
   {
     eyebrow: "01 / Capture",
@@ -290,36 +279,6 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <div className="my-8 flex items-center gap-3 text-[11px] uppercase tracking-[0.14em] text-muted">
-            <span className="h-px flex-1 bg-line" />
-            Demo and role-test access
-            <span className="h-px flex-1 bg-line" />
-          </div>
-
-          <div className="space-y-2">
-            {DEMO_ACCOUNTS.map((account) => (
-              <button
-                key={account.value}
-                type="button"
-                onClick={() => {
-                  setUserId(account.value);
-                  setPassword(account.password);
-                }}
-                className="flex w-full items-center justify-between rounded-lg border border-line bg-surface px-3.5 py-3 text-left transition hover:border-pine/50 hover:bg-pine-tint"
-              >
-                <span>
-                  <span className="block text-xs font-semibold text-ink">{account.label}</span>
-                  <span className="mt-0.5 block text-[11px] text-muted">{account.detail}</span>
-                </span>
-                <span className="font-mono text-[11px] text-pine">{account.value}</span>
-              </button>
-            ))}
-          </div>
-
-          <p className="mt-8 flex items-start gap-2 text-[11px] leading-5 text-muted">
-            <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-pine" />
-            Use an approved workspace account. Shortcuts populate the test credentials for local evaluation.
-          </p>
         </div>
       </section>
     </main>

@@ -3,6 +3,8 @@ import { requireOrganizationAccess } from "@/lib/tenant-auth";
 import { query } from "@/lib/worker-db";
 import crypto from "node:crypto";
 
+export const dynamic = "force-dynamic";
+
 const IMAGE_CHANNELS = ["linkedin_cover", "linkedin_carousel", "facebook_post", "ig_reels", "x_image", "yt_thumbnail", "blog_featured"] as const;
 
 export async function GET(
@@ -18,7 +20,7 @@ export async function GET(
       query(`SELECT * FROM macula.image_assets WHERE "caseId" = $1 ORDER BY "createdAt" DESC`, [id]),
       query(`SELECT id, channel, status, error, "createdAt", "startedAt", "completedAt" FROM macula.image_generation_jobs WHERE "caseId" = $1 AND status IN ('QUEUED', 'PROCESSING', 'FAILED') ORDER BY "createdAt" DESC`, [id]),
     ]);
-    return NextResponse.json({ images, jobs });
+    return NextResponse.json({ images, jobs }, { headers: { "Cache-Control": "no-store" } });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

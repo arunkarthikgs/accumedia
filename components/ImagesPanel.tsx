@@ -65,7 +65,7 @@ export default function ImagesPanel({ caseId, organizationId, mccrApproved }: { 
   const load = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/cases/${caseId}/images`);
+      const res = await fetch(`/api/cases/${caseId}/images`, { cache: "no-store" });
       const data = await res.json();
       setImages(data.images || []);
       setJobs(data.jobs || []);
@@ -170,7 +170,13 @@ export default function ImagesPanel({ caseId, organizationId, mccrApproved }: { 
   };
 
   const remove = async (imageId: string) => {
-    await fetch(`/api/cases/${caseId}/images/${imageId}`, { method: "DELETE" });
+    setError(null);
+    const res = await fetch(`/api/cases/${caseId}/images/${imageId}`, { method: "DELETE" });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setError(data.error || "Unable to delete this image.");
+      return;
+    }
     setImages((prev) => prev.filter((i) => i.id !== imageId));
   };
 

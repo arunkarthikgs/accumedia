@@ -1,0 +1,1 @@
+ALTER TABLE "macula"."image_assets" ADD COLUMN "imageCategory" TEXT NOT NULL DEFAULT 'ILLUSTRATIVE_NON_PATIENT';

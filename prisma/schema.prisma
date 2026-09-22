@@ -803,10 +803,15 @@ model SafetyFlag {
 
 // RFP §14-15 — supporting/generated images per channel aspect ratio, with
 // the explicit public-use consent toggle. Never auto-published.
+// imageCategory captures the RFP's "Supporting Image Handling" category
+// (clinical photograph, radiology image, procedure photo, doctor/hospital
+// photo, or illustrative non-patient image) so PHI review and consent
+// requirements can be tailored to what was actually uploaded.
 model ImageAsset {
   id                 String   @id @default(uuid())
   channel            String   // "linkedin_cover" | "linkedin_carousel" | "facebook_post" | "ig_reels" | "x_image" | "yt_thumbnail" | "blog_featured"
   sourceType         String   @default("ai_generated") // "ai_generated" | "doctor_uploaded"
+  imageCategory      String   @default("ILLUSTRATIVE_NON_PATIENT") // "CLINICAL_PHOTOGRAPH" | "RADIOLOGY_IMAGE" | "PROCEDURE_PHOTOGRAPH" | "DOCTOR_HOSPITAL_PHOTOGRAPH" | "ILLUSTRATIVE_NON_PATIENT"
   r2Key              String?
   storageUrl         String?
   publicUseApproved  Boolean  @default(false)

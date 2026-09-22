@@ -8,6 +8,7 @@ interface ImageAssetData {
   id: string;
   channel: string;
   sourceType: string;
+  imageCategory: string;
   storageUrl: string | null;
   publicUseApproved: boolean;
   consentConfirmed: boolean;
@@ -31,6 +32,16 @@ const CHANNELS = [
   { id: "blog_featured", label: "Blog featured image", description: "Wide hero image for the SEO blog article." },
 ];
 
+// RFP "Supporting Image Handling" — the categories doctors can upload.
+const IMAGE_CATEGORIES = [
+  { id: "CLINICAL_PHOTOGRAPH", label: "Clinical photograph" },
+  { id: "RADIOLOGY_IMAGE", label: "Radiology / OCT / fundus / X-ray / scan" },
+  { id: "PROCEDURE_PHOTOGRAPH", label: "Procedure photograph" },
+  { id: "DOCTOR_HOSPITAL_PHOTOGRAPH", label: "Doctor / hospital photograph" },
+  { id: "ILLUSTRATIVE_NON_PATIENT", label: "Illustrative (non-patient) image" },
+];
+const PATIENT_IMAGE_CATEGORIES = new Set(["CLINICAL_PHOTOGRAPH", "RADIOLOGY_IMAGE", "PROCEDURE_PHOTOGRAPH"]);
+
 /**
  * RFP §14-15 — image generation per channel aspect ratio, doctor uploads
  * with explicit consent capture, and a public-use toggle that can never be
@@ -43,6 +54,7 @@ export default function ImagesPanel({ caseId, organizationId, mccrApproved }: { 
   const [genChannel, setGenChannel] = useState(CHANNELS[0].id);
   const [isGenerating, setIsGenerating] = useState(false);
   const [uploadChannel, setUploadChannel] = useState(CHANNELS[0].id);
+  const [uploadCategory, setUploadCategory] = useState(IMAGE_CATEGORIES[0].id);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [consentConfirmed, setConsentConfirmed] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -105,6 +117,7 @@ export default function ImagesPanel({ caseId, organizationId, mccrApproved }: { 
       const form = new FormData();
       form.append("image", uploadFile);
       form.append("channel", uploadChannel);
+      form.append("imageCategory", uploadCategory);
       form.append("consentConfirmed", String(consentConfirmed));
       form.append("publicUseApproved", "false");
       const res = await fetch(`/api/cases/${caseId}/images/upload`, { method: "POST", body: form });
@@ -210,8 +223,11 @@ export default function ImagesPanel({ caseId, organizationId, mccrApproved }: { 
       </div>
 
       <div className="rounded border border-line p-3 space-y-2 bg-paper">
-        <div className="text-[10px] text-muted uppercase tracking-wide">Upload a clinical / doctor photo</div>
+        <div className="text-[10px] text-muted uppercase tracking-wide">Upload a clinical / non-clinical image</div>
         <div className="flex flex-wrap items-center gap-2">
+          <select value={uploadCategory} onChange={(e) => setUploadCategory(e.target.value)} className="rounded border border-line px-2 py-1.5 text-xs bg-surface">
+            {IMAGE_CATEGORIES.map((category) => <option key={category.id} value={category.id}>{category.label}</option>)}
+          </select>
           <select value={uploadChannel} onChange={(e) => setUploadChannel(e.target.value)} className="rounded border border-line px-2 py-1.5 text-xs bg-surface">
             {CHANNELS.map((channel) => <option key={channel.id} value={channel.id}>{channel.label}</option>)}
           </select>
@@ -219,7 +235,9 @@ export default function ImagesPanel({ caseId, organizationId, mccrApproved }: { 
         </div>
         <label className="flex items-start gap-2 text-[11px] text-ink">
           <input type="checkbox" checked={consentConfirmed} onChange={(e) => setConsentConfirmed(e.target.checked)} className="mt-0.5 accent-pine" />
-          I confirm patient-identifying information has been removed and appropriate consent exists for this image, where required.
+          {PATIENT_IMAGE_CATEGORIES.has(uploadCategory)
+            ? "I confirm patient-identifying information has been removed and appropriate consent exists for this image, where required."
+            : "I confirm this image does not identify a patient and appropriate consent exists for public use, where required."}
         </label>
         <button
           disabled={!uploadFile || isUploading}
@@ -249,6 +267,7 @@ export default function ImagesPanel({ caseId, organizationId, mccrApproved }: { 
               <div className="p-2 space-y-1.5">
                 <div className="text-[10px] font-medium text-ink">{CHANNELS.find((channel) => channel.id === img.channel)?.label || img.channel}</div>
                 <div className="text-[10px] leading-4 text-muted">{CHANNELS.find((channel) => channel.id === img.channel)?.description}</div>
+                <div className="text-[10px] font-medium text-pine">{IMAGE_CATEGORIES.find((category) => category.id === img.imageCategory)?.label || img.imageCategory}</div>
                 <div className="flex items-center gap-1 text-[10px]">
                   <span className={img.phiReviewStatus === "CLEAR" ? "text-sage" : img.phiReviewStatus === "FLAGGED" ? "text-brick" : "text-ochre"}>
                     PHI review: {img.phiReviewStatus}

@@ -10,6 +10,15 @@ import { query } from "@/lib/worker-db";
 
 const MAX_IMAGE_BYTES = 12 * 1024 * 1024;
 const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+// RFP "Supporting Image Handling" — doctors classify every upload so PHI
+// review and consent expectations match what the image actually depicts.
+const IMAGE_CATEGORIES = new Set([
+  "CLINICAL_PHOTOGRAPH",
+  "RADIOLOGY_IMAGE",
+  "PROCEDURE_PHOTOGRAPH",
+  "DOCTOR_HOSPITAL_PHOTOGRAPH",
+  "ILLUSTRATIVE_NON_PATIENT",
+]);
 
 export async function POST(req: Request, props: { params: Promise<{ id: string }> }) {
   try {
@@ -21,12 +30,14 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
     const form = await req.formData();
     const file = form.get("image");
     const channel = String(form.get("channel") || "");
+    const imageCategory = String(form.get("imageCategory") || "");
     const consentConfirmed = form.get("consentConfirmed") === "true";
     const publicUseApproved = form.get("publicUseApproved") === "true";
     if (!(file instanceof File)) return NextResponse.json({ error: "image file is required." }, { status: 400 });
     if (!IMAGE_TYPES.has(file.type)) return NextResponse.json({ error: "Only JPEG, PNG, and WebP images are supported." }, { status: 400 });
     if (file.size > MAX_IMAGE_BYTES) return NextResponse.json({ error: "Image must be 12 MB or smaller." }, { status: 413 });
     if (!channel) return NextResponse.json({ error: "channel is required." }, { status: 400 });
+    if (!IMAGE_CATEGORIES.has(imageCategory)) return NextResponse.json({ error: "A valid image category is required." }, { status: 400 });
     if (!consentConfirmed) return NextResponse.json({ error: "Confirm that patient-identifying information has been removed and required consent exists." }, { status: 400 });
     if (publicUseApproved) return NextResponse.json({ error: "Uploaded images begin unapproved. Complete PHI review before public approval." }, { status: 400 });
 
@@ -38,9 +49,9 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
     const phiStatus = findings.length || screening.faceDetected ? "FLAGGED" : "CLEAR";
     const uploaded = await uploadImageToR2(buffer, file.name || "clinical-image", file.type, kase.organizationId);
     const imageId = crypto.randomUUID();
-    const { rows } = await query(`INSERT INTO macula.image_assets (id, channel, "sourceType", "r2Key", "storageUrl", "publicUseApproved", "consentConfirmed", "phiReviewStatus", "safetyFindings", "faceDetected", "screenedAt", "caseId") VALUES ($1,$2,'doctor_uploaded',$3,$4,FALSE,$5,$6,$7::jsonb,$8,NOW(),$9) RETURNING *`, [imageId, channel, uploaded.r2Key, uploaded.storageUrl, consentConfirmed, phiStatus, JSON.stringify({ findings, regions: findings.filter((finding) => finding.region).map((finding) => finding.region), screening: "external-image-processor" }), Boolean(screening.faceDetected), caseId]);
+    const { rows } = await query(`INSERT INTO macula.image_assets (id, channel, "sourceType", "imageCategory", "r2Key", "storageUrl", "publicUseApproved", "consentConfirmed", "phiReviewStatus", "safetyFindings", "faceDetected", "screenedAt", "caseId") VALUES ($1,$2,'doctor_uploaded',$3,$4,$5,FALSE,$6,$7,$8::jsonb,$9,NOW(),$10) RETURNING *`, [imageId, channel, imageCategory, uploaded.r2Key, uploaded.storageUrl, consentConfirmed, phiStatus, JSON.stringify({ findings, regions: findings.filter((finding) => finding.region).map((finding) => finding.region), screening: "external-image-processor" }), Boolean(screening.faceDetected), caseId]);
     if (findings.length || screening.faceDetected) await query(`INSERT INTO macula.safety_flags (id, "targetType", detail, "flagType", confidence, status, "caseId", "imageAssetId") VALUES ($1,'IMAGE_ASSET',$2,$3,'high','OPEN',$4,$5)`, [crypto.randomUUID(), `Uploaded image screening found ${findings.length} finding(s)${screening.faceDetected ? " and detected a face" : ""}.`, screening.faceDetected ? "face" : "phi", caseId, imageId]);
-    await recordAudit({ organizationId: kase.organizationId, caseId, targetType: "IMAGE_ASSET", targetId: imageId, action: "IMAGE_UPLOADED_AND_SCREENED", detail: phiStatus === "CLEAR" ? "Uploaded image screened with no detected findings." : "Uploaded image quarantined for safety review.", metadata: { channel, consentConfirmed, phiStatus } });
+    await recordAudit({ organizationId: kase.organizationId, caseId, targetType: "IMAGE_ASSET", targetId: imageId, action: "IMAGE_UPLOADED_AND_SCREENED", detail: phiStatus === "CLEAR" ? "Uploaded image screened with no detected findings." : "Uploaded image quarantined for safety review.", metadata: { channel, imageCategory, consentConfirmed, phiStatus } });
     return NextResponse.json({ success: true, image: rows[0] }, { status: 201 });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || "Image upload failed." }, { status: 500 });

@@ -76,6 +76,7 @@ export default function AdminOrganizationsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [photoGalleryOrg, setPhotoGalleryOrg] = useState<OrganizationItem | null>(null);
 
   const [formData, setFormData] = useState({
     id: "",
@@ -358,12 +359,13 @@ export default function AdminOrganizationsPage() {
                           >
                             <Edit2 className="h-3 w-3 text-slate-500" /> Edit
                           </Link>
-                          <Link
-                            href={`/settings/organization?orgId=${org.id}&tab=details`}
+                          <button
+                            type="button"
+                            onClick={() => setPhotoGalleryOrg(org)}
                             className="inline-flex items-center gap-1 rounded-lg border border-pine/30 bg-pine-tint px-2.5 py-1 text-[11px] font-semibold text-pine hover:bg-pine/10 transition shadow-2xs"
                           >
                             <Palette className="h-3 w-3" /> Hospital photos
-                          </Link>
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -522,6 +524,53 @@ export default function AdminOrganizationsPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Hospital photo gallery */}
+      {photoGalleryOrg && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
+          <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+              <div className="flex items-center gap-2">
+                <Palette className="h-5 w-5 text-teal-600" />
+                <h3 className="text-sm font-bold text-slate-900">
+                  Hospital photos — {photoGalleryOrg.name}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPhotoGalleryOrg(null)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6">
+              {photoGalleryOrg.hospitalPhotoUrls && photoGalleryOrg.hospitalPhotoUrls.length > 0 ? (
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+                  {photoGalleryOrg.hospitalPhotoUrls.map((url) => (
+                    <a key={url} href={url} target="_blank" rel="noreferrer" className="group block overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={url} alt={`${photoGalleryOrg.name} hospital photo`} className="aspect-video w-full object-cover transition group-hover:opacity-90" />
+                    </a>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-xs text-slate-500">
+                  No hospital photos have been added yet.
+                </div>
+              )}
+            </div>
+            <div className="flex items-center justify-end gap-2 border-t border-slate-100 px-6 py-4">
+              <Link
+                href={`/settings/organization?orgId=${photoGalleryOrg.id}&tab=brand`}
+                className="flex items-center gap-1.5 rounded-xl bg-teal-600 px-4 py-2 text-xs font-semibold text-white hover:bg-teal-700 transition shadow-xs"
+              >
+                <Edit2 className="h-3.5 w-3.5" /> Manage photos
+              </Link>
+            </div>
           </div>
         </div>
       )}

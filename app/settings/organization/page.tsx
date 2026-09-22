@@ -49,7 +49,7 @@ export default function OrgSettingsPage() {
     const selectedOrgId =
       new URLSearchParams(window.location.search).get("orgId") || "";
     const requestedTab = new URLSearchParams(window.location.search).get("tab");
-    if (requestedTab === "brand") setActiveTab("brand");
+    if (profileTabs.some((tab) => tab.key === requestedTab)) setActiveTab(requestedTab as typeof activeTab);
     fetch("/api/admin/organizations")
       .then((response) => response.json())
       .then((data) => {

@@ -61,10 +61,7 @@ export default async function RootLayout({
           <SidebarNav currentUser={currentUser} />
           <div className="flex-1 min-w-0 overflow-y-auto">
             <div className="flex min-h-14 items-center justify-between gap-4 border-b border-line bg-surface px-4 py-2.5 md:px-6">
-              <div className="min-w-0 text-xs text-muted">
-                <span className="font-semibold text-ink">Workspace</span>
-                {currentUser?.organizationName && <span className="ml-2 truncate">/ {currentUser.organizationName}</span>}
-              </div>
+              <div className="min-w-0" aria-hidden="true" />
               <UserAccountMenu initialUser={currentUser} />
             </div>
             {children}

@@ -173,7 +173,7 @@ export default function LoginPage() {
         </div>
 
         <div className="relative mt-auto flex items-center justify-between border-t border-white/20 pt-5 text-[11px] text-pine-tint">
-          <span>Secure clinical workspace</span>
+          <span>Secure workspace</span>
           <span>v1.0</span>
         </div>
 

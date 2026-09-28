@@ -15,7 +15,6 @@ import {
   Bot,
 } from "lucide-react";
 import BrandLogo from "@/components/BrandLogo";
-import UserAccountMenu from "@/components/UserAccountMenu";
 import type { SessionUser } from "@/lib/auth";
 
 const NAV_ITEMS: { href: string; label: string; icon: typeof Activity; permission?: string }[] = [
@@ -71,9 +70,6 @@ export default function SidebarNav({ currentUser }: { currentUser: SessionUser |
         })}
       </nav>
 
-      <div className="border-t border-line p-3">
-        <UserAccountMenu initialUser={currentUser} />
-      </div>
     </aside>
   );
 }

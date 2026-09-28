@@ -4,7 +4,7 @@ import { FileCheck } from "lucide-react";
 import SidebarNav from "@/components/SidebarNav";
 import BrandTheme from "@/components/BrandTheme";
 import UserAccountMenu from "@/components/UserAccountMenu";
-import { getCurrentUser, type SessionUser } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/auth";
 import "./globals.css";
 
 /**
@@ -60,6 +60,7 @@ export default async function RootLayout({
         <div className="flex flex-1 min-h-0 flex-col md:flex-row">
           <SidebarNav currentUser={currentUser} />
           <div className="flex-1 min-w-0 overflow-y-auto">
+            <UserAccountMenu initialUser={currentUser} />
             {children}
           </div>
         </div>

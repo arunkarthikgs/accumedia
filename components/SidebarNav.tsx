@@ -31,9 +31,7 @@ const NAV_ITEMS: { href: string; label: string; icon: typeof Activity; permissio
 ];
 
 /**
- * Colors translated from styles.css:
- * brand indigo #3547d1, active nav bg #3547d1 with white text (matching
- * .department-list button.active), inactive text #4a4e82, hover bg #eef0ff.
+ * The active state uses a light violet surface against the dark sidebar.
  */
 export default function SidebarNav({ currentUser }: { currentUser: SessionUser | null }) {
   const pathname = usePathname();
@@ -42,14 +40,14 @@ export default function SidebarNav({ currentUser }: { currentUser: SessionUser |
   if (pathname === "/login" || pathname === "/reset-password") return null;
 
   return (
-    <aside className="w-full shrink-0 border-b border-line bg-surface flex flex-col md:w-64 md:border-b-0 md:border-r">
-      <div className="p-4 border-b border-line md:p-6">
+    <aside className="flex w-full shrink-0 flex-row items-center border-b border-white/10 bg-pine-dark text-white md:w-[260px] md:flex-col md:items-stretch md:border-b-0 md:border-r">
+      <div className="shrink-0 border-r border-white/10 p-3 md:border-b md:border-r-0 md:p-6">
         <Link href="/" className="flex items-center gap-2">
           <BrandLogo compact />
         </Link>
       </div>
 
-      <nav className="grid flex-1 grid-cols-2 gap-1 px-3 py-2 md:block md:space-y-1">
+      <nav className="flex min-w-0 flex-1 gap-1 overflow-x-auto px-2 py-3 md:block md:flex-none md:space-y-1 md:overflow-visible md:px-3 md:py-2">
         {visibleItems.map((item) => {
           const active = pathname === item.href;
           const Icon = item.icon;
@@ -57,13 +55,13 @@ export default function SidebarNav({ currentUser }: { currentUser: SessionUser |
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium transition md:gap-2.5 md:px-3 md:py-2.5 md:text-sm ${
+              className={`flex w-max shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-2.5 py-2 text-xs font-medium transition md:w-full md:shrink md:whitespace-normal md:gap-2.5 md:px-3 md:py-2.5 md:text-sm ${
                 active
-                  ? "bg-pine text-white"
-                  : "text-muted hover:bg-pine-tint hover:text-ink"
+                  ? "bg-pine-tint text-pine-dark font-semibold"
+                  : "text-violet-100 hover:bg-white/10 hover:text-white"
               }`}
             >
-              <Icon className={`h-4 w-4 ${active ? "text-white" : "text-muted"}`} />
+              <Icon className={`h-4 w-4 ${active ? "text-pine-dark" : "text-violet-200"}`} />
               <span>{item.label}</span>
             </Link>
           );

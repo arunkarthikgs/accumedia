@@ -12,6 +12,26 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+:root {
+  --ink: #334155;
+  --ink-strong: #0f172a;
+  --paper: #f8fafc;
+  --surface: #ffffff;
+  --line: #e2e8f0;
+  --muted: #64748b;
+  --subtle: #94a3b8;
+  --pine: #7c3aed;
+  --pine-dark: #6d28d9;
+  --pine-tint: #f5f3ff;
+  --ochre: #9a6700;
+  --ochre-tint: #fff5dc;
+  --brick: #b23b32;
+  --brick-tint: #fff0ee;
+  --sage: #2f6f4e;
+  --sage-tint: #e8f0ea;
+  --font-serif: var(--font-sans);
+}
+
 /* Custom scrollbar styling for dense clinical data */
 ::-webkit-scrollbar {
   width: 6px;
@@ -23,12 +43,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #c7c5bb;
+  background: #cbd5e1;
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #9a988d;
+  background: #94a3b8;
 }
 
 /* Audio range input slider adjustments */
@@ -37,7 +57,7 @@ input[type="range"]::-webkit-slider-thumb {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: #0f766e;
+  background: #7c3aed;
   cursor: pointer;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
@@ -46,43 +66,66 @@ input[type="range"]::-moz-range-thumb {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: #0f766e;
+  background: #7c3aed;
   cursor: pointer;
   border: none;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-/* =====================================================================
-   Everything below this line is ADDED — scoped to the admin governance
-   pages (/admin/cases, /admin/safety-queue, /cases/[id]/assets) I built.
-   These are plain CSS custom properties, not Tailwind theme extensions,
-   so they don't touch or override anything above — the rest of your app
-   (using slate/teal via Tailwind's built-in palette) is untouched.
-   ===================================================================== */
-:root {
-  --ink: #1c2521;
-  --paper: #f7f6f2;
-  --surface: #ffffff;
-  --line: #ddd9cc;
-  --muted: #6b6a5e;
-
-  --pine: #1f5c4f;
-  --pine-dark: #163f37;
-  --pine-tint: #e7efec;
-
-  --ochre: #9c6b25;
-  --ochre-tint: #f5ecdd;
-
-  --brick: #8b3a3a;
-  --brick-tint: #f4e6e6;
-
-  --sage: #2f6f4e;
-  --sage-tint: #e8f0ea;
-}
-
 ::selection {
   color: var(--surface);
-  background: var(--pine);
+  background: var(--pine-dark);
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+select,
+textarea {
+  border-color: var(--line);
+  border-radius: 4px;
+  background-color: var(--surface);
+  color: var(--ink-strong);
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  border-color: var(--pine);
+  outline: 3px solid color-mix(in srgb, var(--pine) 24%, transparent);
+  outline-offset: 1px;
+}
+
+input[type="checkbox"],
+input[type="radio"],
+input[type="range"] {
+  accent-color: var(--pine);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: 13px;
+}
+
+th,
+td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+
+th {
+  background: var(--paper);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .card {

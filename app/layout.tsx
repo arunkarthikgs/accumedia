@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Poppins, Libre_Baskerville, Manrope } from "next/font/google";
+import { Plus_Jakarta_Sans } from "next/font/google";
 import { FileCheck } from "lucide-react";
 import SidebarNav from "@/components/SidebarNav";
 import BrandTheme from "@/components/BrandTheme";
@@ -7,30 +7,10 @@ import UserAccountMenu from "@/components/UserAccountMenu";
 import { getCurrentUser } from "@/lib/auth";
 import "./globals.css";
 
-/**
- * Fonts translated from the uploaded styles.css:
- * Poppins = body/UI (was Inter), Libre Baskerville = serif for big numbers
- * and headings, Manrope = secondary/data text. DM Mono from the source file
- * is skipped — it was only used for form/table-heavy contexts (readiness
- * tables, mono data cells) that don't have an equivalent anywhere in this
- * app yet; easy to add later if a page needs it.
- */
-const poppins = Poppins({
+const jakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
   variable: "--font-sans",
-});
-
-const baskerville = Libre_Baskerville({
-  subsets: ["latin"],
-  weight: ["400", "700"],
-  variable: "--font-serif",
-});
-
-const manrope = Manrope({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  variable: "--font-manrope",
 });
 
 export const metadata: Metadata = {
@@ -49,7 +29,7 @@ export default async function RootLayout({
   return (
     <html
       lang="en"
-      className={`h-full antialiased ${poppins.variable} ${baskerville.variable} ${manrope.variable}`}
+      className={`h-full antialiased ${jakarta.variable}`}
     >
       <body
         className="min-h-full font-sans text-ink flex flex-col"

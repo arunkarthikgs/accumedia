@@ -20,9 +20,9 @@ body {
   --line: #e2e8f0;
   --muted: #64748b;
   --subtle: #94a3b8;
-  --pine: #7c3aed;
-  --pine-dark: #6d28d9;
-  --pine-tint: #f5f3ff;
+  --pine: #4f46e5;
+  --pine-dark: #4338ca;
+  --pine-tint: #eef2ff;
   --ochre: #9a6700;
   --ochre-tint: #fff5dc;
   --brick: #b23b32;
@@ -57,7 +57,7 @@ input[type="range"]::-webkit-slider-thumb {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: #7c3aed;
+  background: var(--pine);
   cursor: pointer;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
@@ -66,7 +66,7 @@ input[type="range"]::-moz-range-thumb {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: #7c3aed;
+  background: var(--pine);
   cursor: pointer;
   border: none;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);

@@ -104,8 +104,9 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="min-h-screen bg-surface text-ink lg:grid lg:grid-cols-[minmax(420px,0.78fr)_minmax(0,1.22fr)]">
-      <section className="flex min-h-[760px] items-center px-6 py-10 sm:px-10 lg:min-h-screen lg:px-12 xl:px-16">
+    <main className="grid min-h-screen place-items-center bg-paper px-5 py-8 text-ink sm:px-8 lg:px-10">
+      <div className="mx-auto grid w-full max-w-[1180px] grid-cols-1 items-stretch gap-6 lg:grid-cols-[minmax(0,1.674fr)_minmax(360px,1fr)]">
+      <section className="order-1 flex min-h-[620px] items-center bg-surface px-6 py-10 sm:px-10 lg:order-2 lg:min-h-0 lg:px-10 xl:px-12">
         <div className="mx-auto w-full max-w-[440px]">
           <BrandLogo compact />
 
@@ -212,7 +213,7 @@ export default function LoginPage() {
         </div>
       </section>
 
-      <section aria-label="Clinical workflow examples" className="relative flex min-h-[440px] flex-col justify-end overflow-hidden bg-slate-950 px-7 py-8 text-white sm:px-10 sm:py-10 lg:min-h-screen lg:px-12 lg:py-12 xl:px-16">
+      <section aria-label="Clinical workflow examples" className="relative order-2 flex h-[360px] flex-col justify-end overflow-hidden rounded-[28px] bg-slate-950 px-7 py-8 text-white sm:px-10 sm:py-10 lg:order-1 lg:h-[660px] lg:px-10 lg:py-10 xl:px-12">
         <img
           key={activeVisual}
           src={LOGIN_VISUALS[activeVisual].image}
@@ -246,6 +247,7 @@ export default function LoginPage() {
           ))}
         </div>
       </section>
+      </div>
 
       <style jsx global>{`
         @keyframes login-fade-in {

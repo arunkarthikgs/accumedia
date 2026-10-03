@@ -218,7 +218,7 @@ export default function LoginPage() {
           key={activeVisual}
           src={LOGIN_VISUALS[activeVisual].image}
           alt={LOGIN_VISUALS[activeVisual].title}
-          className="login-visual-fade absolute inset-0 h-full w-full object-cover object-center"
+          className="login-visual-fade absolute left-[11%] top-[5%] h-[43%] w-[78%] rounded-lg border border-white/15 bg-slate-950/70 p-2 object-contain object-center lg:left-[8%] lg:top-[6%] lg:h-[64%] lg:w-[84%] lg:rounded-xl lg:p-3"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950/95 via-slate-950/25 to-slate-950/10" />
         <div className="relative max-w-2xl pb-12">

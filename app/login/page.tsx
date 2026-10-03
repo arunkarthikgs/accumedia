@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { ArrowRight, LockKeyhole, ShieldCheck } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, LockKeyhole } from "lucide-react";
 import BrandLogo from "@/components/BrandLogo";
 
 const LOGIN_VISUALS = [
@@ -28,6 +28,7 @@ const LOGIN_VISUALS = [
 export default function LoginPage() {
   const [userId, setUserId] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [forgotPassword, setForgotPassword] = useState(false);
   const [resetEmail, setResetEmail] = useState("");
@@ -103,112 +104,21 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="min-h-screen bg-paper text-ink lg:grid lg:grid-cols-[1.08fr_0.92fr]">
-      <section className="relative hidden overflow-hidden bg-pine-dark p-12 text-white lg:flex lg:flex-col lg:justify-start">
-        <div className="absolute inset-0 opacity-20 [background-image:linear-gradient(rgba(255,255,255,.12)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.12)_1px,transparent_1px)] [background-size:48px_48px]" />
-        <div className="relative">
-          <BrandLogo invert />
+    <main className="min-h-screen bg-surface text-ink lg:grid lg:grid-cols-[minmax(420px,0.78fr)_minmax(0,1.22fr)]">
+      <section className="flex min-h-[760px] items-center px-6 py-10 sm:px-10 lg:min-h-screen lg:px-12 xl:px-16">
+        <div className="mx-auto w-full max-w-[440px]">
+          <BrandLogo compact />
 
-          {error && <div className="mb-4 rounded-lg border border-brick/30 bg-brick-tint p-3 text-xs text-brick">{error}</div>}
-        </div>
-
-        <div className="relative mt-12 max-w-xl py-6">
-          <p className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-pine-tint">
-            <span className="h-px w-8 bg-pine-tint" />
-            A governed clinical workflow
-          </p>
-          <h1 className="max-w-2xl text-4xl font-bold leading-tight" style={{ fontFamily: "var(--font-serif)" }}>
-            From narrative to reviewable record.
-          </h1>
-          <p className="mt-3 max-w-lg text-sm leading-6 text-pine-tint">
-            A secure workspace for turning clinician input into structured records that remain under human and compliance review.
-          </p>
-
-          <div className="relative mt-5 max-w-2xl overflow-hidden rounded-2xl border border-white/15 bg-slate-950/60 p-3 shadow-2xl backdrop-blur-xl">
-            <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-emerald-400/10 blur-3xl" />
-            <div className="flex items-center justify-between border-b border-white/10 pb-4">
-              <div className="flex items-center gap-2 text-xs font-semibold text-slate-200">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-400/15 text-emerald-300">
-                  <ShieldCheck className="h-4 w-4" />
-                </span>
-                Secure clinical workflow
-              </div>
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/25 bg-emerald-400/10 px-2.5 py-1 text-[10px] font-semibold text-emerald-300">
-                <span className="relative flex h-1.5 w-1.5">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-300 opacity-60" />
-                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-300" />
-                </span>
-                Human review required
-              </span>
-            </div>
-
-            <div className="relative mt-3 overflow-hidden rounded-xl border border-white/10 bg-slate-900/80">
-              <div key={activeVisual} className="login-visual-fade">
-                <img
-                  src={LOGIN_VISUALS[activeVisual].image}
-                  alt={LOGIN_VISUALS[activeVisual].title}
-                  className="block aspect-video w-full object-cover"
-                />
-                <div className="border-t border-white/10 px-3 py-2">
-                  <p className="text-[10px] font-mono uppercase tracking-[0.14em] text-emerald-300">
-                    {LOGIN_VISUALS[activeVisual].eyebrow}
-                  </p>
-                  <p className="mt-1 text-[10px] leading-4 text-slate-400">{LOGIN_VISUALS[activeVisual].detail}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-3 flex items-center justify-center gap-1.5" aria-label="Workflow preview slides">
-              {LOGIN_VISUALS.map((visual, index) => (
-                <button
-                  key={visual.eyebrow}
-                  type="button"
-                  aria-label={`Show ${visual.eyebrow}`}
-                  onClick={() => setActiveVisual(index)}
-                  className={`h-1.5 rounded-full transition-all ${activeVisual === index ? "w-7 bg-emerald-300" : "w-1.5 bg-slate-600 hover:bg-slate-400"}`}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="relative mt-auto flex items-center justify-between border-t border-white/20 pt-5 text-[11px] text-pine-tint">
-          <span>Secure workspace</span>
-          <span>v1.0</span>
-        </div>
-
-        <style jsx global>{`
-          @keyframes login-fade-in {
-            from { opacity: 0; transform: translateY(5px); }
-            to { opacity: 1; transform: translateY(0); }
-          }
-
-          .login-visual-fade {
-            animation: login-fade-in 700ms ease-out both;
-          }
-
-          @media (prefers-reduced-motion: reduce) {
-            .login-visual-fade { animation: none; }
-          }
-        `}</style>
-      </section>
-
-      <section className="flex min-h-screen items-center justify-center px-6 py-12 sm:px-10">
-        <div className="w-full max-w-md">
-          <div className="mb-10 lg:hidden">
-            <BrandLogo compact />
-          </div>
-
-          <div className="mb-8">
+          <div className="mb-8 mt-12">
             <div className="mb-4 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-pine">
               <LockKeyhole className="h-3.5 w-3.5" />
-              Secure workspace access
+              Secure clinical workspace
             </div>
-            <h2 className="text-3xl font-bold tracking-tight text-ink" style={{ fontFamily: "var(--font-serif)" }}>
-              Welcome back
-            </h2>
+            <h1 className="text-3xl font-bold tracking-tight text-ink" style={{ fontFamily: "var(--font-serif)" }}>
+              Sign in
+            </h1>
             <p className="mt-2 text-sm leading-6 text-muted">
-              Sign in to continue managing clinical cases and review queues.
+              Sign in to manage clinical cases and review queues.
             </p>
           </div>
 
@@ -218,22 +128,25 @@ export default function LoginPage() {
                 {error}
               </div>
             )}
-            <label className="block">
-              <span className="mb-2 block text-xs font-semibold text-ink">User ID or email</span>
+            <div>
+              <label htmlFor="login-user-id" className="mb-2 block text-xs font-semibold text-ink">User ID or email</label>
               <input
+                id="login-user-id"
+                name="userId"
                 value={userId}
                 onChange={(event) => setUserId(event.target.value)}
                 placeholder="you@hospital.org"
                 autoComplete="username"
                 required
-                className="w-full rounded-lg border border-line bg-surface px-3.5 py-3 text-sm text-ink outline-none transition placeholder:text-muted/70 focus:border-pine focus:ring-4 focus:ring-pine-tint"
+                className="w-full rounded border border-line bg-surface px-3.5 py-3 text-sm text-ink outline-none transition placeholder:text-muted/70 focus:border-pine focus:ring-4 focus:ring-pine-tint"
               />
-            </label>
-            <label className="block">
+            </div>
+            <div>
               <div className="mb-2 flex items-center justify-between">
-                <span className="text-xs font-semibold text-ink">Password</span>
+                <label htmlFor="login-password" className="text-xs font-semibold text-ink">Password</label>
                 <button
                   type="button"
+                  aria-expanded={forgotPassword}
                   onClick={() => {
                     setResetEmail(userId.includes("@") ? userId : "");
                     setForgotPassword((current) => !current);
@@ -242,21 +155,34 @@ export default function LoginPage() {
                   }}
                   className="text-xs font-semibold text-pine hover:text-pine-dark"
                 >
-                  Forgot password?
+                  Forgot credentials?
                 </button>
               </div>
-              <input
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                type="password"
-                placeholder="Enter your password"
-                autoComplete="current-password"
-                required
-                className="w-full rounded-lg border border-line bg-surface px-3.5 py-3 text-sm text-ink outline-none transition placeholder:text-muted/70 focus:border-pine focus:ring-4 focus:ring-pine-tint"
-              />
-            </label>
+              <div className="relative">
+                <input
+                  id="login-password"
+                  name="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Enter your password"
+                  autoComplete="current-password"
+                  required
+                  className="w-full rounded border border-line bg-surface px-3.5 py-3 pr-12 text-sm text-ink outline-none transition placeholder:text-muted/70 focus:border-pine focus:ring-4 focus:ring-pine-tint"
+                />
+                <button
+                  type="button"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-pressed={showPassword}
+                  onClick={() => setShowPassword((visible) => !visible)}
+                  className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-muted hover:text-ink"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
             {forgotPassword && (
-              <div className="rounded-lg border border-line bg-pine-tint/40 p-4">
+              <div className="rounded border border-line bg-pine-tint/40 p-4">
                 <p className="text-xs leading-5 text-muted">Enter your account email and we&apos;ll send a secure reset link.</p>
                 <input
                   value={resetEmail}
@@ -265,22 +191,76 @@ export default function LoginPage() {
                   placeholder="you@hospital.org"
                   autoComplete="email"
                   required
-                  className="mt-3 w-full rounded-lg border border-line bg-surface px-3.5 py-3 text-sm text-ink outline-none transition placeholder:text-muted/70 focus:border-pine focus:ring-4 focus:ring-pine-tint"
+                  aria-label="Account email for password reset"
+                  className="mt-3 w-full rounded border border-line bg-surface px-3.5 py-3 text-sm text-ink outline-none transition placeholder:text-muted/70 focus:border-pine focus:ring-4 focus:ring-pine-tint"
                 />
-                <button type="button" onClick={() => void requestPasswordReset()} disabled={isResetting} className="mt-3 w-full rounded-lg border border-pine px-4 py-3 text-sm font-semibold text-pine transition hover:bg-pine hover:text-white disabled:opacity-50">
+                <button type="button" onClick={() => void requestPasswordReset()} disabled={isResetting} className="mt-3 w-full rounded border border-pine px-4 py-3 text-sm font-semibold text-pine transition hover:bg-pine hover:text-white disabled:opacity-50">
                   {isResetting ? "Sending…" : "Send reset link"}
                 </button>
                 {resetMessage && <p role="status" className="mt-3 text-xs leading-5 text-pine">{resetMessage}</p>}
               </div>
             )}
-            <button type="submit" disabled={isSubmitting} className="flex w-full items-center justify-center gap-2 rounded-lg bg-pine px-4 py-3 text-sm font-semibold text-white transition hover:bg-pine-dark disabled:opacity-50">
-              {isSubmitting ? "Signing in…" : "Continue"}
+            <button type="submit" disabled={isSubmitting} className="flex w-full items-center justify-center gap-2 rounded bg-pine px-4 py-3 text-sm font-semibold text-white transition hover:bg-pine-dark disabled:opacity-50">
+              {isSubmitting ? "Signing in…" : "Sign in"}
               <ArrowRight className="h-4 w-4" />
             </button>
           </form>
 
+          <p className="mt-8 border-t border-line pt-5 text-xs leading-5 text-muted">
+            Clinical records are protected, and access and review actions are recorded in the audit trail.
+          </p>
         </div>
       </section>
+
+      <section aria-label="Clinical workflow examples" className="relative flex min-h-[440px] flex-col justify-end overflow-hidden bg-slate-950 px-7 py-8 text-white sm:px-10 sm:py-10 lg:min-h-screen lg:px-12 lg:py-12 xl:px-16">
+        <img
+          key={activeVisual}
+          src={LOGIN_VISUALS[activeVisual].image}
+          alt={LOGIN_VISUALS[activeVisual].title}
+          className="login-visual-fade absolute inset-0 h-full w-full object-cover object-center"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/95 via-slate-950/25 to-slate-950/10" />
+        <div className="relative max-w-2xl pb-12">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-white/75">
+            {LOGIN_VISUALS[activeVisual].eyebrow}
+          </p>
+          <h2 className="max-w-xl text-3xl font-semibold leading-tight sm:text-4xl" style={{ fontFamily: "var(--font-serif)" }}>
+            {LOGIN_VISUALS[activeVisual].title}
+          </h2>
+          <p className="mt-3 max-w-lg text-sm leading-6 text-white/80">
+            {LOGIN_VISUALS[activeVisual].detail}
+          </p>
+        </div>
+        <div className="absolute bottom-8 right-7 flex items-center gap-2 sm:right-10 lg:bottom-12 lg:right-12 xl:right-16" aria-label="Workflow slides">
+          {LOGIN_VISUALS.map((visual, index) => (
+            <button
+              key={visual.eyebrow}
+              type="button"
+              aria-label={`Show ${visual.eyebrow}`}
+              aria-current={activeVisual === index ? "true" : undefined}
+              onClick={() => setActiveVisual(index)}
+              className={`grid h-9 w-9 place-items-center border text-xs font-semibold transition ${activeVisual === index ? "border-white bg-white text-pine-dark" : "border-white/50 bg-slate-950/20 text-white hover:bg-white/15"}`}
+            >
+              {String(index + 1).padStart(2, "0")}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <style jsx global>{`
+        @keyframes login-fade-in {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+
+        .login-visual-fade {
+          animation: login-fade-in 700ms ease-out both;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .login-visual-fade { animation: none; }
+        }
+      `}</style>
     </main>
   );
 }

@@ -31,7 +31,7 @@ const NAV_ITEMS: { href: string; label: string; icon: typeof Activity; permissio
 ];
 
 /**
- * The active state uses a light indigo surface against the dark sidebar.
+ * The active state uses a light plum surface against the dark sidebar.
  */
 export default function SidebarNav({ currentUser }: { currentUser: SessionUser | null }) {
   const pathname = usePathname();
@@ -58,10 +58,10 @@ export default function SidebarNav({ currentUser }: { currentUser: SessionUser |
               className={`flex w-max shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-2.5 py-2 text-xs font-medium transition md:w-full md:shrink md:whitespace-normal md:gap-2.5 md:px-3 md:py-2.5 md:text-sm ${
                 active
                   ? "bg-pine-tint text-pine-dark font-semibold"
-                  : "text-indigo-100 hover:bg-white/10 hover:text-white"
+                  : "text-plum-100 hover:bg-white/10 hover:text-white"
               }`}
             >
-              <Icon className={`h-4 w-4 ${active ? "text-pine-dark" : "text-indigo-200"}`} />
+              <Icon className={`h-4 w-4 ${active ? "text-pine-dark" : "text-plum-200"}`} />
               <span>{item.label}</span>
             </Link>
           );

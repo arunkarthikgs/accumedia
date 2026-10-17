@@ -27,7 +27,7 @@ export default {
     if (url.pathname !== "/jobs" && url.pathname !== "/image-jobs" && url.pathname !== "/image-screen" && url.pathname !== "/email/send") return new Response("Not found", { status: 404 });
     const isImageRequest = url.pathname === "/image-jobs" || url.pathname === "/image-screen";
     const isEmailRequest = url.pathname === "/email/send";
-    const container = getContainer(isEmailRequest ? runtimeEnvironment.EMAIL_RENDERER : isImageRequest ? runtimeEnvironment.IMAGE_RENDERER : runtimeEnvironment.VIDEO_RENDERER, isEmailRequest ? "email-renderer-v3" : isImageRequest ? "image-renderer-v2" : "video-renderer-v12");
+    const container = getContainer(isEmailRequest ? runtimeEnvironment.EMAIL_RENDERER : isImageRequest ? runtimeEnvironment.IMAGE_RENDERER : runtimeEnvironment.VIDEO_RENDERER, isEmailRequest ? "email-renderer-v4" : isImageRequest ? "image-renderer-v2" : "video-renderer-v12");
     await container.startAndWaitForPorts({
       ports: [8080],
       startOptions: {

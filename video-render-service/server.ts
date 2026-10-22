@@ -2,6 +2,7 @@ import express from "express";
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { renderClinicalVideo } from "../lib/video-renderer.js";
 import { renderClinicalImage, screenUploadedClinicalImage } from "./image-renderer.js";
+import { decodeEmailAttachments } from "./email-attachments.js";
 import nodemailer from "nodemailer";
 
 const app = express();
@@ -128,8 +129,14 @@ app.listen(port, () => console.log(`Video render service listening on ${port}`))
 
 app.post("/email/send", async (req, res) => {
   if (!emailAuthorized(req)) return res.status(401).json({ error: "Unauthorized." });
-  const body = req.body as { to?: string | string[]; subject?: string; html?: string; text?: string; from?: string };
+  const body = req.body as { to?: string | string[]; subject?: string; html?: string; text?: string; from?: string; attachments?: unknown };
   if (!body.to || !body.subject || (!body.html && !body.text)) return res.status(400).json({ error: "to, subject, and html or text are required." });
+  let attachments;
+  try {
+    attachments = decodeEmailAttachments(body.attachments);
+  } catch {
+    return res.status(400).json({ error: "Invalid email attachments." });
+  }
   try {
     const transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST,
@@ -140,7 +147,7 @@ app.post("/email/send", async (req, res) => {
       greetingTimeout: 10000,
       socketTimeout: 20000,
     });
-    const info = await transporter.sendMail({ from: body.from || process.env.SMTP_FROM, to: body.to, subject: body.subject, html: body.html, text: body.text });
+    const info = await transporter.sendMail({ from: body.from || process.env.SMTP_FROM, to: body.to, subject: body.subject, html: body.html, text: body.text, attachments });
     return res.json({ sent: true, messageId: info.messageId });
   } catch (error) {
     console.error("SMTP delivery failed:", error);

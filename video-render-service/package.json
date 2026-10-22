@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc --outDir dist --module NodeNext --moduleResolution NodeNext --target ES2022 --esModuleInterop --skipLibCheck --types node video-render-service/server.ts video-render-service/image-renderer.ts lib/video-renderer.ts",
+    "test:email": "node --experimental-strip-types --test video-render-service/email-attachments.test.mjs",
     "start": "node dist/video-render-service/server.js"
   },
   "dependencies": {
